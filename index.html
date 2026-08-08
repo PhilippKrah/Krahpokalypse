@@ -163,15 +163,36 @@
     </ul>
 </div>
 
-<script>
-    // Lokaler Test-Speicher (Ersetzt später die JSON-Datei & Supabase)
-    let todos = [
-        { id: 1, task: "Milch kaufen", is_completed: false },
-        { id: 2, task: "Müll rausbringen", is_completed: true },
-        { id: 3, task: "Claude Code Projekt testen", is_completed: false }
-    ];
+<!-- ZUERST: Die Supabase-Bibliothek im HTML einbinden -->
+<script src="https://jsdelivr.net"></script>
 
-    // Funktion: To-Dos auf der Seite anzeigen
+<script>
+    // 1. Verbindung zur Cloud-Datenbank herstellen
+    const SUPABASE_URL = "https://jzfhuqgyvujgriuierye.supabase.co/rest/v1/";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6Zmh1cWd5dnVqZ3JpdWllcnllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODgzNDgsImV4cCI6MjEwMTc2NDM0OH0.eRH8-E16T8qewLPipHEMmPKKTzKRGK-p0CUU8X6NdtE";
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Globaler Speicher für die geladenen To-Dos
+    let todos = [];
+
+    // 2. FUNKTION: Daten LIVE aus Supabase laden
+    async function loadTodos() {
+        // Wir holen alle Spalten aus der Tabelle 'todos' und sortieren sie nach Erstellungsdatum
+        const { data, error } = await supabase
+            .from('todos')
+            .select('*')
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            console.error("Fehler beim Laden:", error.message);
+            return;
+        }
+
+        todos = data; // Geladene Cloud-Daten im lokalen Speicher ablegen
+        renderTodos(); // Ansicht aktualisieren
+    }
+
+    // 3. FUNKTION: To-Dos auf der Seite anzeigen (HTML generieren)
     function renderTodos() {
         const listElement = document.getElementById('todoList');
         listElement.innerHTML = '';
@@ -181,7 +202,7 @@
             li.className = 'todo-item';
             
             li.innerHTML = `
-                <span class="todo-text ${todo.is_completed ? 'done' : ''}" onclick="toggleTodo(${todo.id})">
+                <span class="todo-text ${todo.is_completed ? 'done' : ''}" onclick="toggleTodo(${todo.id}, ${todo.is_completed})">
                     ${todo.is_completed ? '✅' : '⬜'} ${todo.task}
                 </span>
                 <button class="delete-btn" onclick="deleteTodo(${todo.id})">Löschen</button>
@@ -189,40 +210,59 @@
             listElement.appendChild(li);
         });
 
-        drawCanvasStats();
+        drawCanvasStats(); // Canvas-Diagramm aktualisieren
     }
 
-    // Funktion: Neues To-Do hinzufügen
-    function addTodo() {
+    // 4. FUNKTION: Neues To-Do in der Cloud speichern
+    async function addTodo() {
         const input = document.getElementById('todoInput');
         const text = input.value.trim();
         if (text === '') return;
 
-        todos.push({
-            id: Date.now(),
-            task: text,
-            is_completed: false
-        });
+        // Wir senden den neuen Task an Supabase. ID und Datum werden automatisch erstellt.
+        const { error } = await supabase
+            .from('todos')
+            .insert([{ task: text, is_completed: false }]);
 
-        input.value = '';
-        renderTodos();
+        if (error) {
+            alert("Fehler beim Hinzufügen!");
+            console.error(error);
+        } else {
+            input.value = '';
+            loadTodos(); // Liste neu aus der Cloud laden
+        }
     }
 
-    // Funktion: Status umschalten (Erledigt / Offen)
-    function toggleTodo(id) {
-        todos = todos.map(todo => 
-            todo.id === id ? { ...todo, is_completed: !todo.is_completed } : todo
-        );
-        renderTodos();
+    // 5. FUNKTION: Status in der Cloud umschalten (Erledigt / Offen)
+    async function toggleTodo(id, currentStatus) {
+        // Wir aktualisieren die Zeile mit der passenden ID in der Cloud
+        const { error } = await supabase
+            .from('todos')
+            .update({ is_completed: !currentStatus })
+            .eq('id', id);
+
+        if (error) {
+            console.error(error);
+        } else {
+            loadTodos(); // Liste aktualisieren
+        }
     }
 
-    // Funktion: To-Do löschen
-    function deleteTodo(id) {
-        todos = todos.filter(todo => todo.id !== id);
-        renderTodos();
+    // 6. FUNKTION: To-Do aus der Cloud löschen
+    async function deleteTodo(id) {
+        const { error } = await supabase
+            .from('todos')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error(error);
+        } else {
+            loadTodos(); // Liste aktualisieren
+        }
     }
 
-    // Funktion: Canvas mit Daten füttern
+    // 7. FUNKTION: Canvas mit Live-Daten füttern
     function drawCanvasStats() {
         const canvas = document.getElementById('statusCanvas');
         const ctx = canvas.getContext('2d');
@@ -230,7 +270,6 @@
         const total = todos.length;
         const done = todos.filter(t => t.is_completed).length;
 
-        // Canvas leeren
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Hintergrund-Balken (Grau)
@@ -245,9 +284,10 @@
         }
     }
 
-    // Initiales Laden beim Start der Seite
-    renderTodos();
+    // Initialer Start: Beim ersten Laden der Seite die Cloud-Daten abrufen
+    loadTodos();
 </script>
+
 
 </body>
 </html>
