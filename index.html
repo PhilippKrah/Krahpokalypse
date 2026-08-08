@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Familien To-Do Liste</title>
+    <style>
+        :root {
+            --bg-color: #f7f9fc;
+            --card-color: #ffffff;
+            --primary-color: #4f46e5;
+            --text-color: #1f2937;
+            --border-color: #e5e7eb;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--card-color);
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 24px;
+            color: var(--primary-color);
+        }
+
+        p.subtitle {
+            margin: 4px 0 0 0;
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        /* Canvas Bereich */
+        .stats-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 12px;
+            background: #f3f4f6;
+            border-radius: 12px;
+        }
+
+        canvas {
+            background: transparent;
+            margin-top: 8px;
+        }
+
+        /* Eingabe-Bereich */
+        .input-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px; /* Verhindert automatisches Zoomen auf iPhones */
+            outline: none;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        /* To-Do Liste */
+        .todo-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .todo-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .todo-item:last-child {
+            border-bottom: none;
+        }
+
+        .todo-text {
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .todo-text.done {
+            text-decoration: line-through;
+            color: #9ca3af;
+        }
+
+        .delete-btn {
+            background: none;
+            color: #ef4444;
+            padding: 4px 8px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <header>
+        <h1>🏡 Unser Familien-Planer</h1>
+        <p class="subtitle">Lokale Test-Version</p>
+    </header>
+
+    <!-- Hier zeichnen wir später Statistiken mit Canvas -->
+    <div class="stats-box">
+        <span style="font-size: 14px; font-weight: 500;">Fortschritt-Visualisierung</span>
+        <canvas id="statusCanvas" width="200" height="20"></canvas>
+    </div>
+
+    <!-- Eingabeformular -->
+    <div class="input-group">
+        <input type="text" id="todoInput" placeholder="Neue Aufgabe für uns...">
+        <button onclick="addTodo()">Hinzufügen</button>
+    </div>
+
+    <!-- Die Liste selbst -->
+    <ul id="todoList" class="todo-list">
+        <!-- Test-Einträge (werden gleich per JS dynamisch generiert) -->
+    </ul>
+</div>
+
+<script>
+    // Lokaler Test-Speicher (Ersetzt später die JSON-Datei & Supabase)
+    let todos = [
+        { id: 1, task: "Milch kaufen", is_completed: false },
+        { id: 2, task: "Müll rausbringen", is_completed: true },
+        { id: 3, task: "Claude Code Projekt testen", is_completed: false }
+    ];
+
+    // Funktion: To-Dos auf der Seite anzeigen
+    function renderTodos() {
+        const listElement = document.getElementById('todoList');
+        listElement.innerHTML = '';
+
+        todos.forEach(todo => {
+            const li = document.createElement('li');
+            li.className = 'todo-item';
+            
+            li.innerHTML = `
+                <span class="todo-text ${todo.is_completed ? 'done' : ''}" onclick="toggleTodo(${todo.id})">
+                    ${todo.is_completed ? '✅' : '⬜'} ${todo.task}
+                </span>
+                <button class="delete-btn" onclick="deleteTodo(${todo.id})">Löschen</button>
+            `;
+            listElement.appendChild(li);
+        });
+
+        drawCanvasStats();
+    }
+
+    // Funktion: Neues To-Do hinzufügen
+    function addTodo() {
+        const input = document.getElementById('todoInput');
+        const text = input.value.trim();
+        if (text === '') return;
+
+        todos.push({
+            id: Date.now(),
+            task: text,
+            is_completed: false
+        });
+
+        input.value = '';
+        renderTodos();
+    }
+
+    // Funktion: Status umschalten (Erledigt / Offen)
+    function toggleTodo(id) {
+        todos = todos.map(todo => 
+            todo.id === id ? { ...todo, is_completed: !todo.is_completed } : todo
+        );
+        renderTodos();
+    }
+
+    // Funktion: To-Do löschen
+    function deleteTodo(id) {
+        todos = todos.filter(todo => todo.id !== id);
+        renderTodos();
+    }
+
+    // Funktion: Canvas mit Daten füttern
+    function drawCanvasStats() {
+        const canvas = document.getElementById('statusCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const total = todos.length;
+        const done = todos.filter(t => t.is_completed).length;
+
+        // Canvas leeren
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Hintergrund-Balken (Grau)
+        ctx.fillStyle = '#e5e7eb';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        if (total > 0) {
+            // Fortschritts-Balken (Grün)
+            const percentage = done / total;
+            ctx.fillStyle = '#10b981';
+            ctx.fillRect(0, 0, canvas.width * percentage, canvas.height);
+        }
+    }
+
+    // Initiales Laden beim Start der Seite
+    renderTodos();
+</script>
+
+</body>
+</html>
