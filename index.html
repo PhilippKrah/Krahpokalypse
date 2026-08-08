@@ -135,6 +135,61 @@
             padding: 4px 8px;
             font-size: 14px;
         }
+
+        /* Login-Bereich */
+        .hidden {
+            display: none;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .login-form input {
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px; /* Verhindert automatisches Zoomen auf iPhones */
+            outline: none;
+        }
+
+        .login-form input:focus {
+            border-color: var(--primary-color);
+        }
+
+        .error-msg {
+            margin: 0;
+            color: #ef4444;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .hint {
+            margin: 4px 0 0 0;
+            color: #6b7280;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        /* Zeile mit angemeldetem Namen und Abmelden-Knopf */
+        .user-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: #6b7280;
+        }
+
+        .logout-btn {
+            background: none;
+            color: var(--primary-color);
+            padding: 4px 8px;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
@@ -142,59 +197,94 @@
 <div class="app-container">
     <header>
         <h1>🏡 Unser Familien-Planer</h1>
-        <p class="subtitle">Lokale Test-Version</p>
+        <p class="subtitle">Version 0.1</p>
     </header>
 
-    <!-- Hier zeichnen wir später Statistiken mit Canvas -->
-    <div class="stats-box">
-        <span style="font-size: 14px; font-weight: 500;">Fortschritt-Visualisierung</span>
-        <canvas id="statusCanvas" width="200" height="20"></canvas>
+    <!-- Solange niemand angemeldet ist, ist nur dieser Bereich sichtbar -->
+    <div id="authView" class="hidden">
+        <form class="login-form" onsubmit="signIn(event)">
+            <input type="email" id="emailInput" placeholder="E-Mail" autocomplete="username" required>
+            <input type="password" id="passwordInput" placeholder="Passwort" autocomplete="current-password" required>
+            <button type="submit" id="loginButton">Anmelden</button>
+        </form>
+        <p id="authError" class="error-msg hidden"></p>
+        <p class="hint">Zugang bekommst du von Papa — Accounts werden in Supabase angelegt.</p>
     </div>
 
-    <!-- Eingabeformular -->
-    <div class="input-group">
-        <input type="text" id="todoInput" placeholder="Neue Aufgabe für uns...">
-        <button onclick="addTodo()">Hinzufügen</button>
-    </div>
+    <!-- Die eigentliche App: erst nach erfolgreichem Login sichtbar -->
+    <div id="appView" class="hidden">
+        <div class="user-bar">
+            <span id="userEmail"></span>
+            <button class="logout-btn" onclick="signOut()">Abmelden</button>
+        </div>
 
-    <!-- Die Liste selbst -->
-    <ul id="todoList" class="todo-list">
-        <!-- Test-Einträge (werden gleich per JS dynamisch generiert) -->
-    </ul>
+        <!-- Fortschritts-Visualisierung (Canvas) -->
+        <div class="stats-box">
+            <span style="font-size: 14px; font-weight: 500;">Fortschritt-Visualisierung</span>
+            <canvas id="statusCanvas" width="200" height="20"></canvas>
+        </div>
+
+        <!-- Eingabeformular -->
+        <div class="input-group">
+            <input type="text" id="todoInput" placeholder="Neue Aufgabe für uns...">
+            <button onclick="addTodo()">Hinzufügen</button>
+        </div>
+
+        <!-- Die Liste selbst -->
+        <ul id="todoList" class="todo-list">
+            <!-- Einträge werden per JS dynamisch generiert -->
+        </ul>
+    </div>
 </div>
 
-<!-- ZUERST: Die Supabase-Bibliothek im HTML einbinden -->
-<script src="https://jsdelivr.net"></script>
 
+<!-- Hier endet der HTML-Bereich deiner App -->
+
+<!-- 1. SCHRITT: Externe Supabase-Bibliothek laden (echte Bundle-URL, nicht nur die CDN-Startseite) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<!-- 2. SCHRITT: Dein Programm-Code -->
 <script>
-    // 1. Verbindung zur Cloud-Datenbank herstellen
-    const SUPABASE_URL = "https://jzfhuqgyvujgriuierye.supabase.co/rest/v1/";
+    // Zuerst definieren wir die Zugangsdaten.
+    // Wichtig: nur die Projekt-Basis-URL, den REST-Pfad /rest/v1/ hängt der Client selbst an.
+    const SUPABASE_URL = "https://jzfhuqgyvujgriuierye.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6Zmh1cWd5dnVqZ3JpdWllcnllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODgzNDgsImV4cCI6MjEwMTc2NDM0OH0.eRH8-E16T8qewLPipHEMmPKKTzKRGK-p0CUU8X6NdtE";
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Globaler Speicher für die geladenen To-Dos
+    
+    // Jetzt erst erstellen wir den Supabase-Client (Initialisierung).
+    // Der Client heißt 'db' — 'supabase' ist die geladene Bibliothek und darf nicht überschrieben werden.
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Globaler Speicher für die To-Dos
     let todos = [];
 
-    // 2. FUNKTION: Daten LIVE aus Supabase laden
-    async function loadTodos() {
-        // Wir holen alle Spalten aus der Tabelle 'todos' und sortieren sie nach Erstellungsdatum
-        const { data, error } = await supabase
-            .from('todos')
-            .select('*')
-            .order('created_at', { ascending: true });
-
-        if (error) {
-            console.error("Fehler beim Laden:", error.message);
-            return;
-        }
-
-        todos = data; // Geladene Cloud-Daten im lokalen Speicher ablegen
-        renderTodos(); // Ansicht aktualisieren
+    // Verhindert, dass Sonderzeichen in einer Aufgabe das generierte HTML zerlegen
+    function escapeHtml(text) {
+        return String(text).replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[c]);
     }
 
-    // 3. FUNKTION: To-Dos auf der Seite anzeigen (HTML generieren)
+    // Erst nachdem 'db' bereitsteht, definieren wir die Funktionen
+    async function loadTodos() {
+        try {
+            const { data, error } = await db
+                .from('todos')
+                .select('*')
+                .order('created_at', { ascending: true });
+
+            if (error) throw error;
+
+            todos = data || [];
+            renderTodos();
+        } catch (error) {
+            console.error("Fehler beim Laden:", error.message);
+        }
+    }
+
     function renderTodos() {
         const listElement = document.getElementById('todoList');
+        if (!listElement) return;
         listElement.innerHTML = '';
 
         todos.forEach(todo => {
@@ -203,68 +293,68 @@
             
             li.innerHTML = `
                 <span class="todo-text ${todo.is_completed ? 'done' : ''}" onclick="toggleTodo(${todo.id}, ${todo.is_completed})">
-                    ${todo.is_completed ? '✅' : '⬜'} ${todo.task}
+                    ${todo.is_completed ? '✅' : '⬜'} ${escapeHtml(todo.task)}
                 </span>
                 <button class="delete-btn" onclick="deleteTodo(${todo.id})">Löschen</button>
             `;
             listElement.appendChild(li);
         });
 
-        drawCanvasStats(); // Canvas-Diagramm aktualisieren
+        drawCanvasStats();
     }
 
-    // 4. FUNKTION: Neues To-Do in der Cloud speichern
     async function addTodo() {
         const input = document.getElementById('todoInput');
+        if (!input) return;
         const text = input.value.trim();
         if (text === '') return;
 
-        // Wir senden den neuen Task an Supabase. ID und Datum werden automatisch erstellt.
-        const { error } = await supabase
-            .from('todos')
-            .insert([{ task: text, is_completed: false }]);
+        try {
+            const { error } = await db
+                .from('todos')
+                .insert([{ task: text, is_completed: false }]);
 
-        if (error) {
-            alert("Fehler beim Hinzufügen!");
-            console.error(error);
-        } else {
+            if (error) throw error;
+
             input.value = '';
-            loadTodos(); // Liste neu aus der Cloud laden
+            await loadTodos();
+        } catch (error) {
+            alert("Fehler beim Hinzufügen: " + error.message);
+            console.error(error);
         }
     }
 
-    // 5. FUNKTION: Status in der Cloud umschalten (Erledigt / Offen)
     async function toggleTodo(id, currentStatus) {
-        // Wir aktualisieren die Zeile mit der passenden ID in der Cloud
-        const { error } = await supabase
-            .from('todos')
-            .update({ is_completed: !currentStatus })
-            .eq('id', id);
+        try {
+            const { error } = await db
+                .from('todos')
+                .update({ is_completed: !currentStatus })
+                .eq('id', id);
 
-        if (error) {
+            if (error) throw error;
+            await loadTodos();
+        } catch (error) {
             console.error(error);
-        } else {
-            loadTodos(); // Liste aktualisieren
         }
     }
 
-    // 6. FUNKTION: To-Do aus der Cloud löschen
     async function deleteTodo(id) {
-        const { error } = await supabase
-            .from('todos')
-            .delete()
-            .eq('id', id);
+        try {
+            const { error } = await db
+                .from('todos')
+                .delete()
+                .eq('id', id);
 
-        if (error) {
+            if (error) throw error;
+            await loadTodos();
+        } catch (error) {
             console.error(error);
-        } else {
-            loadTodos(); // Liste aktualisieren
         }
     }
 
-    // 7. FUNKTION: Canvas mit Live-Daten füttern
     function drawCanvasStats() {
         const canvas = document.getElementById('statusCanvas');
+        if (!canvas) return;
         const ctx = canvas.getContext('2d');
         
         const total = todos.length;
@@ -272,22 +362,76 @@
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Hintergrund-Balken (Grau)
         ctx.fillStyle = '#e5e7eb';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         if (total > 0) {
-            // Fortschritts-Balken (Grün)
             const percentage = done / total;
             ctx.fillStyle = '#10b981';
             ctx.fillRect(0, 0, canvas.width * percentage, canvas.height);
         }
     }
 
-    // Initialer Start: Beim ersten Laden der Seite die Cloud-Daten abrufen
-    loadTodos();
+    // --- Anmeldung / Zugriffsschutz ---
+
+    // Schaltet zwischen Login-Maske und App um. Ohne Session sehen Fremde nur das Login.
+    function showView(session) {
+        const authView = document.getElementById('authView');
+        const appView = document.getElementById('appView');
+
+        if (session) {
+            authView.classList.add('hidden');
+            appView.classList.remove('hidden');
+            document.getElementById('userEmail').textContent = 'Angemeldet als ' + session.user.email;
+        } else {
+            appView.classList.add('hidden');
+            authView.classList.remove('hidden');
+            todos = [];
+        }
+    }
+
+    function showAuthError(message) {
+        const box = document.getElementById('authError');
+        box.textContent = message;
+        box.classList.toggle('hidden', !message);
+    }
+
+    async function signIn(event) {
+        event.preventDefault(); // Formular soll die Seite nicht neu laden
+        const button = document.getElementById('loginButton');
+        const email = document.getElementById('emailInput').value.trim();
+        const password = document.getElementById('passwordInput').value;
+
+        showAuthError('');
+        button.disabled = true;
+        button.textContent = 'Anmelden …';
+
+        const { error } = await db.auth.signInWithPassword({ email, password });
+
+        button.disabled = false;
+        button.textContent = 'Anmelden';
+
+        if (error) {
+            showAuthError('Anmeldung fehlgeschlagen. E-Mail oder Passwort stimmt nicht.');
+            console.error(error);
+            return;
+        }
+
+        document.getElementById('passwordInput').value = '';
+        // Das Nachladen der Liste übernimmt onAuthStateChange
+    }
+
+    async function signOut() {
+        const { error } = await db.auth.signOut();
+        if (error) console.error(error);
+    }
+
+    // Einziger Einstiegspunkt der App: feuert beim Seitenaufruf (mit einer eventuell
+    // gespeicherten Sitzung) und danach bei jedem Login und Logout.
+    db.auth.onAuthStateChange((_event, session) => {
+        showView(session);
+        if (session) loadTodos();
+    });
 </script>
-
-
 </body>
 </html>
