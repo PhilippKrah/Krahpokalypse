@@ -3,7 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Familien To-Do Liste</title>
+    <title>Familien-Planer</title>
+
+    <!-- Damit die App vom Startbildschirm wie eine App startet (ohne Browserleiste) -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Familie">
+
     <style>
         :root {
             --bg-color: #f7f9fc;
@@ -11,6 +19,7 @@
             --primary-color: #4f46e5;
             --text-color: #1f2937;
             --border-color: #e5e7eb;
+            --muted-color: #6b7280;
         }
 
         body {
@@ -45,31 +54,15 @@
 
         p.subtitle {
             margin: 4px 0 0 0;
-            color: #6b7280;
+            color: var(--muted-color);
             font-size: 14px;
-        }
-
-        /* Canvas Bereich */
-        .stats-box {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-bottom: 20px;
-            padding: 12px;
-            background: #f3f4f6;
-            border-radius: 12px;
-        }
-
-        canvas {
-            background: transparent;
-            margin-top: 8px;
         }
 
         /* Eingabe-Bereich */
         .input-group {
             display: flex;
             gap: 8px;
-            margin-bottom: 20px;
+            margin-bottom: 8px;
         }
 
         input[type="text"] {
@@ -100,28 +93,146 @@
             opacity: 0.9;
         }
 
+        /* Umschalter "Ich / Wir" — bleibt stehen, kostet pro Aufgabe nichts */
+        .mode-switch {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 8px;
+            background: #f3f4f6;
+            padding: 4px;
+            border-radius: 10px;
+        }
+
+        .mode-switch button {
+            flex: 1;
+            background: transparent;
+            color: var(--muted-color);
+            padding: 8px;
+            font-size: 14px;
+            border-radius: 8px;
+        }
+
+        .mode-switch button.active {
+            background: var(--card-color);
+            color: var(--text-color);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Tagwahl unter dem Schnell-Eingabefeld */
+        .day-chips {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding-bottom: 12px;
+            margin-bottom: 4px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .day-chips button {
+            flex: 0 0 auto;
+            background: #f3f4f6;
+            color: var(--muted-color);
+            padding: 6px 12px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 999px;
+        }
+
+        .day-chips button.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        /* Abschnitte nach Tagen */
+        .section {
+            margin-top: 4px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 0 6px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .section-title {
+            flex: 1;
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            background: none;
+            border: none;
+            padding: 0;
+            color: var(--text-color);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .section-title:hover {
+            opacity: 1;
+        }
+
+        .section-title.empty {
+            color: var(--muted-color);
+            font-weight: 500;
+        }
+
+        .section-count {
+            font-size: 13px;
+            font-weight: 400;
+            color: var(--muted-color);
+        }
+
+        .chevron {
+            display: inline-block;
+            width: 14px;
+            font-size: 11px;
+            color: var(--muted-color);
+        }
+
+        .add-btn {
+            background: none;
+            color: var(--primary-color);
+            font-size: 22px;
+            line-height: 1;
+            padding: 2px 8px;
+        }
+
         /* To-Do Liste */
         .todo-list {
             list-style: none;
             padding: 0;
-            margin: 0;
+            margin: 0 0 4px 0;
         }
 
         .todo-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px;
-            border-bottom: 1px solid var(--border-color);
+            padding: 2px 0;
+            border-bottom: 1px solid #f3f4f6;
         }
 
-        .todo-item:last-child {
-            border-bottom: none;
+        .todo-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Grosse Trefferflaeche: Kaestchen hakt ab, Text oeffnet die Aktionen */
+        .check-btn {
+            background: none;
+            padding: 10px 4px 10px 0;
+            font-size: 18px;
+            line-height: 1;
         }
 
         .todo-text {
+            flex: 1;
+            padding: 10px 0;
             font-size: 16px;
             cursor: pointer;
+            word-break: break-word;
         }
 
         .todo-text.done {
@@ -129,10 +240,52 @@
             color: #9ca3af;
         }
 
-        .delete-btn {
-            background: none;
+        .share-mark {
+            font-size: 13px;
+            color: var(--muted-color);
+        }
+
+        /* Aktionsleiste: erscheint unter der Aufgabe, ein Tipp = verschoben */
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 4px 0 10px 26px;
+        }
+
+        .actions button {
+            background: #eef2ff;
+            color: var(--primary-color);
+            padding: 8px 10px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 8px;
+        }
+
+        .actions button.current {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .actions button.danger {
+            background: #fee2e2;
             color: #ef4444;
-            padding: 4px 8px;
+        }
+
+        .compose {
+            display: flex;
+            gap: 6px;
+            padding: 8px 0;
+        }
+
+        .compose input {
+            font-size: 16px;
+        }
+
+        .empty-hint {
+            margin: 0;
+            padding: 8px 0;
+            color: #9ca3af;
             font-size: 14px;
         }
 
@@ -151,7 +304,7 @@
             padding: 12px;
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            font-size: 16px; /* Verhindert automatisches Zoomen auf iPhones */
+            font-size: 16px;
             outline: none;
         }
 
@@ -168,7 +321,7 @@
 
         .hint {
             margin: 4px 0 0 0;
-            color: #6b7280;
+            color: var(--muted-color);
             font-size: 13px;
             text-align: center;
         }
@@ -181,7 +334,7 @@
             gap: 8px;
             margin-bottom: 16px;
             font-size: 13px;
-            color: #6b7280;
+            color: var(--muted-color);
         }
 
         .logout-btn {
@@ -197,7 +350,7 @@
 <div class="app-container">
     <header>
         <h1>🏡 Unser Familien-Planer</h1>
-        <p class="subtitle">Version 0.1</p>
+        <p class="subtitle">Version 0.3</p>
     </header>
 
     <!-- Solange niemand angemeldet ist, ist nur dieser Bereich sichtbar -->
@@ -218,22 +371,22 @@
             <button class="logout-btn" onclick="signOut()">Abmelden</button>
         </div>
 
-        <!-- Fortschritts-Visualisierung (Canvas) -->
-        <div class="stats-box">
-            <span style="font-size: 14px; font-weight: 500;">Fortschritt-Visualisierung</span>
-            <canvas id="statusCanvas" width="200" height="20"></canvas>
+        <!-- Schnelle Erfassung: Text tippen, optional gleich einen Tag antippen -->
+        <div class="mode-switch">
+            <button id="modeMine" onclick="setMode('privat')">🔒 Nur ich</button>
+            <button id="modeShared" onclick="setMode('geteilt')">👥 Wir beide</button>
         </div>
 
-        <!-- Eingabeformular -->
-        <div class="input-group">
-            <input type="text" id="todoInput" placeholder="Neue Aufgabe für uns...">
-            <button onclick="addTodo()">Hinzufügen</button>
-        </div>
+        <form class="input-group" onsubmit="quickAdd(event)">
+            <input type="text" id="todoInput" placeholder="Schnell notieren …" autocomplete="off">
+            <button type="submit">+</button>
+        </form>
 
-        <!-- Die Liste selbst -->
-        <ul id="todoList" class="todo-list">
-            <!-- Einträge werden per JS dynamisch generiert -->
-        </ul>
+        <!-- Optionale Tagwahl vor dem Abschicken. Nichts antippen heisst "Ohne Datum". -->
+        <div class="day-chips" id="quickDays"></div>
+
+        <!-- Die nach Tagen gruppierte Liste -->
+        <div id="sections"></div>
     </div>
 </div>
 
@@ -250,13 +403,22 @@
     const SUPABASE_URL = "https://jzfhuqgyvujgriuierye.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6Zmh1cWd5dnVqZ3JpdWllcnllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODgzNDgsImV4cCI6MjEwMTc2NDM0OH0.eRH8-E16T8qewLPipHEMmPKKTzKRGK-p0CUU8X6NdtE";
 
-    
     // Jetzt erst erstellen wir den Supabase-Client (Initialisierung).
     // Der Client heißt 'db' — 'supabase' ist die geladene Bibliothek und darf nicht überschrieben werden.
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Globaler Speicher für die To-Dos
-    let todos = [];
+    // --- Zustand ---
+
+    let todos = [];              // Alle sichtbaren Aufgaben (eigene + geteilte)
+    let currentUserId = null;    // Wer ist angemeldet — entscheidet ueber "meine" Aufgaben
+    let openActionsId = null;    // Bei welcher Aufgabe ist die Aktionsleiste offen?
+    let composeKey = null;       // In welchem Abschnitt ist die Eingabezeile offen?
+    let quickDate = null;        // Vorgewaehlter Tag fuer das Schnell-Eingabefeld
+    let inputMode = localStorage.getItem('inputMode') || 'privat';
+    let collapsed = new Set(JSON.parse(localStorage.getItem('collapsed') || '[]'));
+
+    const WOCHENTAG = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+    const WOCHENTAG_KURZ = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
     // Verhindert, dass Sonderzeichen in einer Aufgabe das generierte HTML zerlegen
     function escapeHtml(text) {
@@ -265,7 +427,48 @@
         })[c]);
     }
 
-    // Erst nachdem 'db' bereitsteht, definieren wir die Funktionen
+    // --- Datum ---
+    // Alles rechnet in Ortszeit. toISOString() waere hier falsch: das rechnet nach
+    // UTC um und macht abends aus "heute" schon "morgen".
+
+    function toIso(date) {
+        const monat = String(date.getMonth() + 1).padStart(2, '0');
+        const tag = String(date.getDate()).padStart(2, '0');
+        return `${date.getFullYear()}-${monat}-${tag}`;
+    }
+
+    function fromIso(iso) {
+        return new Date(iso + 'T00:00:00');
+    }
+
+    function heuteIso() {
+        return toIso(new Date());
+    }
+
+    // Datum in n Tagen ab heute
+    function isoInTagen(n) {
+        const d = new Date();
+        d.setDate(d.getDate() + n);
+        return toIso(d);
+    }
+
+    // Ueberschrift eines Tages: "Heute", "Morgen", sonst "Mittwoch, 12.8."
+    function tagesLabel(iso) {
+        if (iso === heuteIso()) return 'Heute';
+        if (iso === isoInTagen(1)) return 'Morgen';
+        const d = fromIso(iso);
+        return `${WOCHENTAG[d.getDay()]}, ${d.getDate()}.${d.getMonth() + 1}.`;
+    }
+
+    // Kurzform fuer die Buttons in der Aktionsleiste
+    function tagesLabelKurz(iso) {
+        if (iso === heuteIso()) return 'Heute';
+        if (iso === isoInTagen(1)) return 'Morgen';
+        return WOCHENTAG_KURZ[fromIso(iso).getDay()];
+    }
+
+    // --- Laden ---
+
     async function loadTodos() {
         try {
             const { data, error } = await db
@@ -277,99 +480,380 @@
 
             todos = data || [];
             renderTodos();
+            raeumeAuf();
         } catch (error) {
             console.error("Fehler beim Laden:", error.message);
         }
     }
 
-    function renderTodos() {
-        const listElement = document.getElementById('todoList');
-        if (!listElement) return;
-        listElement.innerHTML = '';
+    // Erledigtes, dessen Tag vorbei ist, wird endgueltig geloescht — sonst waechst
+    // die Liste ewig. Undatiertes Erledigtes bleibt bewusst stehen: da war nie ein
+    // Tag, der "rum" sein koennte.
+    async function raeumeAuf() {
+        const heute = heuteIso();
+        const alt = todos.filter(t => t.is_completed && t.due_date && t.due_date < heute && !t.deferred);
+        if (alt.length === 0) return;
+
+        const ids = alt.map(t => t.id);
+        todos = todos.filter(t => !ids.includes(t.id));
+        renderTodos();
+
+        const { error } = await db.from('todos').delete().in('id', ids);
+        if (error) {
+            console.error("Aufräumen fehlgeschlagen:", error.message);
+            loadTodos(); // Stand aus der Datenbank wiederherstellen
+        }
+    }
+
+    function findTodo(id) {
+        return todos.find(t => String(t.id) === String(id));
+    }
+
+    // --- Gruppierung ---
+    // Ordnet jede Aufgabe einem Abschnitt zu. Liegengebliebenes rutscht still
+    // nach "Heute" — das gespeicherte Datum bleibt dabei unangetastet.
+    function gruppiere() {
+        const heute = heuteIso();
+        const gruppen = {};
 
         todos.forEach(todo => {
-            const li = document.createElement('li');
-            li.className = 'todo-item';
-            
-            li.innerHTML = `
-                <span class="todo-text ${todo.is_completed ? 'done' : ''}" onclick="toggleTodo(${todo.id}, ${todo.is_completed})">
-                    ${todo.is_completed ? '✅' : '⬜'} ${escapeHtml(todo.task)}
-                </span>
-                <button class="delete-btn" onclick="deleteTodo(${todo.id})">Löschen</button>
-            `;
-            listElement.appendChild(li);
+            let key;
+            if (todo.deferred) {
+                key = 'spaeter';           // bewusst weggelegt, unabhaengig vom Datum
+            } else if (!todo.due_date) {
+                key = 'ohne';              // frischer Eingang
+            } else if (todo.due_date <= heute) {
+                key = heute;               // Liegengebliebenes rutscht still nach heute
+            } else if (todo.due_date <= isoInTagen(6)) {
+                key = todo.due_date;
+            } else {
+                key = 'spaeter';           // weiter als eine Woche weg
+            }
+
+            (gruppen[key] = gruppen[key] || []).push(todo);
         });
 
-        drawCanvasStats();
+        // Innerhalb eines Abschnitts: Offenes zuerst, Erledigtes sinkt nach unten
+        Object.values(gruppen).forEach(liste => {
+            liste.sort((a, b) => (a.is_completed === b.is_completed)
+                ? String(a.created_at).localeCompare(String(b.created_at))
+                : (a.is_completed ? 1 : -1));
+        });
+
+        return gruppen;
     }
 
-    async function addTodo() {
-        const input = document.getElementById('todoInput');
-        if (!input) return;
-        const text = input.value.trim();
-        if (text === '') return;
+    // --- Zeichnen ---
 
-        try {
-            const { error } = await db
-                .from('todos')
-                .insert([{ task: text, is_completed: false }]);
+    function renderTodos() {
+        const container = document.getElementById('sections');
+        if (!container) return;
 
-            if (error) throw error;
+        const gruppen = gruppiere();
 
-            input.value = '';
-            await loadTodos();
-        } catch (error) {
-            alert("Fehler beim Hinzufügen: " + error.message);
+        // Reihenfolge: der frische Eingang oben, weggelegtes ganz unten.
+        let html = abschnitt('ohne', 'Ohne Datum', gruppen['ohne'] || []);
+
+        // Die naechsten sieben Tage bekommen immer eine Ueberschrift, auch wenn
+        // sie leer sind: sonst gaebe es dort kein "+" zum Anlegen.
+        for (let i = 0; i < 7; i++) {
+            const iso = isoInTagen(i);
+            html += abschnitt(iso, tagesLabel(iso), gruppen[iso] || []);
+        }
+
+        html += abschnitt('spaeter', 'Später', gruppen['spaeter'] || []);
+
+        container.innerHTML = html;
+
+        // Nach dem Neuzeichnen den Cursor zurueck in die offene Eingabezeile
+        const eingabe = document.getElementById('composeInput');
+        if (eingabe) eingabe.focus();
+
+        zeichneTagwahl();
+    }
+
+    // Chips unter dem Schnell-Eingabefeld: optional vor dem Abschicken antippen.
+    function zeichneTagwahl() {
+        const box = document.getElementById('quickDays');
+        if (!box) return;
+
+        let html = `<button class="${quickDate === null ? 'active' : ''}" onclick="setQuickDate(null)">Ohne Datum</button>`;
+        for (let i = 0; i < 7; i++) {
+            const iso = isoInTagen(i);
+            html += `<button class="${quickDate === iso ? 'active' : ''}" onclick="setQuickDate('${iso}')">${tagesLabelKurz(iso)}</button>`;
+        }
+        box.innerHTML = html;
+    }
+
+    function setQuickDate(iso) {
+        quickDate = iso;
+        zeichneTagwahl();
+        document.getElementById('todoInput').focus(); // Tastatur bleibt offen
+    }
+
+    function abschnitt(key, label, liste) {
+        const zu = collapsed.has(key);
+        const offen = liste.filter(t => !t.is_completed).length;
+
+        let html = `
+            <div class="section">
+                <div class="section-header">
+                    <button class="section-title ${liste.length === 0 ? 'empty' : ''}" onclick="toggleSection('${key}')">
+                        <span class="chevron">${zu ? '▶' : '▼'}</span>
+                        <span>${escapeHtml(label)}</span>
+                        ${offen > 0 ? `<span class="section-count">${offen}</span>` : ''}
+                    </button>
+                    <button class="add-btn" onclick="openCompose('${key}')" title="Aufgabe hinzufügen">+</button>
+                </div>`;
+
+        if (!zu) {
+            if (composeKey === key) {
+                html += `
+                    <form class="compose" onsubmit="addFromCompose(event, '${key}')">
+                        <input type="text" id="composeInput" placeholder="Aufgabe …" autocomplete="off">
+                        <button type="submit">OK</button>
+                    </form>`;
+            }
+
+            if (liste.length > 0) {
+                html += '<ul class="todo-list">' + liste.map(zeile).join('') + '</ul>';
+            }
+        }
+
+        return html + '</div>';
+    }
+
+    function zeile(todo) {
+        const geteilt = todo.visibility === 'geteilt';
+        const fremd = todo.user_id && todo.user_id !== currentUserId;
+
+        let html = `
+            <li class="todo-item">
+                <div class="todo-row">
+                    <button class="check-btn" onclick="toggleTodo('${todo.id}')" title="Erledigt">
+                        ${todo.is_completed ? '✅' : '⬜'}
+                    </button>
+                    <span class="todo-text ${todo.is_completed ? 'done' : ''}" onclick="openActions('${todo.id}')">
+                        ${escapeHtml(todo.task)}
+                    </span>
+                    ${geteilt ? `<span class="share-mark" title="${fremd ? 'geteilt vom Partner' : 'geteilt'}">👥</span>` : ''}
+                </div>`;
+
+        if (String(openActionsId) === String(todo.id)) {
+            html += aktionsleiste(todo);
+        }
+
+        return html + '</li>';
+    }
+
+    // Ein Tipp auf einen dieser Knoepfe verschiebt die Aufgabe — kein Ausschneiden,
+    // kein Einfuegen, kein Kalender-Dialog.
+    function aktionsleiste(todo) {
+        let buttons = '';
+
+        for (let i = 0; i < 7; i++) {
+            const iso = isoInTagen(i);
+            const aktuell = (!todo.deferred && todo.due_date === iso) ? 'current' : '';
+            buttons += `<button class="${aktuell}" onclick="setDueDate('${todo.id}', '${iso}')">${tagesLabelKurz(iso)}</button>`;
+        }
+
+        const ohne = (!todo.deferred && !todo.due_date) ? 'current' : '';
+        buttons += `<button class="${ohne}" onclick="setDueDate('${todo.id}', null)">Ohne Datum</button>`;
+        buttons += `<button class="${todo.deferred ? 'current' : ''}" onclick="setDeferred('${todo.id}')">Später</button>`;
+        buttons += `<button onclick="toggleVisibility('${todo.id}')">${todo.visibility === 'geteilt' ? '🔒 Nur ich' : '👥 Teilen'}</button>`;
+        buttons += `<button class="danger" onclick="deleteTodo('${todo.id}')">Löschen</button>`;
+
+        return `<div class="actions">${buttons}</div>`;
+    }
+
+    // --- Bedienung ---
+
+    function toggleSection(key) {
+        if (collapsed.has(key)) {
+            collapsed.delete(key);
+        } else {
+            collapsed.add(key);
+            if (composeKey === key) composeKey = null;
+        }
+        localStorage.setItem('collapsed', JSON.stringify([...collapsed]));
+        renderTodos();
+    }
+
+    function openActions(id) {
+        openActionsId = String(openActionsId) === String(id) ? null : id;
+        renderTodos();
+    }
+
+    function openCompose(key) {
+        composeKey = composeKey === key ? null : key;
+        collapsed.delete(key); // Abschnitt aufklappen, sonst tippt man ins Leere
+        localStorage.setItem('collapsed', JSON.stringify([...collapsed]));
+        renderTodos();
+    }
+
+    function setMode(modus) {
+        inputMode = modus;
+        localStorage.setItem('inputMode', modus);
+        zeichneModus();
+    }
+
+    function zeichneModus() {
+        document.getElementById('modeMine').classList.toggle('active', inputMode === 'privat');
+        document.getElementById('modeShared').classList.toggle('active', inputMode === 'geteilt');
+    }
+
+    // --- Aendern ---
+    // Muster: erst lokal aendern und zeichnen (damit es sofort reagiert), dann
+    // speichern. Schlaegt das Speichern fehl, wird der alte Stand zurueckgeholt.
+
+    async function speichere(id, aenderung, vorher) {
+        const { error } = await db.from('todos').update(aenderung).eq('id', id);
+        if (error) {
+            Object.assign(findTodo(id) || {}, vorher);
+            renderTodos();
+            alert("Konnte nicht gespeichert werden: " + error.message);
             console.error(error);
         }
     }
 
-    async function toggleTodo(id, currentStatus) {
-        try {
-            const { error } = await db
-                .from('todos')
-                .update({ is_completed: !currentStatus })
-                .eq('id', id);
+    async function toggleTodo(id) {
+        const todo = findTodo(id);
+        if (!todo) return;
 
-            if (error) throw error;
-            await loadTodos();
-        } catch (error) {
-            console.error(error);
-        }
+        const vorher = { is_completed: todo.is_completed };
+        todo.is_completed = !todo.is_completed;
+        renderTodos();
+
+        await speichere(id, { is_completed: todo.is_completed }, vorher);
+    }
+
+    // Einen Tag waehlen holt die Aufgabe automatisch aus "Später" zurueck.
+    async function setDueDate(id, iso) {
+        const todo = findTodo(id);
+        if (!todo) return;
+
+        const vorher = { due_date: todo.due_date, deferred: todo.deferred };
+        todo.due_date = iso;
+        todo.deferred = false;
+        openActionsId = null; // Aktion erledigt, Leiste wieder zu
+        renderTodos();
+
+        await speichere(id, { due_date: iso, deferred: false }, vorher);
+    }
+
+    // "Später" heisst: weggelegt, ohne Termin.
+    async function setDeferred(id) {
+        const todo = findTodo(id);
+        if (!todo) return;
+
+        const vorher = { due_date: todo.due_date, deferred: todo.deferred };
+        todo.due_date = null;
+        todo.deferred = true;
+        openActionsId = null;
+        renderTodos();
+
+        await speichere(id, { due_date: null, deferred: true }, vorher);
+    }
+
+    async function toggleVisibility(id) {
+        const todo = findTodo(id);
+        if (!todo) return;
+
+        const vorher = { visibility: todo.visibility };
+        todo.visibility = todo.visibility === 'geteilt' ? 'privat' : 'geteilt';
+        openActionsId = null;
+        renderTodos();
+
+        await speichere(id, { visibility: todo.visibility }, vorher);
     }
 
     async function deleteTodo(id) {
-        try {
-            const { error } = await db
-                .from('todos')
-                .delete()
-                .eq('id', id);
+        const todo = findTodo(id);
+        if (!todo) return;
 
-            if (error) throw error;
-            await loadTodos();
-        } catch (error) {
+        const index = todos.indexOf(todo);
+        todos.splice(index, 1);
+        openActionsId = null;
+        renderTodos();
+
+        const { error } = await db.from('todos').delete().eq('id', id);
+        if (error) {
+            todos.splice(index, 0, todo); // zurueck an die alte Stelle
+            renderTodos();
+            alert("Konnte nicht gelöscht werden: " + error.message);
             console.error(error);
         }
     }
 
-    function drawCanvasStats() {
-        const canvas = document.getElementById('statusCanvas');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        
-        const total = todos.length;
-        const done = todos.filter(t => t.is_completed).length;
+    // --- Anlegen ---
 
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Reihenfolge frei waehlbar: Text tippen und abschicken, oder vorher einen
+    // Tag antippen. Der gewaehlte Tag bleibt fuer weitere Eingaben stehen.
+    function quickAdd(event) {
+        event.preventDefault();
+        const input = document.getElementById('todoInput');
+        if (addTodo(input.value, quickDate)) input.value = '';
+    }
 
-        ctx.fillStyle = '#e5e7eb';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    function addFromCompose(event, key) {
+        event.preventDefault();
+        const input = document.getElementById('composeInput');
+        // 'ohne' und 'spaeter' sind keine Tage — dort entsteht die Aufgabe ohne Datum
+        const iso = (key === 'ohne' || key === 'spaeter') ? null : key;
+        if (addTodo(input.value, iso, key === 'spaeter')) input.value = '';
+    }
 
-        if (total > 0) {
-            const percentage = done / total;
-            ctx.fillStyle = '#10b981';
-            ctx.fillRect(0, 0, canvas.width * percentage, canvas.height);
+    // Legt die Aufgabe sofort in der Liste an und speichert im Hintergrund.
+    function addTodo(text, iso, zurueckgestellt) {
+        text = (text || '').trim();
+        if (text === '') return false;
+
+        const platzhalter = {
+            id: 'neu-' + Date.now(),
+            task: text,
+            is_completed: false,
+            due_date: iso,
+            deferred: !!zurueckgestellt,
+            visibility: inputMode,
+            user_id: currentUserId,
+            created_at: new Date().toISOString()
+        };
+
+        todos.push(platzhalter);
+        renderTodos();
+
+        speichereNeu(platzhalter);
+        return true;
+    }
+
+    async function speichereNeu(platzhalter) {
+        // user_id setzt die Datenbank selbst (Default auth.uid()), deshalb schicken
+        // wir sie nicht mit — so kann auch niemand im fremden Namen anlegen.
+        const { data, error } = await db
+            .from('todos')
+            .insert([{
+                task: platzhalter.task,
+                is_completed: false,
+                due_date: platzhalter.due_date,
+                deferred: platzhalter.deferred,
+                visibility: platzhalter.visibility
+            }])
+            .select()
+            .single();
+
+        const index = todos.indexOf(platzhalter);
+
+        if (error) {
+            if (index !== -1) todos.splice(index, 1); // Platzhalter wieder entfernen
+            renderTodos();
+            alert("Konnte nicht gespeichert werden: " + error.message);
+            console.error(error);
+            return;
         }
+
+        // Platzhalter durch die echte Zeile aus der Datenbank ersetzen
+        if (index !== -1) todos[index] = data;
+        renderTodos();
     }
 
     // --- Anmeldung / Zugriffsschutz ---
@@ -380,10 +864,13 @@
         const appView = document.getElementById('appView');
 
         if (session) {
+            currentUserId = session.user.id;
             authView.classList.add('hidden');
             appView.classList.remove('hidden');
             document.getElementById('userEmail').textContent = 'Angemeldet als ' + session.user.email;
+            zeichneModus();
         } else {
+            currentUserId = null;
             appView.classList.add('hidden');
             authView.classList.remove('hidden');
             todos = [];
@@ -433,5 +920,6 @@
         if (session) loadTodos();
     });
 </script>
+
 </body>
 </html>

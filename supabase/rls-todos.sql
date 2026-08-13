@@ -1,47 +1,70 @@
--- Zugriffsschutz für die Familien-To-Do-Liste
+-- Zugriffsschutz für die Familien-To-Do-Liste (Stand 0.2)
 --
 -- Auszuführen im Supabase-Dashboard unter "SQL Editor" > "New query" > "Run".
--- Wirkung: Ohne Login ist die Tabelle 'todos' komplett dicht. Jedes angemeldete
--- Familienmitglied sieht und bearbeitet dieselbe gemeinsame Liste.
+-- WICHTIG: vorher schema-0.2.sql laufen lassen, dieses Skript braucht die
+-- Spalten user_id und visibility.
 --
--- Achtung: Ab diesem Moment funktioniert die Seite nur noch eingeloggt.
--- Vorher unter "Authentication" > "Users" > "Add user" die Accounts der
--- Familienmitglieder anlegen (E-Mail + Passwort, "Auto Confirm User" aktivieren).
+-- Regel in einem Satz: Man sieht die eigenen Aufgaben immer, fremde nur dann,
+-- wenn sie geteilt sind. Ohne Login ist die Tabelle komplett dicht.
+--
+-- Das Skript ist wiederholbar (drop policy if exists).
 
 -- 1. Row Level Security einschalten.
 -- Solange RLS aus ist, darf der öffentliche anon-Key aus index.html alles lesen
 -- und schreiben — und dieser Key steht für jeden sichtbar im Quelltext der Seite.
 alter table public.todos enable row level security;
 
--- 2. Alte Policies entfernen, damit dieses Skript wiederholbar bleibt.
-drop policy if exists "Familie darf lesen" on public.todos;
-drop policy if exists "Familie darf anlegen" on public.todos;
-drop policy if exists "Familie darf aendern" on public.todos;
-drop policy if exists "Familie darf loeschen" on public.todos;
+-- 2. ALLE vorhandenen Policies auf 'todos' entfernen — nicht nur die selbst
+-- vergebenen Namen.
+--
+-- Warum so radikal: Postgres verknüpft Policies mit ODER. Eine einzige übrig
+-- gebliebene Regel für die Rolle 'public' (etwa "Erlaube Lesen für alle" aus
+-- einer Supabase-Vorlage) hebelt alles Folgende aus — dann darf der öffentliche
+-- anon-Key wieder alles, obwohl daneben korrekte Regeln stehen. Genau das war
+-- in diesem Projekt der Fall. Deshalb hier Tabula rasa statt Namensliste.
+do $$
+declare
+    p record;
+begin
+    for p in select policyname from pg_policies
+             where schemaname = 'public' and tablename = 'todos'
+    loop
+        execute format('drop policy %I on public.todos', p.policyname);
+    end loop;
+end $$;
 
--- 3. Rechte ausschließlich für angemeldete Nutzer ('authenticated').
--- Die Rolle 'anon' bekommt bewusst keine einzige Policy und damit keinen Zugriff.
-create policy "Familie darf lesen"
+-- 3. Lesen: eigene Aufgaben und alles, was geteilt wurde.
+create policy "Eigene und geteilte lesen"
     on public.todos for select
     to authenticated
-    using (true);
+    using (user_id = auth.uid() or visibility = 'geteilt');
 
-create policy "Familie darf anlegen"
+-- 4. Anlegen: nur im eigenen Namen.
+-- Verhindert, dass jemand eine Aufgabe im Namen des anderen einträgt.
+create policy "Nur im eigenen Namen anlegen"
     on public.todos for insert
     to authenticated
-    with check (true);
+    with check (user_id = auth.uid());
 
-create policy "Familie darf aendern"
+-- 5. Ändern: eigene Aufgaben und geteilte des anderen.
+-- Geteilte Aufgaben darf bewusst auch der Partner abhaken oder umdatieren —
+-- das ist der Sinn einer gemeinsamen Liste.
+-- Das 'with check' verhindert, dass man sich eine fremde Aufgabe unter den Nagel
+-- reißt, indem man beim Update die user_id auf sich selbst umschreibt.
+create policy "Eigene und geteilte aendern"
     on public.todos for update
     to authenticated
-    using (true)
-    with check (true);
+    using (user_id = auth.uid() or visibility = 'geteilt')
+    with check (user_id = auth.uid() or visibility = 'geteilt');
 
-create policy "Familie darf loeschen"
+-- 6. Löschen: gleiche Regel wie beim Ändern.
+create policy "Eigene und geteilte loeschen"
     on public.todos for delete
     to authenticated
-    using (true);
+    using (user_id = auth.uid() or visibility = 'geteilt');
 
--- 4. Kontrolle: sollte 'true' und die vier Policies oben zeigen.
+-- 7. Kontrolle. Erwartet: rls_aktiv = true, und GENAU vier Policies, alle mit
+-- der Rolle {authenticated}. Taucht hier irgendwo {public} oder {anon} auf,
+-- ist die Tabelle offen — dann stimmt etwas nicht.
 select relrowsecurity as rls_aktiv from pg_class where relname = 'todos';
-select policyname, cmd, roles from pg_policies where tablename = 'todos';
+select policyname, cmd, roles, qual from pg_policies where tablename = 'todos';
