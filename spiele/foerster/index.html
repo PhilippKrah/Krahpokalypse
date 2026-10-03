@@ -18,6 +18,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>01 – Der Gutsverwalter</title>
 <style>
   html,body{margin:0;height:100%;background:#0b0f12;overflow:hidden}
@@ -98,6 +100,15 @@
   html.touch #appell{width:calc(100vw - 400px);max-height:calc(100vh - 32px)}
   html.touch #overlay{padding:0 200px;box-sizing:border-box}
   html.touch .paper{max-height:calc(100vh - 32px);padding:16px 22px;font-size:15px}
+  html.touch{overscroll-behavior:none}
+  html.touch #hud small{display:none}
+  html.touch #guide{pointer-events:auto;cursor:pointer;padding-right:30px;max-width:300px;box-sizing:border-box;overflow:hidden}
+  html.touch #guide::after{content:'▾';position:absolute;right:10px;top:8px}
+  html.touch #guide.zu{max-height:38px;white-space:nowrap}
+  html.touch #guide.zu::after{content:'▸'}
+  html.touch .paper{overscroll-behavior:contain}
+  .tk-weg{display:none!important}
+  #tk-full{position:fixed;left:calc(14px + env(safe-area-inset-left));top:84px;z-index:50;display:none}
   #rotate{position:fixed;inset:0;z-index:100;background:#0b0f12;color:#deeed6;font:18px/1.5 monospace;align-items:center;justify-content:center;text-align:center;padding:24px}
   @media (orientation:portrait){html.touch #rotate{display:flex}}
 </style>
@@ -112,7 +123,7 @@
 <div id="appell" class="box"></div>
 <div id="overlay"></div>
 <div id="debug"></div>
-<div id="touch"><div id="tk-dpad"><i class="u">▲</i><i class="d">▼</i><i class="l">◀</i><i class="r">▶</i></div><div id="tk-right"><div id="tk-small"></div></div></div>
+<div id="touch"><button id="tk-full" class="tk" type="button" tabindex="-1">Vollbild</button><div id="tk-dpad"><i class="u">▲</i><i class="d">▼</i><i class="l">◀</i><i class="r">▶</i></div><div id="tk-right"><div id="tk-small"></div></div></div>
 <div id="rotate">Bitte das Gerät<br>ins Querformat drehen.</div>
 <script src="rollen.js"></script>
 <script src="regeln.js"></script>
@@ -1945,21 +1956,44 @@ const TOUCH_TASTEN=[
 const TOUCH_STEUERKREUZ_IN=['play','menu','book','appell'];
 // Tastennamen in Spieltexten durch die Knopfnamen ersetzen (nur Touch; Reihenfolge zählt, Spezielles zuerst)
 const TOUCH_TEXT=[
-  [/\[Leertaste\] Aktion · \[N\] Notizbuch · \[M\] Pflöcke · \[L\] Ton/g,'Rechts: Aktion · Buch · Pflock · Ton'],
   [/\[Leertaste\]/g,'[Aktion]'],[/Leertaste/g,'Aktion'],[/\[N\]/g,'[Buch]'],[/\[M\]/g,'[Pflock]'],[/\[L\]/g,'[Ton]'],[/\[Esc\]/g,'[✕]'],
   [/Esc schließen/g,'✕ schließen'],[/Shift\+↑↓/g,'⇧ + ↑↓'],[/Entf streichen/g,'Streichen'],[/1–6 Reiter/g,'Reiter-Knopf'],[/Enter:/g,'Fertig:'],
   [/WASD\/Pfeile laufen/g,'Steuerkreuz links: laufen'],
 ];
 const TOUCH=matchMedia('(pointer:coarse)').matches||/[?&]touch\b/.test(location.search);
 const tkPortrait=()=>TOUCH&&innerHeight>innerWidth;   // im Hochformat steht das Spiel still
-let tkState,tkDir=null,tkShift=false,tkBtns=[];
+let tkState,tkDir=null,tkShift=false,tkBtns=[],tkPager=null;
 function tkSend(type,code){dispatchEvent(new KeyboardEvent(type,{code,key:code,shiftKey:tkShift,bubbles:true,cancelable:true}))}
 function tkSetDir(d){if(d===tkDir)return;const C={up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight'};
   if(tkDir)tkSend('keyup',C[tkDir]);tkDir=d;if(d)tkSend('keydown',C[d]);document.getElementById('tk-dpad').dataset.d=d||''}
 function touchSync(){if(!TOUCH)return;const s=G?G.state:null;if(s===tkState)return;tkState=s;
-  tkSetDir(null);tkShift=false;
+  tkSetDir(null);tkShift=false;if(s!=='card')tkPager=null;
   for(const b of tkBtns){b.el.style.display=b.in.includes(s)?'':'none';b.el.classList.remove('on')}
   document.getElementById('tk-dpad').style.display=TOUCH_STEUERKREUZ_IN.includes(s)?'':'none'}
+// Tastenbelegungs-Hinweise (Legenden, Tastenkasten) fallen am Handy weg
+function tkStrip(root){if(root.nodeType!==1)return;
+  const hit=el=>el.matches('.keys,.legend')||(/^↑↓/.test(el.textContent.trim())&&el.textContent.length<220);
+  if(hit(root)){root.remove();return}
+  root.querySelectorAll('.keys,.legend,.cont,div').forEach(el=>{if(hit(el))el.remove()})}
+// Karten ohne Scrollen: ist der Text länger als der Bildschirm, wird er in Seiten geteilt (Aktion oder Antippen = nächste Seite)
+function tkPaginate(paper){
+  if(G.state!=='card'||paper.dataset.pg)return;paper.dataset.pg='1';
+  if(paper.scrollHeight<=paper.clientHeight+1)return;
+  const cont=paper.querySelector(':scope>.cont'),blocks=[...paper.children].filter(c=>c!==cont),cs=getComputedStyle(paper);
+  const room=paper.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)-44;
+  const R=blocks.map(b=>b.getBoundingClientRect()),pages=[];let cur=[],top=0;
+  blocks.forEach((b,i)=>{if(cur.length&&R[i].bottom-top>room){pages.push(cur);cur=[]}if(!cur.length)top=R[i].top;cur.push(b)});
+  pages.push(cur);
+  if(pages.length<2)return;   // ein einzelner riesiger Block: Scrollen bleibt als Rückfall
+  const tooBig=pages.some(pg=>pg.length===1&&R[blocks.indexOf(pg[0])].height>room);
+  paper.style.overflowY=tooBig?'auto':'hidden';
+  const ind=document.createElement('div');ind.className='cont';paper.appendChild(ind);
+  let k=0;
+  const show=()=>{blocks.forEach(b=>b.classList.toggle('tk-weg',!pages[k].includes(b)));const last=k===pages.length-1;
+    if(cont)cont.classList.toggle('tk-weg',!last);ind.classList.toggle('tk-weg',last);ind.textContent=`[Aktion] weiterlesen (${k+1}/${pages.length})`;paper.scrollTop=0};
+  const pager={paper,next(){if(k>=pages.length-1)return false;k++;show();return true}};
+  paper.addEventListener('click',()=>{if(tkPager===pager)pager.next()});
+  tkPager=pager;show()}
 function tkTextNode(n){let v=n.nodeValue,o=v;for(const [re,r] of TOUCH_TEXT)v=v.replace(re,r);if(v!==o)n.nodeValue=v}
 function tkTextTree(root){if(root.nodeType===3){tkTextNode(root);return}
   const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);for(let n=w.nextNode();n;n=w.nextNode())tkTextNode(n)}
@@ -1977,14 +2011,25 @@ if(TOUCH){
     (t.big?right:small).appendChild(el);tkBtns.push({el,in:t.in});
     if(t.mod){el.addEventListener('pointerdown',e=>{e.preventDefault();tkShift=!tkShift;el.classList.toggle('on',tkShift)});continue}
     let down=false;
-    el.addEventListener('pointerdown',e=>{e.preventDefault();el.setPointerCapture(e.pointerId);down=true;el.classList.add('down');tkSend('keydown',t.code)});
+    el.addEventListener('pointerdown',e=>{e.preventDefault();
+      if(t.code==='Space'&&G.state==='card'&&tkPager&&tkPager.paper.isConnected&&tkPager.next())return;   // erst alle Seiten der Karte lesen
+      el.setPointerCapture(e.pointerId);down=true;el.classList.add('down');tkSend('keydown',t.code)});
     for(const ev of ['pointerup','pointercancel'])el.addEventListener(ev,()=>{if(!down)return;down=false;el.classList.remove('down');tkSend('keyup',t.code)});
   }
   right.insertBefore(small,right.firstChild);   // kleine Knöpfe oben, große Aktion unten
   addEventListener('contextmenu',e=>e.preventDefault());
-  new MutationObserver(ms=>{for(const m of ms){if(m.type==='characterData')tkTextNode(m.target);else m.addedNodes.forEach(tkTextTree)}})
+  new MutationObserver(ms=>{for(const m of ms){if(m.type==='characterData')tkTextNode(m.target);else m.addedNodes.forEach(n=>{tkTextTree(n);tkStrip(n);if(n.nodeType===1&&n.classList.contains('paper'))tkPaginate(n)})}})
     .observe(document.body,{childList:true,subtree:true,characterData:true});
   tkTextTree(document.body);
+  // Leitfaden: antippen klappt ihn auf/zu (anfangs zu)
+  const gd=document.getElementById('guide');gd.classList.add('zu');gd.addEventListener('click',()=>gd.classList.toggle('zu'));
+  // Vollbild (Android/iPad; iPhone kann das nicht – dort hilft „Zum Home-Bildschirm“)
+  const fb=document.getElementById('tk-full'),de=document.documentElement,fsReq=de.requestFullscreen||de.webkitRequestFullscreen;
+  const fsOn=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  if(fsReq){fb.style.display='block';
+    fb.addEventListener('click',()=>{if(fsOn()){(document.exitFullscreen||document.webkitExitFullscreen).call(document)}
+      else{const r=fsReq.call(de);Promise.resolve(r).then(()=>screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape')).catch(()=>{})}});
+    for(const ev of ['fullscreenchange','webkitfullscreenchange'])document.addEventListener(ev,()=>{fb.textContent=fsOn()?'Vollbild aus':'Vollbild'})}
 }
 
 // ================================================================ Hauptschleife
