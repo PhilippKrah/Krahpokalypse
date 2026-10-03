@@ -6,6 +6,9 @@
   Nachts rechnet die Natur: Kronen wachsen ins Licht, Hasen wandern zu Lichtungen, Füchse streifen umher.
   Steuerung: WASD/Pfeile laufen · Leertaste/E: Aktionen (untersuchen, selbst anpacken, Auftrag erteilen)
              M: Pflock-Modus (Mähfläche abstecken) · N: Notizbuch · F2: Debug/Balancing · Esc: schließen
+  Touch (Handy/Tablet, nur Querformat, nur bei Fingerbedienung): Steuerkreuz + Knöpfe senden dieselben Tastencodes.
+             REGEL: Jede neue Taste braucht eine Zeile in TOUCH_TASTEN (Abschnitt „Touch-Steuerung“) – sonst ist sie am Handy unerreichbar.
+             Zum Testen am PC: index.html?touch
   Getestet wird: Trägt der Verwalter-Kreislauf (schauen → markieren → Nacht → Folgen) mit impliziter
   Bewertung eine gemütliche Partie, und erzeugt das Licht-/Kronenmodell glaubwürdigen Wald?
   Balancing: alle Stellschrauben im Objekt CFG (live im Debug-Fenster änderbar).
@@ -14,6 +17,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>01 – Der Gutsverwalter</title>
 <style>
   html,body{margin:0;height:100%;background:#0b0f12;overflow:hidden}
@@ -76,6 +80,26 @@
   #debug input{width:56px;font:11px monospace;background:#140c1c;color:#deeed6;border:1px solid #4e4a4e}
   #debug .log{white-space:pre-wrap;color:#8595a1;max-height:280px;overflow:auto}
   #debug details{margin:4px 0}
+  /* Touch-Steuerung (nur mit html.touch) */
+  #touch,#rotate{display:none}
+  html.touch #touch{display:block}
+  html.touch body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  #tk-dpad{position:fixed;left:calc(14px + env(safe-area-inset-left));bottom:14px;width:148px;height:148px;border-radius:50%;background:rgba(20,12,28,.55);border:2px solid #442434;touch-action:none;z-index:50}
+  #tk-dpad i{position:absolute;width:40px;height:40px;line-height:40px;text-align:center;font:normal 22px monospace;color:#deeed6;opacity:.55;pointer-events:none}
+  #tk-dpad i.u{left:50%;top:6px;margin-left:-20px}#tk-dpad i.d{left:50%;bottom:6px;margin-left:-20px}
+  #tk-dpad i.l{top:50%;left:6px;margin-top:-20px}#tk-dpad i.r{top:50%;right:6px;margin-top:-20px}
+  #tk-dpad[data-d=up] i.u,#tk-dpad[data-d=down] i.d,#tk-dpad[data-d=left] i.l,#tk-dpad[data-d=right] i.r{opacity:1;color:#dad45e}
+  #tk-right{position:fixed;right:calc(14px + env(safe-area-inset-right));bottom:14px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;z-index:50}
+  #tk-small{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:190px}
+  .tk{font:600 14px monospace;color:#deeed6;background:rgba(20,12,28,.7);border:2px solid #854c30;border-radius:8px;min-width:52px;height:44px;padding:0 8px;touch-action:none;cursor:pointer}
+  .tk.big{width:84px;height:84px;border-radius:50%;font-size:16px;background:rgba(133,76,48,.85)}
+  .tk.down,.tk.on{background:#d27d2c;color:#2a1a10}
+  html.touch #menu{min-width:0;max-width:calc(100vw - 400px)}
+  html.touch #appell{width:calc(100vw - 400px);max-height:calc(100vh - 32px)}
+  html.touch #overlay{padding:0 200px;box-sizing:border-box}
+  html.touch .paper{max-height:calc(100vh - 32px);padding:16px 22px;font-size:15px}
+  #rotate{position:fixed;inset:0;z-index:100;background:#0b0f12;color:#deeed6;font:18px/1.5 monospace;align-items:center;justify-content:center;text-align:center;padding:24px}
+  @media (orientation:portrait){html.touch #rotate{display:flex}}
 </style>
 </head>
 <body>
@@ -88,6 +112,8 @@
 <div id="appell" class="box"></div>
 <div id="overlay"></div>
 <div id="debug"></div>
+<div id="touch"><div id="tk-dpad"><i class="u">▲</i><i class="d">▼</i><i class="l">◀</i><i class="r">▶</i></div><div id="tk-right"><div id="tk-small"></div></div></div>
+<div id="rotate">Bitte das Gerät<br>ins Querformat drehen.</div>
 <script src="rollen.js"></script>
 <script src="regeln.js"></script>
 <script src="../02-waldchronik/regeln.js" onerror="void 0"></script>
@@ -1901,14 +1927,74 @@ function drawDebugLayers(x0,y0,x1,y1){
   if(Ly.has('auftraege'))for(const t of G.tasks){const c=crewOf(t);if(!c.length)continue;const [tx,ty]=taskPos(t),cx=(tx+0.5)*TS-camX,cy=(ty+0.5)*TS-camY;ctx.fillStyle='#ff00ff';ctx.fillText(c.map(id=>S(id).name[0]).join(''),cx-3,cy)}
 }
 
+// ================================================================ Touch-Steuerung (nur Fingerbedienung)
+// Die Knöpfe senden dieselben Tastencodes wie die Tastatur – die Spiellogik bleibt unberührt.
+// REGEL: Jede neue Taste im Spiel braucht hier eine Zeile (code = KeyboardEvent.code, in = Spielzustände, in denen der Knopf erscheint).
+// mod:'shift' = Umschalter, der bei den Pfeilen Shift mitschickt (Reihenfolge ändern).
+const TOUCH_TASTEN=[
+  {label:'Aktion',code:'Space',big:true,in:['play','menu','card','book','appell']},
+  {label:'✕',code:'Escape',in:['menu','card','book','appell']},
+  {label:'Pflock',code:'KeyM',in:['play']},
+  {label:'Buch',code:'KeyN',in:['play']},
+  {label:'Ton',code:'KeyL',in:['play']},
+  {label:'Reiter',code:'Tab',in:['book']},
+  {label:'Streichen',code:'KeyX',in:['book']},
+  {label:'Fertig',code:'Enter',in:['appell']},
+  {label:'⇧ Reihenfolge',mod:'shift',in:['book','appell']},
+];
+const TOUCH_STEUERKREUZ_IN=['play','menu','book','appell'];
+// Tastennamen in Spieltexten durch die Knopfnamen ersetzen (nur Touch; Reihenfolge zählt, Spezielles zuerst)
+const TOUCH_TEXT=[
+  [/\[Leertaste\] Aktion · \[N\] Notizbuch · \[M\] Pflöcke · \[L\] Ton/g,'Rechts: Aktion · Buch · Pflock · Ton'],
+  [/\[Leertaste\]/g,'[Aktion]'],[/Leertaste/g,'Aktion'],[/\[N\]/g,'[Buch]'],[/\[M\]/g,'[Pflock]'],[/\[L\]/g,'[Ton]'],[/\[Esc\]/g,'[✕]'],
+  [/Esc schließen/g,'✕ schließen'],[/Shift\+↑↓/g,'⇧ + ↑↓'],[/Entf streichen/g,'Streichen'],[/1–6 Reiter/g,'Reiter-Knopf'],[/Enter:/g,'Fertig:'],
+  [/WASD\/Pfeile laufen/g,'Steuerkreuz links: laufen'],
+];
+const TOUCH=matchMedia('(pointer:coarse)').matches||/[?&]touch\b/.test(location.search);
+const tkPortrait=()=>TOUCH&&innerHeight>innerWidth;   // im Hochformat steht das Spiel still
+let tkState,tkDir=null,tkShift=false,tkBtns=[];
+function tkSend(type,code){dispatchEvent(new KeyboardEvent(type,{code,key:code,shiftKey:tkShift,bubbles:true,cancelable:true}))}
+function tkSetDir(d){if(d===tkDir)return;const C={up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight'};
+  if(tkDir)tkSend('keyup',C[tkDir]);tkDir=d;if(d)tkSend('keydown',C[d]);document.getElementById('tk-dpad').dataset.d=d||''}
+function touchSync(){if(!TOUCH)return;const s=G?G.state:null;if(s===tkState)return;tkState=s;
+  tkSetDir(null);tkShift=false;
+  for(const b of tkBtns){b.el.style.display=b.in.includes(s)?'':'none';b.el.classList.remove('on')}
+  document.getElementById('tk-dpad').style.display=TOUCH_STEUERKREUZ_IN.includes(s)?'':'none'}
+function tkTextNode(n){let v=n.nodeValue,o=v;for(const [re,r] of TOUCH_TEXT)v=v.replace(re,r);if(v!==o)n.nodeValue=v}
+function tkTextTree(root){if(root.nodeType===3){tkTextNode(root);return}
+  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);for(let n=w.nextNode();n;n=w.nextNode())tkTextNode(n)}
+if(TOUCH){
+  document.documentElement.classList.add('touch');
+  const pad=document.getElementById('tk-dpad'),small=document.getElementById('tk-small'),right=document.getElementById('tk-right');
+  let ptr=null;
+  const dirOf=e=>{const r=pad.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2);
+    if(Math.hypot(dx,dy)<r.width*0.14)return null;return Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up')};
+  pad.addEventListener('pointerdown',e=>{e.preventDefault();audioInit();ptr=e.pointerId;pad.setPointerCapture(ptr);tkSetDir(dirOf(e))});
+  pad.addEventListener('pointermove',e=>{if(e.pointerId===ptr)tkSetDir(dirOf(e))});
+  for(const t of ['pointerup','pointercancel','lostpointercapture'])pad.addEventListener(t,e=>{if(e.pointerId===ptr){ptr=null;tkSetDir(null)}});
+  for(const t of TOUCH_TASTEN){
+    const el=document.createElement('button');el.type='button';el.tabIndex=-1;el.className='tk'+(t.big?' big':'');el.textContent=t.label;
+    (t.big?right:small).appendChild(el);tkBtns.push({el,in:t.in});
+    if(t.mod){el.addEventListener('pointerdown',e=>{e.preventDefault();tkShift=!tkShift;el.classList.toggle('on',tkShift)});continue}
+    let down=false;
+    el.addEventListener('pointerdown',e=>{e.preventDefault();el.setPointerCapture(e.pointerId);down=true;el.classList.add('down');tkSend('keydown',t.code)});
+    for(const ev of ['pointerup','pointercancel'])el.addEventListener(ev,()=>{if(!down)return;down=false;el.classList.remove('down');tkSend('keyup',t.code)});
+  }
+  right.insertBefore(small,right.firstChild);   // kleine Knöpfe oben, große Aktion unten
+  addEventListener('contextmenu',e=>e.preventDefault());
+  new MutationObserver(ms=>{for(const m of ms){if(m.type==='characterData')tkTextNode(m.target);else m.addedNodes.forEach(tkTextTree)}})
+    .observe(document.body,{childList:true,subtree:true,characterData:true});
+  tkTextTree(document.body);
+}
+
 // ================================================================ Hauptschleife
 let last=performance.now();
 function frame(now){
   requestAnimationFrame(frame);   // zuerst: ein Fehler unten darf die Schleife nicht anhalten
-  const dt=Math.min(0.05,(now-last)/1000);last=now;
+  const dt=tkPortrait()?0:Math.min(0.05,(now-last)/1000);last=now;
   if(G&&G.state==='play'){updatePlayer(dt);updateDay(dt);updateCritters(dt);try{ambience(dt)}catch(e){console.warn('Ton:',e.message)}}
   else if(G&&G.state==='appell'){updateStaff(dt);updateCritters(dt)}
-  draw(now);hud();
+  touchSync();draw(now);hud();
   if(dbgOpen&&now-dbgT>1000){dbgT=now;refreshDebug()}
 }
 window.__dbg={get G(){return G},get P(){return P},stats,dbgDays,CFG,get trees(){return trees},get burrows(){return burrows},get foxes(){return foxes},get staff(){return staff},sleep,nightStep};
