@@ -1,0 +1,1919 @@
+<!DOCTYPE html>
+<!--
+  01 – Der Gutsverwalter (zweiter Wurf, Konzept: KONZEPT.md; erster Wurf: v1-foerster.html)
+  Idee: Als junger Gutsverwalter hältst du drei Wochen ein lebendiges Waldgut im Gleichgewicht.
+  Du beobachtest, markierst Aufgaben und teilst dein Personal ein; selbst anpacken kostet Kraft.
+  Nachts rechnet die Natur: Kronen wachsen ins Licht, Hasen wandern zu Lichtungen, Füchse streifen umher.
+  Steuerung: WASD/Pfeile laufen · Leertaste/E: Aktionen (untersuchen, selbst anpacken, Auftrag erteilen)
+             M: Pflock-Modus (Mähfläche abstecken) · N: Notizbuch · F2: Debug/Balancing · Esc: schließen
+  Getestet wird: Trägt der Verwalter-Kreislauf (schauen → markieren → Nacht → Folgen) mit impliziter
+  Bewertung eine gemütliche Partie, und erzeugt das Licht-/Kronenmodell glaubwürdigen Wald?
+  Balancing: alle Stellschrauben im Objekt CFG (live im Debug-Fenster änderbar).
+  Wer was darf (Aufgaben, Rollen, Effektivität, Pensum): rollen.js – Editor: tools/rollen-editor.html
+-->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>01 – Der Gutsverwalter</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0f12;overflow:hidden}
+  canvas#c{display:block;image-rendering:pixelated}
+  .box{color:#deeed6;font:14px/1.45 monospace;background:rgba(20,12,28,.8);border:2px solid #442434;border-radius:4px}
+  #hud{position:fixed;left:10px;top:10px;padding:8px 12px;pointer-events:none}
+  #guide{position:fixed;right:10px;top:10px;padding:8px 12px;max-width:340px;pointer-events:none;display:none}
+  #guide b{color:#dad45e}#guide .ok{color:#6daa2c;text-decoration:line-through}
+  #hint{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);padding:5px 12px;pointer-events:none;white-space:nowrap}
+  #hint:empty{display:none}
+  #toasts{position:fixed;left:50%;top:12px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;pointer-events:none}
+  .toast{color:#2a1a10;background:#e8dcc0;font:15px Georgia,serif;padding:5px 14px;margin:3px;border-radius:3px;border:2px solid #854c30;transition:opacity .6s;max-width:620px;text-align:center}
+  #menu{position:fixed;left:50%;bottom:52px;transform:translateX(-50%);display:none;min-width:340px;max-width:92vw;padding:6px}
+  #menu .t{color:#dad45e;padding:2px 8px 6px}
+  #menu .o{padding:3px 8px;cursor:pointer;border-radius:3px}
+  #menu .o.sel{background:#854c30}
+  #menu .o.dis{color:#757161}
+  #appell{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);display:none;width:min(900px,96vw);padding:6px;max-height:82vh;overflow:auto;box-sizing:border-box}
+  #appell .t{color:#dad45e;padding:2px 8px 6px}
+  #appell .o{padding:3px 8px;cursor:pointer;border-radius:3px}#appell .o.sel{background:#854c30}#appell .o.dis{color:#757161}
+  .ap-plan{display:flex;gap:4px;margin:4px 0 6px;font-size:12px}.ap-plan span{flex:1;padding:2px 4px;border:1px solid #442434;color:#8595a1}.ap-plan span.on{color:#deeed6;background:#442434}
+  .board{border-collapse:collapse;width:100%;font:13px/1.3 monospace;margin:4px 0}
+  .board th,.board td{padding:2px 6px;text-align:left;vertical-align:top}
+  .board th{font-weight:normal;opacity:.85}.board th.off{opacity:.4}.board th.cc{text-decoration:underline}
+  .board td.cell{text-align:center;cursor:pointer;white-space:nowrap}.board td.cell small{opacity:.75}
+  .board td.no{opacity:.3;cursor:default}.board td.on{font-weight:bold}.board td.rt{font-style:italic}
+  .board .warn{color:#d27d2c}.board td.fin{white-space:nowrap}
+  .board.plan td{font-size:12px;border:1px solid rgba(133,76,48,.5)}.board.plan td.ps{font-style:italic;opacity:.7}
+  #appell .board tr.sel td{background:#4a2c2a}#appell .board td.cur{outline:2px solid #dad45e;outline-offset:-2px}#appell .board.plan td.pt{background:#442434}
+  .paper .board{font-size:13px}.paper .board tr.sel td{background:#d2aa99}.paper .board td.cur{outline:2px solid #854c30;outline-offset:-2px}.paper .board.plan td.pt{background:#d2aa99}
+  .paper .board .warn{color:#a0501e}
+  .legend{font:12px monospace;opacity:.75;padding:2px 8px}
+  #overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(8,10,14,.6)}
+  .paper{background:#e8dcc0;color:#2a1a10;max-width:680px;width:calc(100% - 32px);margin:16px;padding:22px 30px;border:4px solid #854c30;box-shadow:0 0 0 4px #442434;
+         font:16px/1.55 Georgia,serif;max-height:86vh;overflow:auto;box-sizing:border-box}
+  .paper.wide{max-width:880px}
+  .paper h2{margin:0 0 10px;font-size:22px}
+  .paper h3{margin:16px 0 6px;font-size:17px}
+  .paper .letter{background:#f3ead4;border-left:4px solid #d27d2c;padding:10px 16px;margin:12px 0;font-style:italic}
+  .paper .sig{text-align:right}
+  .paper .rep{margin:4px 0}.paper .rep b{color:#854c30}
+  .paper .cont{margin-top:16px;font:13px monospace;color:#854c30;text-align:center}
+  .paper ul{padding-left:20px;margin:6px 0}
+  .paper .good{color:#346524}.paper .bad{color:#a02c2e}
+  .paper .keys{font:13px monospace;background:#f3ead4;padding:8px 12px;margin-top:10px}
+  .tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+  .tabs span{padding:3px 10px;border:2px solid #854c30;border-radius:3px;cursor:pointer;font:14px monospace}
+  .tabs span.on{background:#854c30;color:#e8dcc0}
+  .task{display:flex;gap:8px;align-items:center;padding:3px 6px;border-radius:3px;font-size:15px;cursor:pointer}
+  .task.sel{background:#d2aa99}
+  .task .who{margin-left:auto;font:13px monospace;white-space:nowrap}
+  .paper button{font:13px monospace;background:#854c30;color:#e8dcc0;border:1px solid #442434;padding:2px 8px;cursor:pointer}
+  .bar{display:inline-block;width:140px;height:10px;background:#c9b896;border:1px solid #442434;vertical-align:middle;position:relative;overflow:hidden}
+  .bar i{position:absolute;left:0;top:0;bottom:0;background:#6daa2c}.bar i.over{background:#d04648}
+  #debug{position:fixed;right:0;top:0;bottom:0;width:400px;overflow:auto;display:none;padding:10px;font:12px/1.4 monospace;color:#deeed6;background:rgba(10,8,16,.92);border-left:2px solid #442434;box-sizing:border-box}
+  #debug h4{margin:10px 0 4px;color:#dad45e}
+  #debug button{font:12px monospace;margin:2px;background:#30346d;color:#deeed6;border:1px solid #597dce;cursor:pointer}
+  #debug button.on{background:#d27d2c}
+  #debug table{border-collapse:collapse}#debug td{padding:0 8px 0 0}
+  #debug input{width:56px;font:11px monospace;background:#140c1c;color:#deeed6;border:1px solid #4e4a4e}
+  #debug .log{white-space:pre-wrap;color:#8595a1;max-height:280px;overflow:auto}
+  #debug details{margin:4px 0}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud" class="box"></div>
+<div id="guide" class="box"></div>
+<div id="hint" class="box"></div>
+<div id="toasts"></div>
+<div id="menu" class="box"></div>
+<div id="appell" class="box"></div>
+<div id="overlay"></div>
+<div id="debug"></div>
+<script src="rollen.js"></script>
+<script src="regeln.js"></script>
+<script src="../02-waldchronik/regeln.js" onerror="void 0"></script>
+<script>
+'use strict';
+if(!window.ROLLEN){document.body.innerHTML='<p style="color:#deeed6;font:16px monospace;padding:20px">rollen.js fehlt oder ist fehlerhaft – die Datei muss neben index.html liegen.</p>';throw new Error('rollen.js fehlt')}
+const RL=window.ROLLEN;   // Rollen & Aufgaben aus rollen.js
+if(!window.REGELN_01){document.body.innerHTML='<p style="color:#deeed6;font:16px monospace;padding:20px">regeln.js fehlt oder ist fehlerhaft – die Datei muss neben index.html liegen.</p>';throw new Error('regeln.js fehlt')}
+// ================================================================ Atlas (eingebettet, Quelle: assets/01-foerster.png + _assets/out/01-foerster.json)
+const FR={"01-boden_0":[0,0,16,16],"01-boden_1":[17,0,16,16],"01-boden_2":[34,0,16,16],"01-boden_3":[51,0,16,16],"01-boden_4":[68,0,16,16],"01-boden_5":[85,0,16,16],"01-wasser_0":[102,0,16,16],"01-wasser_1":[119,0,16,16],"01-wasser_2":[136,0,16,16],"01-wasser_3":[153,0,16,16],"01-wasser_4":[170,0,16,16],"01-wasser_5":[187,0,16,16],"01-wasser_6":[204,0,16,16],"01-krone":[221,0,24,24],"01-krone_eiche2":[246,0,24,24],"01-krone_birke":[271,0,24,24],"01-krone_birke2":[0,25,24,24],"01-krone_buche":[25,25,24,24],"01-krone_buche2":[50,25,24,24],"01-krone_rand":[75,25,24,24],"01-stamm_0":[100,25,16,32],"01-stamm_1":[117,25,16,32],"01-stamm_2":[134,25,16,32],"01-stamm_3":[151,25,16,32],"01-stamm_4":[168,25,16,32],"01-stamm_5":[185,25,16,32],"01-stamm_6":[202,25,16,32],"01-stamm_7":[219,25,16,32],"01-stamm_8":[236,25,16,32],"01-riese":[253,25,32,40],"01-setzlinge_0":[286,25,16,16],"01-setzlinge_1":[0,66,16,16],"01-setzlinge_2":[17,66,16,16],"01-setzlinge_3":[34,66,16,16],"01-totholz_0":[51,66,16,16],"01-totholz_1":[68,66,16,16],"01-totholz_2":[85,66,16,16],"01-totholz_3":[102,66,16,16],"01-totholz_4":[119,66,16,16],"01-totholz_5":[136,66,16,16],"01-totholz_6":[153,66,16,16],"01-totholz_7":[170,66,16,16],"01-totholz_8":[187,66,16,16],"01-totholz_9":[204,66,16,16],"01-totholz_10":[221,66,16,16],"01-totholz_11":[238,66,16,16],"01-deko_0":[255,66,16,16],"01-deko_1":[272,66,16,16],"01-deko_2":[289,66,16,16],"01-deko_3":[0,83,16,16],"01-deko_4":[17,83,16,16],"01-deko_5":[34,83,16,16],"01-deko_6":[51,83,16,16],"01-deko_7":[68,83,16,16],"01-deko_8":[85,83,16,16],"01-spuren_0":[102,83,16,16],"01-spuren_1":[119,83,16,16],"01-spuren_2":[136,83,16,16],"01-spuren_3":[153,83,16,16],"01-spuren_4":[170,83,16,16],"01-spuren_5":[187,83,16,16],"01-spuren_6":[204,83,16,16],"01-spuren_7":[221,83,16,16],"01-spuren_8":[238,83,16,16],"01-objekte_0":[255,83,16,16],"01-objekte_1":[272,83,16,16],"01-objekte_2":[289,83,16,16],"01-objekte_3":[0,100,16,16],"01-objekte_4":[17,100,16,16],"01-objekte_5":[34,100,16,16],"01-objekte_6":[51,100,16,16],"01-objekte_7":[68,100,16,16],"01-objekte_8":[85,100,16,16],"01-objekte_9":[102,100,16,16],"01-objekte_10":[119,100,16,16],"01-objekte_11":[136,100,16,16],"01-objekte_12":[153,100,16,16],"01-objekte_13":[170,100,16,16],"01-objekte_14":[187,100,16,16],"01-objekte_15":[204,100,16,16],"01-objekte_16":[221,100,16,16],"01-objekte_17":[238,100,16,16],"01-objekte_18":[255,100,16,16],"01-tiere_0":[272,100,16,16],"01-tiere_1":[289,100,16,16],"01-tiere_2":[0,117,16,16],"01-tiere_3":[17,117,16,16],"01-tiere_4":[34,117,16,16],"01-tiere_5":[51,117,16,16],"01-verwalter_0":[68,117,16,24],"01-verwalter_1":[85,117,16,24],"01-verwalter_2":[102,117,16,24],"01-verwalter_3":[119,117,16,24],"01-verwalter_4":[136,117,16,24],"01-verwalter_5":[153,117,16,24],"01-verwalter_6":[170,117,16,24],"01-verwalter_7":[187,117,16,24],"01-verwalter_8":[204,117,16,24],"01-hannes_0":[221,117,16,24],"01-hannes_1":[238,117,16,24],"01-hannes_2":[255,117,16,24],"01-hannes_3":[272,117,16,24],"01-hannes_4":[289,117,16,24],"01-hannes_5":[0,142,16,24],"01-hannes_6":[17,142,16,24],"01-hannes_7":[34,142,16,24],"01-hannes_8":[51,142,16,24],"01-jost_0":[68,142,16,24],"01-jost_1":[85,142,16,24],"01-jost_2":[102,142,16,24],"01-jost_3":[119,142,16,24],"01-jost_4":[136,142,16,24],"01-jost_5":[153,142,16,24],"01-jost_6":[170,142,16,24],"01-jost_7":[187,142,16,24],"01-jost_8":[204,142,16,24],"01-grete_0":[221,142,16,24],"01-grete_1":[238,142,16,24],"01-grete_2":[255,142,16,24],"01-grete_3":[272,142,16,24],"01-grete_4":[289,142,16,24],"01-grete_5":[0,167,16,24],"01-grete_6":[17,167,16,24],"01-grete_7":[34,167,16,24],"01-grete_8":[51,167,16,24],"01-liese_0":[68,167,16,24],"01-liese_1":[85,167,16,24],"01-liese_2":[102,167,16,24],"01-liese_3":[119,167,16,24],"01-liese_4":[136,167,16,24],"01-liese_5":[153,167,16,24],"01-liese_6":[170,167,16,24],"01-liese_7":[187,167,16,24],"01-liese_8":[204,167,16,24],"01-herrenhaus":[221,167,80,80],"01-huette":[0,248,48,48],"01-scheune":[49,248,48,48],"01-stall":[98,248,32,32],"01-hasenstall":[131,248,32,32]};
+const atlas=new Image(); atlas.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAATEAAAEoCAYAAAAwvMY7AAAmVklEQVR4nO2dPY4ttxGFewEOb+hQoQIFswTDMATj5UoEOHA4gQOHCrUEBw6dahkOHRiGIDhQ4CV4CzJafhzV1Ksiq4pks9j3HICYuT88zWaTXxd5u9nH63ef/2RJL3/8THz/OI7j/Kx8Tv9qeejnZzo9tO1p3uffH3/4+uf/z7+nx7e//+Inmug2zsQ/5+n0+POf/vBTT5L2xZtOj6+++edP3vT693+8peLxxctrM9/5HZrK+z/vy9//0dxe7TNaDktZpETr4/tvPm8ex5Iev/r1Ow/eHrypeEhti7avlgc0WCM6nAawFsTK39PjBBEFk+TD/9L/jwbEynu1TnBsDjGt44+A2AkEmrwQs5ZD+v9YDLHffPbyCcRasNIgt6ib31sjOpwWPWkQ49/j5ZB8pMQh1mpgZweonUGPDoid+Xsg9p///jsFxCSPEwbf/uVv7xIFRKscZ733pCNRJFaL9FsAA8QmSYpuohCrgUiKpCiApDLQ4aKlgY1opLtFYtoQzerBozAeAVGAnaD1guxgHf+MaryvDwax8z1L4hArEZX1JMmjMb4vXogVj5ZqbeNl0JB09TZKOx+iHoBJEGtFTdK2DmVI6onKuMcLmwO7K8R6IzEPxLRorDasPCZAbHYkRmEnRWKRE6QlEpOCAKkvREGj+fO++8pGSdFteNp7l0Z0uBZ4WpV3kAZG58a4Vy0iox61hj0DYh++/DAcYnSSfjTEJHCVbUlzUbXhJJ8ro3Nmu0LM0sbK1IQ3Kmv1w7ONl7bfgpoHANSrbKO1rRcyUopu4xKQzYCYBquWhwQumqT3Xsivk9KZ7wqI7RaJaXNgNQ8JUpah5rEhxM5tSm2teNC5VSvEapEY7fgSBGpRkzVa0gBWkhRsRLfB98cKNMs2REkAqlFZA1At1cD0woaCEYhJ5SiN5vzM2tCOJ4HYV8ZLHloelqHmkWhOLBJ9Se1UamdRiEnHX+r8rX7khYslGotuQwOlte27ZYmaap9rjeOVDSdrB4HDVEt8op9fJyadIVfMiUlnNc/r0RCTYLUzxEZHYq12R9sHb0u8fdFhptQWW/1P6vD8BC+9tvZxDhUtEusBpRRRTodYb9QgwakGQ8sZrtbYpL9HZU7M4l1+yr8iEqOXU2h1aoVV9NdJQMwHMA1ivA1xwNVAoIFKumaydvKrQcazDUt9WBkSicLCIBsBMQvArAB6YRP4Wl4eZmsQ0xqYdoBGQkxrdK3XLXjQSf+rIKZN4D/rxL4ltSCmwYO2B0ubqQGmBqgWsKzb6GXIdIjxSmhBzJJXaxy17XDA8TNI8ZCiLwvAZkDMk1Ze7MrhyD16rhWbAbHVc2Kt9lSL1njfs/YdC4S0/m3ph9Lr20CsBpZXYTjZgphUcRLEWnn4X95ZeEOS4Mm/TyFGL5uQXu80J9brYRk2XgmxFZFYOS7SkFGa/9JgR/ueBx5WyHLxbVj9tSBiW4i1NqhBogZF6QxnbUzSgZEgJk3CSgArHeNoRGLl+5l+nfQMJ2mkZbkZexTEvENRnjJATGuntJ3xNsXbHIeAdkKuwU17XQMM34YHZBZQpoJYbWcjENN8pIqh2/XcblSDmNbgJIB5IFYD2XHBnFhvJDbiOjE+91XzkC6uta5ocX4vM8RehAtfrcNJ+j6/S4DfIlVrLzXAtOAk9cka4NJDrEZr7bNW4/BArHaAtMsreiGmDSdrINM+O4ecIw5qD8QKHGaDsJVKxKdBzLM/HGKr58QkgEUgxgMArX+0TnwaXFrbkHxa/bTGEa2/TwUYBEFrpUVbrQjKEoVp29CAU+5UoP97IBZNtCzDKxiCoPlqRUCWCNG7DQ1UGkQt22gBClEYBN1YGkDo3Ji0uoZ3G9oKHSMgeXREZNF6gyAokbxwsa5PRr83A2Bc3mFkZBsQBCXWDLCs2AaiLwiCIAiCIAiCIAiCIAiCIOh2qt0vurJM2l0t9Ab98j+/S2LE9sfsCQQlVcaOH9FZZr600Xnr2plW7s+57QKlFshGQ+zMf95SuOPxhCCTeJQwOgqIlCcK0swQs0Rio49BAVhJw+rAcq1H73UfWa6L6d2eZUmZlcpSnt6Orw1trt4nDiEvfDJDjNZta+WQmRAL+11xF7r3yuEIXCLb8G4ruj7W1SodpqSyFtiKcvAO4O34WkcCxMao1HEBE105RINXL8Ro/ygAK0xxe1IgeZ8bZ4UYv9nUc9OrdT/4Nrzbsmyjd6G/K3VXiK0cTmaD2Ki2JUVirTmynmNAgfX6can2IRDjT+KeBbEIZDzbeBXWQ8sAsVUd7i4QK0Mc+gvZM0Ps/H5Z1663Hh5kYr9EYjPnxDSIhfoJj8JmgEyKwqQbQ3sgo0V6I0HWC7CrQXZXiGE4+R5goyGm1fVWEJNgNhJiEtBmQEyC2bNBrKQMEKORFCA2FmK9IKPDSR6JST+ojJ4T489lNXtKMPI+9LIFMgkUkSisBhltGx7f1jZGAexKkGWLxACxeRDj+SNDU1q3ZU6svC7tduTEPt32UIj1JGkbUZD0Qmz0NnaH2OPj04sAsT6NhNiZdwbEymeROqaRWIEYb7uzIBbqH4DY80DsTpEYJvZ1iEUAdrDhJD9hXAkxd2ZADBC7qhx0nmVEJPbsl1hoEIvOjT2E68TosaJpxm1HgNiNIdYDPR6m90Cstxw9V9o/Bl/sOqJOM0KsZ3L/wX6d5JCaFYmd/Y2201ofFAWI5YbYg81pmQ+skL8nEqNn3578PRDTrh6PDJsi8KH5V0KsfEeLxLz7Q32l+i0RMAXYjAuOuzy8oHpRrvWqbaPQdgZc6DY8SStPbRsrorBeiFGPDBCLNHzewaLD0mNziD3IcHEGxLRoV/pBZfVN+O9UA1NvFFbUAy5riHkFKHeEWLZILAqx2nyNuyybQuxgIJsRiUkRb3qIHQOGlZZteKIhL1xq2xgFsKKrAHawSKoXYtEyHIMhNmJO7JkhdhCQzYjE+LyY9qtwOogdBGRSVFaL1CzeZSdnwqWoBsgaND37cQXAjhtGYr2/Tt4NYrOuE4tIipZp5Ctd5JoKYqUTz4jApG15hpEe7ygsI/sxG2AHafAjIAiIEa8kEJt5xX5kv/gvyHxOTLv1KAXEuGbAi2sGWFZsYwa8qPedJvYBsdwQ47ccacPJLSAG5RCGk+/zS50MEJsDMam+tXkxQAxSRSOpng5XfO4CsZ7bjgAx3U+7pILfDA6IQWbdLRLrvdh1xBX7gJjuJ82B8Yl9QAxy6W4T+6MusQDE5k3sS9Da5hILKJ9GTeyPgOEqiGkA67pwdjHEKMCyQUyDlnb5BSAGVYXhpHz9Ev9/F4hJAKMQ8xyfqyAmXcUPiEFm3QFiNC+fmG95taIw+toLkh6IcQBZfDSAScnqNwpi/BjVbjPS3gPIIFF3hljLyzKM5O97YBJ9upAURVnqdSTEOMB6luKR6lmKdmtzYoAYpKoHYhxg2SDWavg1iPVEY6MhZgGPB2BWPw6x6MNCasN1qY6lObGeqQboxiqNgkLsfM+aX4JYBIilHLShWsshzYVZ5rO0jmVJtX172xcCMde+BMATAVjLTwOYF2QPYYFD6wmD3vly3sUDkEGqor8o0rw8XVkOrQwtv1a+nn3bfV9G1MEhRMnnXwok6YeU8pouDnEmQAyCoEvFAfYqPOJQmgLQ5sowrIQg6DI9hOW+X4WHTNcApg1BcdkFBEFT9WDr5HP4nBCrzY9JE//RX4ohCILckiAmAUmKuGpRmAQzgAyCoKHiv/py4JRkvZxFysPBBpBBEDREdB5M+kWT30ZE4SS9L916JHkiIoMgaJg0ANVSDVzWvKv3G4Kgm8sLJy2t3g8IgiDo6LzCHBqv81jwVQki9xtKD4vAr1BxnXUmXWBKn/Z1hcft1Ht7SqnUMz1lBU5S760lfKVOCiIPxLRrh571WPceF0BssB7Kw2Y9+elj3Z6uAifpZ4B899dPkuc+wZGRGCD2fz2UG7E9xyUjxEY9kvFS0bOIVAmeM4wGsmds5BadAKh9/g5g33z+S3KAjAOIR2NRiHmjuTtJA5gHZJkgRsElPVt2Nti6bmjn0OGV4ImsKLA4wJ4ytG2oBbBjMMSkoeSISKzngsZ//fZ3P9G/s1XqrdfnThArgGr9naUWg5r7UQx+/OHrd7Dixi2IUVA9yPMNeXQ3E2QtmtcoH80b9bAArHiekJCGk9FJ+ashVqsHvsbZ7OOibct81if7dLZnCWBXAqjXwxJ1Sd+pfd/62UHqkQNM2id1XyRY0bvaLRCTQFUgdiXA3nVyGrU00pnf8/1ej6vnorjHaIjVPHjEwttULR2kA0WT12MnAPV68CFk63/NQ4Nc7TNefu1YmPanBTEeodUKQzd2QozPq9Uqo+Zr+Y4WqdTuxi/p+Di08yTuWTxaN8R6IdQTAUkeMyIxzYMDjEYqlnR6WL872sNyXGYDyDLEHlGOowNite9Y8nohVgUZH+p8K9zgaSlQgVmBWE/0Vcpi6ug0AmMQq8FHgpg2d2SFmHQpQ3S5Egke1MsDoBlzYrVyAGLtOq15nMPeXo9aOUr9FLXmwvj36XtaJKblq5X/VVjXzFW3HGLVL9c8gg+k0MpRA+kbxNjEtxdAHBLSciOWaM4CwSiAejw0UANi4wG0iwcFTA1iNRDx79bek8r/wn5APCPQUn76//YQqw1pa5GYBjEKhUOBmAY+SzSnASMKj1EQ673Y1QNkQGwPjxcWTfG/GsD4+95h6EEgRpO0P/S9+0OMzYm1orAWgHo8WpGYBWTRCfWax+jrxGoR8o4Qs3SULACqeXj6HwUZnYzXAEbzcQjy/6Xv8n14qURj9DPTPmWFWGtejoPMA6UjCDEezfE5REuy1MPMXyc9ESE9FnSplVa+CMBGQmzWcckCsRfy41kEYEUcJC2A8bxHZSja8uIRmVQvpn0qX6QdxLMj7zzYJRZeDwqiAqhWvkhjLRUTzWtt9FE9lOGkFSJHA2KekxX9nme/73pcMkDs6DgukihAonlpFOfx4SCLRpVvZr0NYEQDmt0QdxCFmDQv1xPNeUAIvVcmiI1WBGA8f9Tj6pMRdIE0AEWGk/yHBQ8Iofe6M8QgCIIgCIIgCIIEYS30+wnzRtAWKuDpARDNC5DdQ+VqgvMeZ0yEQz+rrEjRq1U//beESGy8Vh5bCjGaALIOnRW4ugxRlV8B6euIz0O4M/+F3dgaaWS98MGjtcaL/np8XmV+Juuxpcs41d5rbV+CWARkHMKrT7hLdFbceQA4yCx342cTB5pVFGD8lonen9ABn/+3pRHtiQ6/6P9eHwliVpDV1qPzbJ9DLLIvD+HWvvLeFiAbOeSRAHYeFE/DyzYE0yQ1Nn7tT219pG0ayEeVW4f4+1ctLX22ofNOEKkteduXFLlEoxcKMW9b1RbY9Gyfz4l58h+kzfK1A2m7bfkunT45N3BW/tkI6JnEExZTSTd+WhsYve2gnHHPRluSp0K0hdYseS0NSYvUKMRai7xZG0ivRgwhT3idt35pILOK1lkk0tUApsGNq0CHjhp6QEYhFj2OUYAdBGI9bUia/qDJArBPVlUOPpkrvAMUXBRmEZr2rCtUGiJPFGSWG8u1uajyfy2vBCdveO9ZqbLWSEb8Iin5RVXgRSHmgZp02xS/iT4qyzCzAEeDV0nn59b23guxUZFYLyRoP6cnV/MdIXQ9P/6/A2K1RRqqBeARGIUYrVwrPPh7lsIXiHGQna8/fPnBDDFplUhpYt1SpiMwN/Ygy4pIAF0xpJw1mU+jM2sZ+H2b9H9rGSPzYh6AWdv70QmxkXNio9rQI/Bksk8iseAzUvmKNTSZQPYQngQjnSUsIJNet+ZNKMQKuLTUgpgUifH/qxXSoUflTvzIuk8j4DPiV0nt+HmiMG21XE80Rk9uHGQ1sPFhJE8rIdZ6r7X9DBCrLVtlWWSg7EP5bhhkFGIRgGk6O8DZQGogGwExKQKT5qci++ARn9yvpVadZvxFMjovJkGM/rX6SJFYZDipwevK4WSvRkLsEVyPjEIsumRULQoLQ6yEiPSvZYc0SFif3FJgNgJiEtAs+1BEz4iRuYra5RUrVynoicr4fFj5/6pfKHv1+PjLJIdZ9GR9F4hpJ1nL9q2RWA/IzFM6fEPl/16AtT7TylFSAZfnB4Ze0bmwnmvGtGHkSoBJ/z+TWmd8r5d3ccmRGj2cjG6/tRKydd260MT+Dlp1gEZoREcZLVy1P1arj+nqbXvSqnJCEARBEARBEHQLlR+LeuZyRnhAe+jx8YlZOM5QGgFikFUP8sg/HGcohejlO/Qn9as9oGvkvcJByn8pxPDLBNTSg9yiEr00YYRHRN52/Oztng4DoxDiEJtWn/QiVelex/L62Q9qr0bU3+pjQCOobx1PIB/t4ZV3+Irh7niImSMyb/TE4SUBjL9v9V3d4aKace3MXeaRALHnkRVirf7BAabW51s0JTyctXYQHuQ2oVZhaETW2vnL1iKaIKketcT3rVZ/fA5IA+IIj5l107vNFR5S3bW8AbFPASR9p9zuyCMuLYn1STsdn2uozTloAOM3+npB9gYx5z1pIyKgUR7Sqg1S4h61pUxop9C+N8pjpkZ08F6Ph3NeTao7rU9IdR3Zx6vFV2WO3C9MkwVAQyDGowZekFbUwCEmLaVB3/NAzDtpy8vriYBGe0RBWNsW7RS1e8xGeMxUJohZh6RS3XGQSaDLDrECLv58jLK6x2F4+E8NWhQ8tWjMAi41cHiwG1hpFMFBVoOYdThZW4kiGvnwfWl5WCAW9ahFOJZF42rbvMNw8hgIsZ4ye/ddqjsOMgvErCe2WrlGevAFIaVFImvr9z+ckZRUjmHDyFrD1qIP/pnVQwOi1qmt82MULiXa43+tECsL770NOT7+//a3NsQ2RnKeSHNUx5cgFvHpgd2IfblaUpk5yDjUNIhFT3AzPDSAffK6MnymEDv7Ry2SkvJrEVdJLohFOhz1eFt1M9Bp3w4MmwfT3tca2iiIlTwRiPWcJWvf6Y2iuAdt4FaYzIBpxIP7zfbRykzz8Pza979lS3LXUq3PFcDQ71MIeTxq0diZau29wIsn6yURrfbbPL7RzjbDQ5oH097XPHqjn1EeljmWWRP7tW1Kc2LWSFfyoO9fCcLRXi0f73Zq9TQycFjp8c5LgdiIk0tTZbFCy4KGs5d21kDniTSyADkKsVoDsk7Ka2XjHiVJHrw+eLlp2R8sqqsdI6kcre9rHiVZvawn0ZkQ42Vf3U57PagXH05eAjBojiwH3gJsnqzDSW2IqHUsrbFK39e2a4mUW+XwSKqP3m16OrylfK1jbPXwfnalRxF9xFtJnmWuqU9kmWxoA3k6UW0I4emIh7EBe/yOSRCz5kF0AEEQBEG7KDI3kNVD89nRI0udzjou3vyZPLjPSo+n14NdnGt9eG9Gj5rPbh5Z6nTkceGXM0RgmsFD8lnlASVq6ICYLf+uHtI1WZ6Om8lD87FGVCM8UuuqnSjbqT28l95ildnD6rODR5Y6HekhPbiXPtR3N4+ozwiPqkbAY8T4+HzC9Jlmgow3Tu0q6tpZN4uH1WcHjyx1OspDi3qs0dDOHtxnhEdVj4+PaG892r31WeTx8DR/uZ3pTLOjsWxna0Riuep0dCTW6qh38fBEYi6P8katgDSck0hcvsN9yv8tj5qKJwWYF6hR6D0qa4JZPXfwsPrs4JGlTj0e2tDpTh5WH7eHBBcp8c+ph7YhDjb6WW2HKPgKvDyRGM3DPbi3qUKNKwLs4FE62Jmv/PXeKpTNYzWAhkAsSfsY4lE48HHBhsixdXnUiGel4QmIXg+6AxK0KLysFSHlLx7WubVyYOkBpu+1ypHNg8Ij4pPRYzWARkEsQ/sY4kEBFDy2Lg8vgAoI+EZbIaAUpdV2QgOQdT6s5WH1SnWGGxyJ3cVjNYAQiTEPAUBTPbzwaW2c+/UCiC7pEfGQ8nuiurd9EirTc1AyeGg+nvxZPEp+CRzeOs3isbp9bN3GHmTuiEIoCiB6EPk8m2fiNhqFtTxoas3NffHy+pZKHvqeBYIZPCQfb/4sHrX80Tpd6fHVN/98S+WES9/bxUPy8eYf4sEh5IGP9D2exwuyB5kj8/6qWfOgScvHG6QEj1pDzeIheXGPCIBWeFjAEanTVR68k0rwqHXeLB6SF/eIQCzkoYEoCrHId/j3Lb9ojvbIAiBArF0fgNh6D8lrCcTKwmMPtpAZf69VAG1BM+rV2hFp29YyjPDIAiBArF0fgNh6D8lrWSQG/V9ZAASItesDEFvvIXkBYotVGmntyvIzWRr6ag/qVb5f4NFzScEKjyx1Osrj7JgtDwuAVntQr/L9AqCe9hH1gMg1M62zbO2n3ywe1It+n/pGoqhVHpYoaEREN9ujHFse7fBkaR+rPagX/T71jURiUQ/oozI09FEeLZ8IgFZ5ZKnTUR4teOzi0fKJQCzqARE9fvXrTy7667kSeqVH8ZG8PPlHlSN6RfeocmTyoA914a938jhIG+NenvwjygF91KyG3jNP0AMPqTw9eXsgRudbskBsxXGZBaAR+xKFx8i8gFinpAPb2zi8t6VQH5o/OtnJAdIDn16vaP47HZc77YtUnpVt7OlVa1j0dcSDJ4sHT5Fy8Ly8TJ594Z2lvPbui1SWSJ3ufFzutC+r2xikyNMg4AEPeOTwgCAI2ls0hOvNv7sHBEGb6dH54Eqef2ePIxFMZ3iMqI8sHt78mTygQSoHwfu0E+7R+4ilTB4P5Yb43TyKT/Sm/EweWep05HHphXp2jxH1UfXg8NJWd7U+cimSP5PHUelonk6XxcPis4tHljodeVzKMx948sA0u4fVJ+RRi1hmPvySFyaLB/XK0NCv8mj57OSRpU4tHrUOa32YTQYPi89UDx6JzXz4pTWKWulRfF6/+7yaLI0jg4fFZxePLHU6yiMDgG4BMWrQ87CQlocnLM3icV6jws+wvwlcTZ3Vw+OT3SNLnXr2IwOAroCY9bahbo93Hd/y4MqWxw0gxm9U7rlHb7VHuXDw+yQPvh3hIV0p7q2PVR6lw2rH1gOg1R4HA9CZ74RO5Nh2eXwCMZLxmSH2YDf2RgCUwYPCI3pss3ncBWLSsfUCaKXHIQAoemy7PDSIuTtcFgANGk7u3lm4R4mAIp0um0eWOu3xyBKpj/CQAHS1x9vEeCgzze988ndWjywNvdfjYMe2pyyrPUp+Ka+3DFk8pA67m4fm48nf7fHoXFWxln+3lSofbIKxNNCeCdNVHpKPN38Wj1r+3SbD+UmWPtTZOmrI4iH5LBlBPTqeNGIBR8srkwdvkBI8ag01i4fkxT0iAFrhYQFHpE5XefBOKsGj1nmzeEhe3CMCsZAHIPaLRwYAAWLt+gDE1ntIXoBYAo8MAALE2vUBiK33kLwAsQQeGQAEiLXr4y4QKx3WMx+VxUPy4j49EHN5PDoeXPlI8iDPUR60k2nJ0tBXe1AvLb+nga30yFKnozwyAGgWxLhfBGIhj0fngystUdCIiG62x4Nc5FdLtZ9+s3hQL/p96huJolZ5WKKgERHdbI9ybJvwMLSP1R7vvDJBzAuOVv6dIHYkaeijPFo+EQCt8shSp0MgZoiAdvCQfCIAGuHxZlSe8xZ9eGaGB3mO8qBPc+avd/IoPpKXJ/+ockSfID6qHKs9sgwFR3hIPtLkfC8IXZP7dFyfBWI9cy/ZIDZiXyKdXypPT94eiNE2lgViVx6XLAC6JcQOcsbunbgd1Th+47yVQ9qPUY10132RyuPNL+Xt8Xr2NiaVXXod8eDJ4sGTpxzchx9Xa35tP0ztRPu1iJvUCtE6GD0ePFk8tP151n2pHVfvvvCOX1579wVt7F770tvGtP2wAlktkCkTPOABD3gk8oAgCIIgCIIgCIIgj7RfKqK/2kTyZvKYURerPDSfu3h482fyuINq7Lisbh4DHrmk+UQ67WqP87v8upnIbRQZPGo+d/GItI8MHnfQuc/lfutaml43IyBW8+iB4IrbWzRwWBtrFg+Lz108djy53EG3gVgr/24eGQAEiI2vjywed9O5vx++/KCm5cNJy+06mQDU63EkOlvP9rDezpHBIwuAALFPlQ5i3wceXJkFQCMhluVRWCM83mDR8WDkbB5ZTwzPBrAjK8R6H36585zYQeBBIeKpi3QeZG2o6LHN5BGNBjN53EmpIebtLGcEFxmOZvTIEkUN8RDgsb2Hcx34bB4t/91SC2JS6q0nteKiD78s+aU1yTyNI5OH1Nl289B8vI0og8dbfgEc7jpd7FHzbk2J3CUNBVnvmaWW3+qTyYMu2leGCp6F/LJ4SD6RBQkzeNTyR+t0lUfNezVYbgExOr4fBQ7vAm0rPXiDlOBRa6hZPCQv7hEB0AoPCzgidbrCo7Wfq8GyLcgAsV88MgAIEGvXByB2jwSITfDIACBArF0fd4NYAZi2UOGdk6eeqhXIIea5+C8LgEZDjNdFpKGv8pC8eq6LWumRBUBXQOwZ05BoTAKAF2Ktq5gtAMrgkQFAsyDG/SIAWuFR8raOraVOV3vU9nE1TJ4WYlp+a/STyePx8ef/FjwsDyVd7UG9doeYlt8b/WTxkDxXg2RriGkdf/RwsgmPJB6WCGgHD8lnJDyu9LAO4zx1uspD810NktWpC2QtiI2CB+bErh9OtuAxAoRXeGSZz5o1J0YhtnqSfUUCxAZ7ZAAQIGbLfweIIQobOKSkiVLSOlx43ORhoHfaF+7Dj6s1v7YfnnaCNqb7rQZIlhQGmRTeSQfH4tFqaBEPzzUlWp5n35facbV4aPth7fhoY7qyQCxDOcIQqx0geMADHvM8MoCDAmx1eYZADIKg6yRBQ4v0ZiUOsau3X8oAkEHQhlod+UjR1+oyAWIQtIlWw6IGrJVlA8QgaBMBYgAZBG2tDKDo+RwQg6AnVg0QV0yk8+2Xi44lmFw9sQ+IQdAGyhSF8btBEI1BENTUajhIUVgtGgPEIAh6UzaAffXNP9+lLCADxCAoqbJArEReWSEGkEFQUrWAcPVkvgSxqyf5ATEI2kQrIxoJYDWIZYjIADEISqaMEKul1RADyCAomVZBIAKwLCADxCAoiXYEWAaQAWIQlESrlrm5QwLIICiJVsNg17T6uEEQJOiMLqLDu7snRF4QtIEAMUAMgrYWIAaIQdDWAsQAMQjaWoAYIAZBWwsQA8QgaGtpEONPFtfSqHwWoFxdHkAMgjZQrQNLN2TT9zRoRPJZIHZ1eQAxCNpALYi9/v0fPycvNDz5LNHRleUBxCBoI62EmGeoB4hBECRq1XCSpm9//4WY+PcwnIQg6BPVOrBlniqaTwJYuUdRA9nM8gBiELSpVkZiPPKSIEZBhkgMgqBPBIgBYhC0tQAxQAyCthYgBohB0NYCxAAxCNpatQ5svYYrki8CsZnlAcQgaFNJHVi7bktLkXxeiM0uD80HiEHQRgLEADEI2lqWi0FnJC/EVpVx9fGBIKghQAwQg6CtBYgBYhC0tTJA7Mcfvv4EYuU9QAyCoKoAMUAMgrZWBohhOAlBUFiAGCAGQVsLEAPEIGhrAWKAGARtrZ9h8pe/vUsfvvzwyXuWdOaz5nVfsW/YdqQcrTKuPj4QBDVkAYQXZBrY6P8RiPWCyZsfEIOgDRSFmBTt1CIg/v4IiHmhBIhB0A1FIWbp5AVUHoBJ/iOGkzTCswDWC2pADII2kDcSGzHXNApiNYABYhD0JPJAzAoCaQ6MQ6YHYlrURwEGiEHQE+jlj5/9dCbPyqk9aeSlD1ekUj+rjxMEQYpKJ70qjRiGnunqcq8+ThAEKQLEADEIgiAIgiAIgiDoeaX9MrG6XBAEQU3VrpEByH5R70/Vq8sPQbcVvSeLXyQ3qvNddU3LLICcHv/67e+6EkAGQZM0G2KnR7kKeVXq2Y8RAAPIoKfWFZHKrOFkBoD1ggwQg6AOZYBAbxSzuvw9+0EB1rv9CMiyD7MhqKrdAXCHfRgZhXkhdkXdAWTQVN0BACVvhuTdjxkAs4LsymMPkEHTdBeIZUqeKIiDp3fbHpDRussEdggy6w5RzGpg9YBsZhTWgtjVdQeIQVOUEQLPArErAFYD2Yq6A8ig4coIgeiE9OookkaTln3RINZbf1GIXVEngBg0VBkB5mnso8pvgdHo/VgdBa0G/ei2DD2p+BkyQ3oWiB0MJN9/99cpqQaO8j5fY31WAsCgocochVkgNrL8p9ePP3z9Lo32b+3LTIi1ts0fEPEGt8r/0e9H2ysEfaLsELNEMdL3o0mCWG80OQpi3N/zOSAG3VY7Q2x02WdHYhYgn8CpDcF44t+h5S7vRyH25z/9ARCDcmt0FDMyWTr/DgCOQMwShWnR1shIDBCD0msnCPCGv1PZrSDrhdjoObETYmeqAQ0Qg5ZqJxB4ILY6itSiSSvEosNJLY2CWPkfEINSaCeASZ1/x/JbIRad2J8diQFiUCppEFgdvdSiGA6xnZN2TCxAohEWLrGAnlY7RjLPArHRF5cCYtDttLoDjwbAg62Gyu8/zPDa2nHfOrzz0grt8xo0+XZXD6chyKXVIBoFsONmEDuEqKj1Hf49S/6W3+zbjqx1AUEmjW7A//nvv9/99X7ubfDPCDHpuJXvRiAm5RuZADBoqmachU9AlWR5/0qI0TL0pNUQk45dDzRmwQYQg6Zr5nyI1PlHz59EIdYCcOvzDBDj3y95ADHoqXTlfIg3zYJYbThbgxjNOxJiL3/87CeaSkTF39eSNhTk32tt37tdT/mob7StQpAobUhimePQwOOdK1kBMQ1kGsR4vpkQGwEKKc3cvidF2yoEiZIg9v03n7+lsyPS1xaIScNC6b3VEJNAps3l8dezhpMQBDnFAVMgdi7pokGsNY8Vfe+qObFWlGWJ1gAxCEoiKRJrgeVOkZg032WZNwPEICiJnn04KQ0lLb9QAmIQlESAmP3XSUAMghJKmxOrQexuc2KAGARtrBmXWNSAdf5gkDUSw3ASgjbU6Itdd4UYJvYhaFNdDbGMc2K4xAKCNpZlbsqTdpsTw8WuELS5njkSy3LbEQRBHXpWiGW6ARyCoA49I8QyL8UDQZBDZVWBkXNiI5Nl1QO6gkPWhJUbIGiSrl6CZcbSLavLhuVnIGihVndsQAyCIAiCoKfS/wAA7W+Su30WVgAAAABJRU5ErkJggg==';
+
+// ================================================================ Stellschrauben
+const T=16, W=96, H=72, N=W*H, DAYS=21;
+const CFG={
+  ...JSON.parse(JSON.stringify(window.REGELN_01)),    // Ökologie-Werte (Wald, Licht, Boden, Hasen, Füchse) aus regeln.js – im F2 wählbar: 01 oder 02
+  chickens:6, chickenHay:0.5, startHay:6, startWood:4, traps:4,
+  kraft:8, enjoyBonus:1, canopyAlpha:1, viewRadius:48, viewMin:0.5, slack:1, henGrass:1,
+  brotPortion:4, brotPreis:3, brotMax:5, eggPrice:1, keepEggs:4, meatPortion:4, berryPortion:2, berryRegrow:5, hutchCap:6,
+  startTaler:6, startBrot:4, startEier:4, mealKraft:2, mealBonus:1,
+  spoil:{brot:4, eier:3, fleisch:2, beeren:2},          // Tage, bis Vorräte verderben
+  ambWind:0.05, ambBach:0.07, forestDim:0.88, shadeDark:0.8, turnHold:0.13,
+  blockMinSec:20, pauseSec:8, secPerPoint:1.1, wayCostPer:15,   // Zeitblöcke: Mindestdauer, Mittagspause, Sekunden je Arbeitspunkt
+  pensum:Object.fromEntries(Object.entries(RL.personen).map(([k,p])=>[k,p.pensum])),   // Arbeitspunkte je Zeitblock (aus rollen.js)
+  cost:{maehen:0.5, einholen:0.8, flicken:2, setzling:0.5, loch:0.6, rasen:0.25, jungbaum:2, baum:6, baumAlt:10, riese:30,
+        zerlegen:2, roden:3, hasenbau:4, fuchsbau:6, falle:1, beeren:0.6}
+};
+const SPECIES=['birke','eiche','buche'];
+const SPNAME={birke:'Birke',eiche:'Eiche',buche:'Buche'};
+
+// ================================================================ Hilfen
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+let R=Math.random;
+const ri=(a,b)=>a+Math.floor(R()*(b-a+1));
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const dist=(ax,ay,bx,by)=>Math.hypot(ax-bx,ay-by);
+const idx=(x,y)=>y*W+x;
+const inb=(x,y)=>x>=0&&y>=0&&x<W&&y<H;
+const hash=i=>((Math.imul(i+1,2654435761)>>>0)%10007)/10007;
+const hash2=i=>((Math.imul(i+7,40503)>>>0)%9973)/9973;
+const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
+function makeNoise(cell){
+  const gw=Math.ceil(W/cell)+2, gh=Math.ceil(H/cell)+2, g=[];
+  for(let i=0;i<gw*gh;i++)g.push(R());
+  const s=t=>t*t*(3-2*t);
+  return (x,y)=>{const fx=x/cell,fy=y/cell,ix=Math.floor(fx),iy=Math.floor(fy),tx=s(fx-ix),ty=s(fy-iy);
+    const v=(a,b)=>g[b*gw+a];const a=v(ix,iy)+(v(ix+1,iy)-v(ix,iy))*tx,b=v(ix,iy+1)+(v(ix+1,iy+1)-v(ix,iy+1))*tx;return a+(b-a)*ty};
+}
+function pickWeighted(opts){let t=0;for(const o of opts)t+=o.w;let p=R()*t;for(const o of opts){p-=o.w;if(p<=0)return o}return opts[opts.length-1]}
+function chance(x){return Math.floor(x)+(R()<x%1?1:0)}
+
+// ================================================================ Welt-Daten
+const G_FOREST=0,G_PATH=1,G_LAWN=2,G_BLOCK=3,G_WATER=4,G_FORD=5,G_BRIDGE=6;
+const F_NONE=0,F_HOLE=1,F_BURROW=2,F_DEN=3,F_WOOD=4,F_HAY=5,F_TRAP=6,F_TRAPFULL=7;
+const TR_HARE=1,TR_FOX=2,TR_FELL=3,TR_ERDE=4,TR_FEDERN=5;
+const FK_H=1,FK_V=2,FK_GATE=3;
+const D_FARN=1,D_FARN2=2,D_BUSCH=3,D_PILZE=4,D_BLUMEN=5,D_STEIN=6,D_MOOS=7,D_LAUB=8;
+const ESTATE={x0:40,y0:30,x1:56,y1:44,gx:48,cx:48,cy:41};
+const HOF=[52,48], COOP=[52,36];
+const inGarden=(x,y)=>x>ESTATE.x0&&x<ESTATE.x1&&y>ESTATE.y0&&y<ESTATE.y1;
+const inHofClearing=(x,y)=>((x-ESTATE.cx)/16)**2+((y-ESTATE.cy)/(y>ESTATE.cy?15:14))**2<=1;
+const WEEKDAYS=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
+const STAFF_DEF=[
+  {id:'hannes',spr:'01-hannes',home:[50,49]},
+  {id:'jost',spr:'01-jost',home:[54,49]},
+  {id:'grete',spr:'01-grete',home:[54,37]},
+  {id:'liese',spr:'01-liese',home:[45,37]}
+].map(d=>{const p=RL.personen[d.id];return{...d,name:p.name,role:p.rolle,from:p.abTag}});
+
+let berry,berryT,ground,grass,gprog,light,feat,featN,featAge,track,trackAge,fence,fkind,bmap,trunkAt,lyingAt,stumpAt,stumpAge,deco,scent,covers,bridgeV;
+let trees,treeById,logs,logById,burrows,foxes,buildings,staff,P,G,scen,startStats,nextId=1,lightDirty=true,canopyDirty=true;
+
+function alloc(){
+  ground=new Uint8Array(N);grass=new Uint8Array(N);gprog=new Float32Array(N);light=new Float32Array(N).fill(1);
+  feat=new Uint8Array(N);featN=new Uint8Array(N);featAge=new Uint8Array(N);track=new Uint8Array(N);trackAge=new Uint8Array(N);
+  fence=new Int8Array(N);fkind=new Uint8Array(N);bmap=new Int16Array(N).fill(-1);trunkAt=new Int32Array(N).fill(-1);
+  lyingAt=new Int32Array(N).fill(-1);stumpAt=new Uint8Array(N);stumpAge=new Uint8Array(N);deco=new Uint8Array(N);
+  scent=new Float32Array(N);berry=new Uint8Array(N);berryT=new Uint8Array(N);bridgeV=new Uint8Array(N);covers=[];for(let i=0;i<N;i++)covers.push([]);
+  trees=[];treeById=new Map();logs=[];logById=new Map();burrows=[];foxes=[];
+}
+
+// ================================================================ Bäume
+function addTree(sp,x,y,h,giant){
+  const t={id:nextId++,sp,x,y,giant:!!giant,h,hp:R()*0.5,crown:[],dead:false,deadDays:0,stress:0,bitten:0,alive:true};
+  for(const i of trunkTiles(t))trunkAt[i]=t.id;
+  if(h>=2)t.crown=trunkTiles(t).slice();
+  trees.push(t);treeById.set(t.id,t);return t;
+}
+function trunkTiles(t){return t.giant?[idx(t.x,t.y),idx(t.x+1,t.y),idx(t.x,t.y+1),idx(t.x+1,t.y+1)]:[idx(t.x,t.y)]}
+function crownR(t){return t.giant?CFG.giantRMax:Math.min(CFG.sp[t.sp].rMax,Math.floor((t.h-1)/2))}
+function trunkCheb(t,x,y){
+  if(!t.giant)return Math.max(Math.abs(x-t.x),Math.abs(y-t.y));
+  const dx=x<t.x?t.x-x:x>t.x+1?x-t.x-1:0, dy=y<t.y?t.y-y:y>t.y+1?y-t.y-1:0;return Math.max(dx,dy);
+}
+function treeAt(i){const id=trunkAt[i];if(id<0)return null;const t=treeById.get(id);return t&&t.alive?t:null}
+function killTree(t){t.alive=false;for(const i of trunkTiles(t))if(trunkAt[i]===t.id)trunkAt[i]=-1;t.crown=[]}
+function computeLight(){
+  light.fill(1);for(let i=0;i<N;i++)covers[i].length=0;
+  for(const t of trees){if(!t.alive||t.dead)continue;const op=CFG.sp[t.sp].op*(t.h<=3?0.6:1);
+    for(const c of t.crown){covers[c].push(t.h,op);light[c]*=1-op}}
+  lightDirty=true;canopyDirty=true;
+}
+function lightAbove(i,h){let l=1;const c=covers[i];for(let k=0;k<c.length;k+=2)if(c[k]>h)l*=1-c[k+1];return l}
+function growCrown(t){
+  const r=crownR(t);if(r<=0)return;
+  const opts=[],seen=new Set(t.crown);
+  for(const c of t.crown){const cx=c%W,cy=(c/W)|0;
+    for(const [dx,dy] of DIRS){const nx=cx+dx,ny=cy+dy;if(!inb(nx,ny))continue;const j=idx(nx,ny);
+      if(seen.has(j))continue;seen.add(j);if(trunkCheb(t,nx,ny)>r||ground[j]===G_BLOCK||ground[j]===G_WATER||ground[j]===G_FORD||ground[j]===G_BRIDGE)continue;
+      const l=lightAbove(j,t.h);opts.push({j,w:l*l+0.02})}}
+  if(opts.length)t.crown.push(pickWeighted(opts).j);
+}
+function placeLying(x,y,L,age){
+  const dirs=[[1,0],[-1,0],[0,1],[0,-1]].sort(()=>R()-0.5);
+  for(const [dx,dy] of dirs){
+    const tiles=[];let ok=true;
+    for(let k=1;k<=L;k++){const X=x+dx*k,Y=y+dy*k;if(!inb(X,Y)){ok=false;break}const j=idx(X,Y);
+      const t=treeAt(j);
+      if((ground[j]!==G_FOREST&&ground[j]!==G_LAWN)||fkind[j]||lyingAt[j]>=0||(t&&t.h>=2)||feat[j]===F_BURROW||feat[j]===F_DEN||stumpAt[j]){ok=false;break}
+      tiles.push(j)}
+    if(!ok)continue;
+    for(const j of tiles){const t=treeAt(j);if(t)killTree(t);if(feat[j]===F_HOLE||feat[j]===F_WOOD||feat[j]===F_HAY||feat[j]===F_TRAP)feat[j]=0}
+    tiles.sort((a,b)=>a-b);
+    const l={id:nextId++,tiles,dir:dx?'h':'v',age};logs.push(l);logById.set(l.id,l);for(const j of tiles)lyingAt[j]=l.id;return l;
+  }
+  return null;
+}
+function addPile(i,type,n){if(feat[i]===type)featN[i]=Math.min(20,featN[i]+n);else if(!feat[i]||feat[i]===F_HOLE){feat[i]=type;featN[i]=n}}
+function fellTree(t){
+  const ti=idx(t.x,t.y);killTree(t);
+  if(t.h>=2){
+    stumpAt[ti]=SPECIES.indexOf(t.sp)+1;stumpAge[ti]=0;
+    const L=t.giant?3:t.h>=6?3:t.h>=4?2:0;
+    if(L===0)addPile(ti,F_WOOD,1);
+    else if(!placeLying(t.x,t.y,L,0))addPile(ti,F_WOOD,L*2);
+  }
+  computeLight();
+}
+
+// ================================================================ Weltgenerierung
+function streamY(x){return Math.round(60+3*Math.sin(x/8)+1.5*Math.sin(x/3.7))}
+const CLEARINGS=[{x:16,y:15,rx:6,ry:5},{x:80,y:13,rx:6,ry:6},{x:17,y:43,rx:5,ry:5},{x:79,y:45,rx:5,ry:4},{x:30,y:67,rx:4,ry:3}];
+const GIANTS=[[24,27],[71,26],[63,67]];
+function newGame(seed){
+  R=mulberry32(seed??((Math.random()*1e9)|0));
+  nextId=1;alloc();
+  // Anwesen
+  for(let y=ESTATE.y0+1;y<ESTATE.y1;y++)for(let x=ESTATE.x0+1;x<ESTATE.x1;x++)ground[idx(x,y)]=G_LAWN;
+  const setF=(x,y,k)=>{const i=idx(x,y);fkind[i]=k;fence[i]=3};
+  for(let x=ESTATE.x0;x<=ESTATE.x1;x++){setF(x,ESTATE.y0,FK_H);setF(x,ESTATE.y1,FK_H)}
+  for(let y=ESTATE.y0+1;y<ESTATE.y1;y++){setF(ESTATE.x0,y,FK_V);setF(ESTATE.x1,y,FK_V)}
+  fkind[idx(ESTATE.gx,ESTATE.y1)]=FK_GATE;
+  fence[idx(ESTATE.x0+3,ESTATE.y1)]=0;                         // eine Lücke für den Einstieg
+  for(let y=ESTATE.y1+1;y<H;y++)ground[idx(ESTATE.gx,y)]=G_PATH; // Kutschenstraße
+  for(let y=36;y<ESTATE.y1;y++)ground[idx(ESTATE.gx,y)]=G_PATH;  // Gartenweg
+  for(let x=ESTATE.gx+1;x<=HOF[0];x++)ground[idx(x,HOF[1])]=G_PATH;
+  // Bach
+  for(let x=0;x<W;x++){const y=streamY(x);
+    for(const yy of (x%7<3?[y,y+1]:[y])){if(!inb(x,yy))continue;const i=idx(x,yy);
+      if(x===ESTATE.gx){ground[i]=G_BRIDGE;bridgeV[i]=1}else if(x===19||x===77)ground[i]=G_FORD;else ground[i]=G_WATER}}
+  const bank2=[34,streamY(34)-2];
+  buildings=[
+    {id:'haus',x:46,y:33,w:5,h:3,spr:'01-herrenhaus'},
+    {id:'scheune',x:41,y:38,w:3,h:2,spr:'01-scheune'},
+    {id:'stall',x:52,y:35,w:2,h:1,spr:'01-stall'},
+    {id:'trog',x:54,y:35,w:1,h:1,spr:null},
+    {id:'gesinde',x:51,y:46,w:3,h:2,spr:'01-huette'},
+    {id:'hasenstall',x:44,y:39,w:2,h:1,spr:'01-hasenstall'},
+    {id:'bank',x:45,y:47,w:1,h:1,spr:'01-objekte_8'},
+    {id:'bank2',x:bank2[0],y:bank2[1],w:1,h:1,spr:'01-objekte_8'}
+  ];
+  buildings.forEach((b,k)=>{for(let y=b.y;y<b.y+b.h;y++)for(let x=b.x;x<b.x+b.w;x++){const i=idx(x,y);ground[i]=G_BLOCK;bmap[i]=k}});
+  // Freiflächen
+  const clear=new Uint8Array(N);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=idx(x,y);
+    if(ground[i]!==G_FOREST||fkind[i])clear[i]=2;
+    else if(inHofClearing(x,y))clear[i]=1;
+    else if(Math.abs(x-ESTATE.gx)<=1&&y>ESTATE.y1)clear[i]=2;
+    else if(dist(x,y,bank2[0],bank2[1])<2.5)clear[i]=1;
+    else for(const c of CLEARINGS)if(((x-c.x)/c.rx)**2+((y-c.y)/c.ry)**2<=1)clear[i]=1;
+  }
+  // Riesen
+  for(const [gx,gy] of GIANTS){for(let dy=-1;dy<=2;dy++)for(let dx=-1;dx<=2;dx++)if(inb(gx+dx,gy+dy))clear[idx(gx+dx,gy+dy)]=Math.max(clear[idx(gx+dx,gy+dy)],1);addTree('eiche',gx,gy,CFG.giantH,true)}
+  // Wald
+  const nSp=makeNoise(11),nDen=makeNoise(7);
+  const order=[];for(let i=0;i<N;i++)order.push(i);
+  for(let i=N-1;i>0;i--){const j=Math.floor(R()*(i+1));[order[i],order[j]]=[order[j],order[i]]}
+  for(const i of order){
+    if(clear[i])continue;const x=i%W,y=(i/W)|0;
+    if(treeNear(x,y))continue;
+    if(R()>0.45+nDen(x,y)*0.5)continue;
+    let edge=99;for(const c of CLEARINGS)edge=Math.min(edge,dist(x,y,c.x,c.y)-Math.max(c.rx,c.ry));
+    edge=Math.min(edge,Math.sqrt(((x-ESTATE.cx)/16)**2+((y-ESTATE.cy)/14)**2)*15-15);
+    const ns=nSp(x,y);let sp;
+    if(edge<4&&R()<0.6)sp='birke';else if(ns>0.58)sp='buche';else if(ns<0.38)sp=R()<0.8?'eiche':'birke';else sp=['eiche','buche','birke','buche'][ri(0,3)];
+    const s=CFG.sp[sp];const h=R()<0.15?ri(2,3):ri(4,s.hMax);
+    addTree(sp,x,y,h,false);
+  }
+  // Kronen vorwachsen lassen
+  for(let it=0;it<34;it++){
+    computeLight();
+    for(const t of trees){if(t.h<2)continue;
+      if(it>20&&t.crown.length>trunkTiles(t).length)t.crown=t.crown.filter((c,k)=>k<trunkTiles(t).length||lightAbove(c,t.h)>=CFG.crownDieLight||R()>0.5);
+      if(R()<0.85)growCrown(t)}
+  }
+  // Vorab ausdünnen, was im Schatten ohnehin eingehen würde (Startwald im Gleichgewicht)
+  for(let pass=0;pass<3;pass++){computeLight();
+    for(const t of trees){if(t.h<2||t.giant)continue;let s=0;for(const c of t.crown)s+=lightAbove(c,t.h);if(s/t.crown.length<CFG.sp[t.sp].need*0.5)killTree(t)}
+    compactTrees();computeLight();for(const t of trees)if(t.h>=2&&R()<0.85)growCrown(t)}
+  computeLight();
+  // Unterwuchs, Gras
+  for(let i=0;i<N;i++){
+    const x=i%W,y=(i/W)|0;
+    if(ground[i]===G_LAWN){grass[i]=0;gprog[i]=R();continue}
+    if(ground[i]!==G_FOREST||fkind[i])continue;
+    const l=light[i];
+    if(l>=CFG.litMeadow){grass[i]=inHofClearing(x,y)&&dist(x,y,ESTATE.gx,ESTATE.y1+2)<4?0:ri(1,2);gprog[i]=R()}
+    else if(l>=CFG.litHalf){grass[i]=R()<0.3?1:0;gprog[i]=R()}
+    if(trunkAt[i]<0&&clear[i]!==2&&!inGarden(x,y)&&!treeNear(x,y)){
+      const sp=l>=0.6?(R()<0.6?'birke':'eiche'):l>=0.3?(R()<0.5?'buche':'eiche'):'buche';
+      const p=inHofClearing(x,y)?0.004:l>=0.6?0.02:l>=0.3?0.05:0.015;
+      if(R()<p)addTree(sp,x,y,1,false);
+    }
+  }
+  // altes Totholz
+  for(let k=0;k<12;k++){const i=ri(0,N-1);if(light[i]<0.5&&ground[i]===G_FOREST&&!clear[i]&&trunkAt[i]<0)placeLying(i%W,(i/W)|0,ri(2,3),ri(3,10))}
+  for(let i=0;i<N;i++){deco[i]=decoTarget(i);if(deco[i]===D_BUSCH)berry[i]=1}
+  // Hasen in den Waldwiesen
+  for(const c of CLEARINGS.slice(0,4)){
+    for(let t=0;t<80;t++){const x=c.x+ri(-3,3),y=c.y+ri(-3,3);if(inb(x,y)&&burrowSiteOk(x,y,[])){addBurrow(x,y,ri(3,4),false);break}}
+  }
+  // ein kleiner Bau am Rand der Hoflichtung
+  for(let t=0;t<200;t++){const a=R()*Math.PI*2,x=Math.round(ESTATE.cx+Math.cos(a)*13),y=Math.round(ESTATE.cy+Math.sin(a)*11);
+    if(inb(x,y)&&!inGarden(x,y)&&distFence(x,y)>=6&&burrowSiteOk(x,y,[])){addBurrow(x,y,2,false);break}}
+  // Füchse im Dunkel
+  for(let k=0;k<2;k++){const s=findDenSite();if(s>=0){feat[s]=F_DEN;foxes.push({id:nextId++,den:[s%W,(s/W)|0],hunger:R(),alive:true})}}
+  // Personal, Spieler, Zustand
+  staff=STAFF_DEF.map(d=>({...d,x:d.home[0],y:d.home[1],tx:d.home[0],ty:d.home[1],path:[],jobs:[],cur:null,state:'idle',workT:0,dir:'down',anim:0,available:false,budget:0,failed:[]}));
+  P={x:HOF[0],y:HOF[1],px:HOF[0],py:HOF[1],nx:HOF[0],ny:HOF[1],dir:'down',moving:false,mt:0,md:0.2,anim:0,mowTask:null};
+  const kinds=['winter','jagd','holz'],kind=kinds[ri(0,2)];
+  G={day:1,clock:6,state:'play',kraft:CFG.kraft,enjoyed:false,barnWood:CFG.startWood,barnHay:CFG.startHay,barnHares:0,traps:CFG.traps,
+     chickens:CFG.chickens,chickHunger:0,fed:true,coopClosed:true,hensInside:true,grazedOk:false,hensFoodOk:false,hutch:0,taler:CFG.startTaler,
+     smokedLeft:0,food:{brot:CFG.startBrot*CFG.brotPortion,eier:CFG.startEier,fleisch:0,beeren:0},
+     batches:{brot:[{n:CFG.startBrot*CFG.brotPortion,day:1}],eier:[{n:CFG.startEier,day:1}],fleisch:[],beeren:[]},tasks:[],insights:new Set(),letters:[],hist:[],guideDone:new Set(),
+     night:freshNight(),dbg:{paths:[],log:[],layers:new Set()},vis:{hares:[],foxes:[],chickens:[]},pendingDisperse:[],talked:new Set()};
+  startStats=stats();
+  scen={kind,wood:kind==='winter'?ri(25,35):ri(8,12),hareStock:ri(4,7),hunt:ri(20,30),big:Math.max(10,Math.round(startStats.big*(0.95+R()*0.1)))};
+  G.hist.push(startStats);
+  startDay(true);
+}
+function distFence(x,y){const dx=Math.max(ESTATE.x0-x,0,x-ESTATE.x1),dy=Math.max(ESTATE.y0-y,0,y-ESTATE.y1);return Math.max(dx,dy)}
+function treeNear(x,y){for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(inb(X,Y)&&trunkAt[idx(X,Y)]>=0)return true}return false}
+function decoTarget(i){
+  if(ground[i]!==G_FOREST||fkind[i])return 0;
+  const l=light[i],h=hash(i);
+  if(l<CFG.litMoss){if(h<0.12)return D_MOOS;if(h<0.15)return D_STEIN;
+    if(h<0.34){const x=i%W,y=(i/W)|0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(inb(X,Y)&&lyingAt[idx(X,Y)]>=0)return D_PILZE}}return 0}
+  if(l<CFG.litMeadow){if(h<0.2)return D_FARN;if(h<0.3)return D_FARN2;if(h<0.36)return D_BUSCH;if(h<0.42)return D_LAUB;return 0}
+  if(h<0.05)return D_BLUMEN;if(h<0.07)return D_STEIN;return 0;
+}
+
+// ================================================================ Nacht: Ökologie
+function freshNight(){return{holes:0,fenceDug:0,newBurrows:0,gardenBurrow:0,foxCatch:0,chickFox:0,foxAtCoop:0,newFox:0,foxGone:0,
+  verbiss:0,verbissTot:0,treesDied:0,logsFell:0,chickStarve:0,trapped:0,lost:0,sprouts:0,seedlings:0,darkBurrows:0}}
+function log(s){G.dbg.log.push(`T${G.day}: ${s}`);if(G.dbg.log.length>400)G.dbg.log.shift()}
+const season=d=>CFG.season0+(CFG.season1-CFG.season0)*clamp((d-1)/(DAYS-1),0,1);
+
+function nightStep(){
+  const s=season(G.day);
+  G.night=freshNight();G.dbg.paths=[];G.dbg.log=[];
+  growTrees(s);
+  seedTrees(s);
+  stumpsAndLogs();
+  compactTrees();
+  computeLight();
+  groundStep(s);
+  hareStep(s);
+  trapStep();
+  foxStep();
+  chickenStep();
+  spoilFood();
+  G.hist.push(stats());
+}
+
+function growTrees(season){
+  computeLight();
+  for(const t of trees){
+    if(!t.alive)continue;
+    const sp=CFG.sp[t.sp],ti=idx(t.x,t.y);
+    if(t.dead){t.deadDays++;if(t.deadDays>=CFG.snagFallDays){killTree(t);if(t.h>=5&&placeLying(t.x,t.y,t.h>=6?3:2,2))G.night.logsFell++;log(`Tote ${SPNAME[t.sp]} (${t.x},${t.y}) stürzt um`)}continue}
+    const top=t.h<=1?light[ti]:lightAbove(ti,t.h);
+    let vit=top;
+    if(t.h>=2&&t.crown.length){let s=0;for(const c of t.crown)s+=lightAbove(c,t.h);vit=s/t.crown.length}
+    if(vit<sp.need*0.5)t.stress++;else t.stress=Math.max(0,t.stress-1);
+    if(t.h<=1){if(t.stress>=2&&R()<CFG.sapDieP){killTree(t);continue}}
+    else if(t.stress>=CFG.treeStressDie&&!t.giant){
+      if(t.h<=3){killTree(t);G.night.treesDied++;continue}
+      t.dead=true;t.crown=[];G.night.treesDied++;log(`${SPNAME[t.sp]} (${t.x},${t.y}) stirbt im Schatten`);continue}
+    const hMax=t.giant?CFG.giantH:sp.hMax;
+    if(t.h<hMax&&top>=sp.need)t.hp+=season/sp.hDays*(0.5+0.5*top);
+    if(t.bitten>0){t.hp-=0.4;t.bitten--}
+    if(t.hp<0)t.hp=0;
+    while(t.hp>=1&&t.h<hMax){t.h++;t.hp-=1;if(t.h===2&&!t.crown.length)t.crown=trunkTiles(t).slice()}
+    if(t.h>=2){
+      const base=trunkTiles(t).length;
+      if(t.crown.length>base)t.crown=t.crown.filter((c,k)=>k<base||lightAbove(c,t.h)>=CFG.crownDieLight||R()>CFG.crownDieP);
+      if(R()<sp.crownP*season)growCrown(t);
+    }
+  }
+}
+function germOk(j){const g=ground[j];return (g===G_FOREST||g===G_LAWN)&&!fkind[j]&&trunkAt[j]<0&&lyingAt[j]<0&&!stumpAt[j]&&feat[j]!==F_BURROW&&feat[j]!==F_DEN}
+function bigTrunkNear(x,y){for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(!inb(X,Y))continue;const t=treeAt(idx(X,Y));if(t&&t.h>=4)return true}return false}
+function seedTrees(season){
+  computeLight();
+  const births=[];
+  for(const t of trees){
+    if(!t.alive||t.dead||t.h<4)continue;const sp=CFG.sp[t.sp];
+    for(let k=chance(sp.seeds*season);k>0;k--){
+      const d=t.sp==='birke'?ri(2,10):t.sp==='eiche'?(R()<0.1?ri(4,14):ri(1,3)):ri(1,3);
+      const a=R()*Math.PI*2,x=Math.round(t.x+Math.cos(a)*d),y=Math.round(t.y+Math.sin(a)*d);
+      if(!inb(x,y))continue;const j=idx(x,y);
+      if(!germOk(j)||light[j]<sp.need*0.8)continue;
+      let p=sp.germ*season*0.6;if(bigTrunkNear(x,y))p*=CFG.rootComp;
+      if(R()<p)births.push([t.sp,x,y]);
+    }
+  }
+  for(const [s,x,y] of births)if(germOk(idx(x,y))&&trees.length<CFG.maxTrees){addTree(s,x,y,1,false);G.night.seedlings++}
+}
+function stumpsAndLogs(){
+  for(let i=0;i<N;i++){if(!stumpAt[i])continue;stumpAge[i]++;
+    if(stumpAge[i]>=CFG.stumpDays&&trunkAt[i]<0&&light[i]>=0.25&&stumpAge[i]<=12){
+      addTree(SPECIES[stumpAt[i]-1],i%W,(i/W)|0,1,false);stumpAt[i]=0;G.night.sprouts++;log(`Stumpf (${i%W},${(i/W)|0}) treibt aus`)}
+    else if(stumpAge[i]>14)stumpAt[i]=0}
+  for(const l of logs)l.age++;
+  for(const l of logs.filter(l=>l.age>CFG.logRotDays)){for(const j of l.tiles)lyingAt[j]=-1;logs.splice(logs.indexOf(l),1);logById.delete(l.id)}
+}
+function compactTrees(){trees=trees.filter(t=>t.alive);treeById=new Map(trees.map(t=>[t.id,t]))}
+
+function groundStep(s){
+  for(let i=0;i<N;i++){
+    const g=ground[i];
+    if((g===G_FOREST||g===G_LAWN)&&!fkind[i]){
+      const l=light[i];let d;
+      if(l>=CFG.litMeadow)d=s/CFG.grassDays*(g===G_LAWN?0.55:1);
+      else if(l>=CFG.litHalf)d=grass[i]>1?-0.5:grass[i]===1?0:s/CFG.grassDays*0.5;
+      else d=-0.4;
+      const t=treeAt(i);if(t&&t.h>=2)d=-0.5;
+      gprog[i]+=d;
+      if(gprog[i]>=1){if(grass[i]<2){grass[i]++;gprog[i]-=1}else gprog[i]=1}
+      else if(gprog[i]<0){if(grass[i]>0){grass[i]--;gprog[i]+=1}else gprog[i]=0}
+      const tgt=decoTarget(i);if(deco[i]!==tgt&&R()<0.3)deco[i]=tgt;
+      if(deco[i]===D_BUSCH&&!berry[i]&&++berryT[i]>=CFG.berryRegrow){berry[i]=1;berryT[i]=0}
+    }
+    if(feat[i]===F_HOLE&&g!==G_LAWN){featAge[i]++;if(featAge[i]>=CFG.holeDays)feat[i]=0}
+    if(track[i]){trackAge[i]++;if(trackAge[i]>=CFG.trackDays)track[i]=0}
+  }
+}
+
+// ---------------------------------------------------------------- Hasen
+function habitable(j){const g=ground[j];if((g!==G_FOREST&&g!==G_LAWN)||fkind[j])return false;const t=treeAt(j);return !(t&&t.h>=2)}
+function addBurrow(x,y,n,garden){const b={id:nextId++,x,y,n,alive:true,empty:0,food:0,garden:!!garden};feat[idx(x,y)]=F_BURROW;burrows.push(b);return b}
+function burrowSiteOk(x,y,extra){
+  const j=idx(x,y);if(!habitable(j)||feat[j]||trunkAt[j]>=0||lyingAt[j]>=0||stumpAt[j]||ground[j]===G_PATH)return false;
+  if(light[j]<CFG.burrowLight)return false;
+  const garden=inGarden(x,y);let bright=0;
+  for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=x+dx,Y=y+dy;if(inb(X,Y)&&habitable(idx(X,Y))&&light[idx(X,Y)]>=0.6)bright++}
+  if(bright<CFG.burrowBright)return false;
+  const sp=garden?3:CFG.burrowSpacing;
+  for(const b of burrows)if(b.alive&&Math.max(Math.abs(b.x-x),Math.abs(b.y-y))<sp)return false;
+  for(const b of extra)if(Math.max(Math.abs(b.x-x),Math.abs(b.y-y))<sp)return false;
+  return true;
+}
+function harePassTile(j){const g=ground[j];if(g===G_BLOCK||g===G_WATER)return false;const t=treeAt(j);return !(t&&t.h>=2)}
+function disperse(from,k,newB){
+  let x=from.x,y=from.y,dx=0,dy=0;const path=[[x,y]],seen=new Set([idx(x,y)]);
+  for(let s=0;s<CFG.disperseSteps;s++){
+    const opts=[];
+    for(const [ddx,ddy] of DIRS){const nx=x+ddx,ny=y+ddy;if(!inb(nx,ny))continue;const j=idx(nx,ny);if(!harePassTile(j))continue;
+      let w=(light[j]*light[j]+0.03)*(ddx===dx&&ddy===dy?1.8:1)*(seen.has(j)?0.15:1);opts.push({x:nx,y:ny,j,w})}
+    if(!opts.length)break;
+    const o=pickWeighted(opts);
+    if(fkind[o.j]===FK_GATE)continue;
+    if((fkind[o.j]===FK_H||fkind[o.j]===FK_V)&&fence[o.j]>0){
+      if(R()<0.35){fence[o.j]--;track[o.j]=TR_ERDE;trackAge[o.j]=0;G.night.fenceDug++;if(!fence[o.j])log(`Abwanderer graben den Zaun (${o.x},${o.y}) durch`)}
+      continue}
+    dx=o.x-x;dy=o.y-y;x=o.x;y=o.y;seen.add(o.j);path.push([x,y]);
+    if(s%2===0&&!track[o.j]){track[o.j]=TR_HARE;trackAge[o.j]=0}
+    if(s>=5&&burrowSiteOk(x,y,newB)){
+      const nb={id:nextId++,x,y,n:k,alive:true,empty:0,food:0,garden:inGarden(x,y)};feat[o.j]=F_BURROW;newB.push(nb);
+      G.dbg.paths.push({type:'hase',path});G.night.newBurrows++;if(nb.garden)G.night.gardenBurrow++;
+      log(`${k} Hasen ziehen von (${from.x},${from.y}) los und gründen Bau (${x},${y})${nb.garden?' – IM GARTEN':''}`);return}
+  }
+  G.dbg.paths.push({type:'hase',path,lost:true});G.night.lost+=k;
+  log(`${k} Hasen aus (${from.x},${from.y}) finden keine Lichtung und verlieren sich`);
+}
+function hareStep(season){
+  const newB=[];
+  for(const p of G.pendingDisperse)disperse(p,p.n,newB);
+  G.pendingDisperse=[];
+  for(const b of burrows){
+    if(!b.alive)continue;
+    const bi=idx(b.x,b.y);
+    if(feat[bi]!==F_BURROW){b.alive=false;continue}
+    let bright=0,food=0;const near=[];
+    for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++){const x=b.x+dx,y=b.y+dy;if(!inb(x,y))continue;const j=idx(x,y);
+      const t=treeAt(j);
+      if(t&&t.h<=2&&b.n>0){food+=1.5;if(R()<Math.min(0.6,b.n*CFG.verbissP)){t.bitten=2;t.hp-=0.5;if(t.h===1&&R()<0.25){killTree(t);G.night.verbissTot++}else G.night.verbiss++}}
+      if(!habitable(j))continue;const l=light[j];
+      if(Math.max(Math.abs(dx),Math.abs(dy))<=3&&l>=0.6)bright++;
+      if(l>=0.55){food+=grass[j]*0.8+0.3;near.push(j)}}
+    b.food=food;
+    if(!b.garden&&bright<CFG.burrowBright*0.6){
+      log(`Bau (${b.x},${b.y}) ist zugewachsen und zu dunkel – ${b.n} Hasen ziehen aus`);G.night.darkBurrows++;
+      if(b.n>0)disperse(b,b.n,newB);b.n=0;b.alive=false;feat[bi]=0;continue}
+    if(b.n<=0){b.empty++;if(b.empty>=3){b.alive=false;feat[bi]=0;log(`Bau (${b.x},${b.y}) verfällt`)}continue}
+    b.empty=0;
+    for(let k=0;k<b.n&&near.length;k++)gprog[near[ri(0,near.length-1)]]-=0.25;
+    for(let k=chance(b.n*CFG.holesPerHare*(b.garden?2:1));k>0&&near.length;k--){const j=near[ri(0,near.length-1)];
+      if(!feat[j]&&trunkAt[j]<0&&lyingAt[j]<0&&ground[j]!==G_PATH){feat[j]=F_HOLE;featAge[j]=0;G.night.holes++}}
+    for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){const x=b.x+dx,y=b.y+dy;if(!inb(x,y))continue;const j=idx(x,y);
+      if((fkind[j]===FK_H||fkind[j]===FK_V)&&fence[j]>0&&R()<b.n*CFG.fenceDigPerHare){fence[j]--;track[j]=TR_ERDE;trackAge[j]=0;G.night.fenceDug++;
+        if(!fence[j])log(`Hasen aus Bau (${b.x},${b.y}) graben den Zaun (${x},${y}) durch`)}}
+    const per=food/Math.max(1,b.n);let births=0,deaths=0;
+    if(b.n>=2&&per>=CFG.hareFoodNeed)births=chance(b.n*CFG.hareBirth*Math.min(1.5,per/CFG.hareFoodNeed)*season);
+    if(per<1.2)deaths=Math.ceil(b.n*0.2);
+    b.n=Math.max(0,b.n+births-deaths);
+    const cap=clamp(Math.floor(food/CFG.hareCapFood),2,CFG.hareMaxBurrow);
+    log(`Bau (${b.x},${b.y})${b.garden?' [Garten]':''}: ${b.n} Hasen · Futter ${food.toFixed(0)} · +${births} −${deaths} · Platz ${cap}`);
+    if(b.n>cap){const k=b.n-cap;b.n=cap;disperse(b,k,newB)}
+    for(let k=0;k<Math.min(3,b.n)&&near.length;k++){const j=near[ri(0,near.length-1)];if(!track[j]){track[j]=TR_HARE;trackAge[j]=0}}
+  }
+  burrows.push(...newB);
+  burrows=burrows.filter(b=>b.alive);
+}
+function trapStep(){
+  for(let i=0;i<N;i++){if(feat[i]!==F_TRAP)continue;const x=i%W,y=(i/W)|0;let best=null;
+    for(const b of burrows){if(!b.alive||b.n<=0)continue;const d=Math.max(Math.abs(b.x-x),Math.abs(b.y-y));if(d<=3&&(!best||d<best.d))best={b,d}}
+    if(best&&R()<0.35*best.b.n/(best.b.n+2)){best.b.n--;feat[i]=F_TRAPFULL;G.night.trapped++;log(`Falle (${x},${y}) fängt einen Hasen`)}}
+}
+
+// ---------------------------------------------------------------- Füchse
+function foxPass(j,f){const g=ground[j];if(g===G_BLOCK||g===G_WATER)return false;const t=treeAt(j);if(t&&t.h>=2)return false;
+  if(fkind[j]===FK_GATE||((fkind[j]===FK_H||fkind[j]===FK_V)&&fence[j]>0))return f.hunger>=CFG.foxJumpHunger;return true}
+function findDenSite(){
+  for(let i=0;i<N;i++)if(feat[i]===F_DEN&&!foxes.some(f=>f.alive&&idx(f.den[0],f.den[1])===i))return i;
+  for(let t=0;t<5000;t++){const i=ri(0,N-1),x=i%W,y=(i/W)|0;
+    if(ground[i]!==G_FOREST||fkind[i]||trunkAt[i]>=0||lyingAt[i]>=0||feat[i]||stumpAt[i])continue;
+    if(light[i]>=CFG.denLight||dist(x,y,ESTATE.cx,ESTATE.cy)<18)continue;
+    if(foxes.some(f=>f.alive&&dist(f.den[0],f.den[1],x,y)<12))continue;
+    if(!burrows.some(b=>b.alive&&dist(b.x,b.y,x,y)<13))continue;
+    return i}
+  return -1;
+}
+function foxStep(){
+  scent.fill(0);
+  for(const b of burrows){if(!b.alive||b.n<=0)continue;
+    for(let dy=-16;dy<=16;dy++)for(let dx=-16;dx<=16;dx++){const x=b.x+dx,y=b.y+dy;if(!inb(x,y))continue;const d=Math.hypot(dx,dy);if(d>16)continue;scent[idx(x,y)]+=b.n*(1-d/16)}}
+  for(const f of foxes)if(f.alive)foxWalk(f);
+  foxes=foxes.filter(f=>f.alive);
+  const hares=burrows.reduce((a,b)=>a+(b.alive?b.n:0),0);
+  if(hares/(foxes.length+1)>CFG.haresPerFox&&foxes.length<CFG.maxFoxes){
+    const s=findDenSite();
+    if(s>=0){feat[s]=F_DEN;foxes.push({id:nextId++,den:[s%W,(s/W)|0],hunger:1,alive:true});G.night.newFox++;log(`Ein Fuchs wandert ein und bezieht den Bau (${s%W},${(s/W)|0})`)}
+  }
+}
+function foxWalk(f){
+  const budget=CFG.foxBaseSteps+f.hunger*CFG.foxHungerSteps;
+  let [x,y]=f.den,dx=0,dy=0;const path=[[x,y]],seen=new Set();
+  // Zum Stall zieht es ihn nur, wenn er daheim kaum Beute wittert – oder der Hunger übermächtig wird
+  const raid=G.chickens>0&&f.hunger>=CFG.foxRaidHunger&&(scent[idx(f.den[0],f.den[1])]<2||R()<0.15*(f.hunger-1));
+  let caught=false;
+  for(let s=0;s<budget&&!caught;s++){
+    const toCoop=raid&&s>budget*0.35;
+    const opts=[];
+    for(const [ddx,ddy] of DIRS){const nx=x+ddx,ny=y+ddy;if(!inb(nx,ny))continue;const j=idx(nx,ny);if(!foxPass(j,f))continue;
+      let w;
+      if(toCoop)w=dist(nx,ny,COOP[0],COOP[1])<dist(x,y,COOP[0],COOP[1])?3:0.4;
+      else w=(scent[j]+0.4)*(1.3-light[j]*0.6);
+      w*=(ddx===dx&&ddy===dy?1.6:1)*(seen.has(j)?0.2:1);
+      opts.push({x:nx,y:ny,j,w})}
+    if(!opts.length)break;
+    const o=pickWeighted(opts);dx=o.x-x;dy=o.y-y;x=o.x;y=o.y;seen.add(o.j);path.push([x,y]);
+    if(s%2===0&&!track[o.j]&&ground[o.j]!==G_BRIDGE){track[o.j]=TR_FOX;trackAge[o.j]=0}
+    for(const b of burrows){if(!b.alive||b.n<=0||Math.abs(b.x-x)>2||Math.abs(b.y-y)>2)continue;
+      let tall=0,cnt=0;for(let yy=-1;yy<=1;yy++)for(let xx=-1;xx<=1;xx++){if(!inb(b.x+xx,b.y+yy))continue;cnt++;if(grass[idx(b.x+xx,b.y+yy)]===2)tall++}
+      const p=CFG.foxCatch*b.n/(b.n+2)*(1-0.5*tall/Math.max(1,cnt));
+      if(R()<p){b.n--;f.hunger=0;caught=true;track[o.j]=TR_FELL;trackAge[o.j]=0;G.night.foxCatch++;log(`Fuchs ${f.id} reißt bei Bau (${b.x},${b.y}) einen Hasen (nach ${s} Schritten)`);break}}
+    if(!caught&&toCoop&&Math.abs(x-COOP[0])<=1&&Math.abs(y-COOP[1])<=1){
+      const c=idx(COOP[0],COOP[1]);
+      if(!G.coopClosed&&G.chickens>0){G.chickens--;f.hunger=0;caught=true;track[c]=TR_FEDERN;trackAge[c]=0;G.night.chickFox++;log(`Fuchs ${f.id} holt eine Henne aus dem offenen Stall!`)}
+      else{G.night.foxAtCoop++;track[c]=TR_FOX;trackAge[c]=0;log(`Fuchs ${f.id} streicht um den verschlossenen Stall`)}
+      break}
+  }
+  G.dbg.paths.push({type:'fuchs',path,caught});
+  if(!caught){f.hunger++;
+    if(f.hunger>=CFG.foxLeaveHunger){f.alive=false;G.night.foxGone++;log(`Fuchs ${f.id} zieht hungrig fort`)}
+    else log(`Fuchs ${f.id} geht leer aus (Hunger ${f.hunger.toFixed(1)}, ${path.length} Schritte)`)}
+}
+// Vorräte: Zu- und Abgänge laufen über Chargen, damit Altes zuerst verbraucht wird und verderben kann
+function addFood(k,n,day){if(n<=0)return;G.food[k]+=n;G.batches[k].push({n,day:day||G.day})}
+function takeFood(k,n){let got=0;const b=G.batches[k];while(n>0&&b.length){const x=Math.min(n,b[0].n);b[0].n-=x;n-=x;got+=x;if(!b[0].n)b.shift()}G.food[k]-=got;return got}
+function spoilsTonight(k){return G.batches[k].filter(b=>G.day-b.day+1>=CFG.spoil[k]).reduce((a,b)=>a+b.n,0)}
+function spoilFood(){const sp={};
+  for(const k of Object.keys(G.batches)){let lost=0;G.batches[k]=G.batches[k].filter(b=>{if(G.day-b.day+1>=CFG.spoil[k]){lost+=b.n;return false}return true});
+    if(lost){G.food[k]-=lost;sp[k]=lost;log(`${lost} Portionen ${k} verdorben`)}}
+  G.night.spoiled=sp}
+function graze(units){const tiles=[];
+  for(let dy=-8;dy<=8;dy++)for(let dx=-8;dx<=8;dx++){const x=COOP[0]+dx,y=COOP[1]+dy;if(!inb(x,y))continue;const i=idx(x,y);
+    if((ground[i]===G_LAWN||ground[i]===G_FOREST)&&!fkind[i]&&grass[i]>=1)tiles.push(i)}
+  for(let k=tiles.length-1;k>0;k--){const j=Math.floor(R()*(k+1));[tiles[k],tiles[j]]=[tiles[j],tiles[k]]}
+  for(const i of tiles){while(units>0&&grass[i]>0){grass[i]--;gprog[i]=0.3;units--}if(units<=0)break}
+  return units<=0}
+function chickenStep(){
+  const n=G.night;
+  if(G.chickens>0){if(!G.hensFoodOk){G.chickHunger++;if(G.chickHunger>=2){G.chickens--;n.chickStarve++;G.chickHunger=1;log('Eine Henne ist verhungert')}}else G.chickHunger=0}
+  if(G.coopClosed){G.hensInside=true;G.grazedOk=false}
+  else{G.hensInside=false;G.grazedOk=G.chickens>0&&graze(G.chickens*CFG.henGrass);
+    if(G.grazedOk){addFood('eier',G.chickens,G.day+1);n.eggs=G.chickens;log(`Die Hennen schlafen draußen, fressen Gras und legen ${G.chickens} Eier`)}else if(G.chickens>0){n.grassShort=true;log('Die Hennen finden draußen nicht genug Gras')}}
+}
+
+// ---------------------------------------------------------------- Kennzahlen (nur intern / Debug)
+function stats(){
+  const s={day:G?G.day:1,hares:0,burrows:0,gardenHares:0,foxes:0,chickens:G?G.chickens:CFG.chickens,sap:0,young:0,big:0,giants:0,
+    birke:0,eiche:0,buche:0,dead:0,bright:0,dark:0,hofBright:0,hofSaplings:0,gHoles:0,gTall:0,gPlants:0,fBroken:0,fDamaged:0,
+    logs:logs.length,wood:G?G.barnWood:0,hay:G?G.barnHay:0,avgLight:0};
+  for(const b of burrows)if(b.alive){s.burrows++;s.hares+=b.n;if(b.garden)s.gardenHares+=b.n}
+  s.foxes=foxes.filter(f=>f.alive).length;
+  for(const t of trees){if(!t.alive)continue;if(t.dead){s.dead++;continue}
+    if(t.h<=1)s.sap++;else if(t.h<=3)s.young++;else{s.big++;s[t.sp]++}if(t.giant)s.giants++;
+    if(t.h<=3&&inHofClearing(t.x,t.y)&&!inGarden(t.x,t.y))s.hofSaplings++;
+    if(inGarden(t.x,t.y))s.gPlants++}
+  let lsum=0,lc=0;
+  for(let i=0;i<N;i++){const x=i%W,y=(i/W)|0,g=ground[i];
+    if(g===G_FOREST&&!fkind[i]){lsum+=light[i];lc++;if(light[i]>=CFG.litMeadow){s.bright++;if(inHofClearing(x,y))s.hofBright++}else if(light[i]<CFG.litMoss)s.dark++}
+    if(g===G_LAWN){if(feat[i]===F_HOLE)s.gHoles++;if(grass[i]===2)s.gTall++}
+    if(fkind[i]===FK_H||fkind[i]===FK_V){if(fence[i]<=0)s.fBroken++;else if(fence[i]<3)s.fDamaged++}}
+  s.avgLight=lc?lsum/lc:0;
+  return s;
+}
+
+// ================================================================ Aufgaben (Kategorien)
+const BLOCKS=['Morgens','Vormittags','Nachmittags','Abends'];
+const BLOCK_CLOCK=[[6,9],[9,12],[13,16],[16,19]];
+const TASKS={
+  maehen:   {label:'Wiese mähen',group:true,unit:'Felder'},
+  einholen: {label:'Heu & Holz einholen',group:true,auto:true,unit:'Haufen'},
+  flicken:  {label:'Zaun flicken',group:true,auto:true,unit:'Stellen'},
+  setzlinge:{label:'Jungpflanzen ziehen',group:true,unit:'Pflanzen'},
+  loecher:  {label:'Löcher zuschütten',group:true,unit:'Löcher'},
+  faellen:  {label:'Fällen'},
+  zerlegen: {label:'Stamm zerlegen'},
+  roden:    {label:'Stumpf roden'},
+  bau:      {label:'Bau zuschütten'},
+  falle:    {label:'Falle stellen'},
+  beeren:   {label:'Beeren sammeln',group:true,unit:'Büsche'},
+  fuettern: {label:'Hühner füttern',fixed:true,auto:true},
+  einsperren:{label:'Hühner einsperren',fixed:true,auto:true},
+  markt:    {label:'Zum Markt (Eier verkaufen, Brot kaufen)',fixed:true,auto:true},
+  kochen:   {label:'Mittagessen kochen',fixed:true,auto:true}
+};
+// Wer was darf und wie schnell, aus rollen.js: who[id] = Zeitfaktor (Effektivität 100 % → 1, 50 % → 2)
+for(const [k,d] of Object.entries(TASKS)){const r=RL.aufgaben[k]||{personen:{}};d.who={};
+  for(const [id,e] of Object.entries(r.personen||{}))if(e>0&&RL.personen[id])d.who[id]=100/e;
+  d.ueblich=d.fixed&&r.ueblich&&d.who[r.ueblich]?r.ueblich:null;d.nurJung=r.nurJung||[]}
+const isHen=t=>t.type==='fuettern'||t.type==='einsperren';
+const routineOwner=t=>TASKS[t.type].fixed?TASKS[t.type].ueblich:null;
+function effectiveWho(t){return t.who===null&&routineOwner(t)?routineOwner(t):t.who}
+function whoName(t){const w=effectiveWho(t);
+  if(w==='none')return t.type==='einsperren'?'niemand – bleiben draußen':t.type==='kochen'?'niemand – nur Brotzeit':'niemand';
+  if(!w)return 'niemand';return S(w).name+(t.who===null?' (üblich)':'')}
+// Zuständigkeit: feste Aufgaben haben genau eine Person (who), alle anderen eine Mannschaft (crew).
+// Sammelposten dürfen mehrere bekommen (sie teilen sich die Arbeit), Einzelaufgaben höchstens eine.
+function crewOf(t){if(TASKS[t.type].fixed){const w=effectiveWho(t);return w&&w!=='none'?[w]:[]}return t.crew||(t.crew=[])}
+const assigned=(t,id)=>crewOf(t).includes(id);
+function toggleAssign(t,id){if(!t||!canDo(t.type,id,t))return;
+  if(TASKS[t.type].fixed){const own=routineOwner(t)===id;if(effectiveWho(t)===id)t.who=own?'none':null;else t.who=own?null:id}
+  else if(TASKS[t.type].group)t.crew=assigned(t,id)?t.crew.filter(x=>x!==id):[...crewOf(t),id];
+  else{const old=crewOf(t)[0];t.crew=old===id?[]:[id];if(old&&old!==id)toast(`${taskTitle(t)}: jetzt ${S(id).name} statt ${S(old).name}.`)}
+  if(assigned(t,id))guide('assign')}
+const S=id=>staff.find(s=>s.id===id);
+const mult=(type,who)=>TASKS[type].who[who];
+function fellCost(tr){return tr.giant?CFG.cost.riese:tr.h>=6?CFG.cost.baumAlt:tr.h>=4?CFG.cost.baum:tr.h>=2?CFG.cost.jungbaum:CFG.cost.setzling}
+function canDo(type,who,t){if(mult(type,who)===undefined)return false;
+  if(type==='faellen'&&TASKS.faellen.nurJung.includes(who)){const tr=t&&treeById.get(t.ref);if(!tr||tr.h>3)return false}return true}
+function wayCost(x,y){return dist(HOF[0],HOF[1],x,y)/CFG.wayCostPer}
+function walkable(x,y){
+  if(!inb(x,y))return false;const i=idx(x,y),g=ground[i];
+  if(g===G_BLOCK||g===G_WATER)return false;
+  const t=treeAt(i);if(t&&t.h>=2)return false;
+  if(lyingAt[i]>=0)return false;
+  if(fkind[i]===FK_H||fkind[i]===FK_V)return fence[i]<=0;
+  return true;
+}
+function taskItems(t){
+  switch(t.type){
+    case 'maehen':return t.items=t.items.filter(j=>grass[j]>=1&&ground[j]!==G_PATH&&!fkind[j]);
+    case 'setzlinge':return t.items=t.items.filter(id=>{const tr=treeById.get(id);return tr&&tr.alive&&tr.h<=2});
+    case 'loecher':return t.items=t.items.filter(j=>feat[j]===F_HOLE);
+    case 'beeren':return t.items=t.items.filter(j=>deco[j]===D_BUSCH&&berry[j]);
+    case 'einholen':{const a=[];for(let i=0;i<N;i++)if(feat[i]===F_WOOD||feat[i]===F_HAY||feat[i]===F_TRAPFULL)a.push(i);return a}
+    case 'flicken':{const a=[];for(let i=0;i<N;i++)if((fkind[i]===FK_H||fkind[i]===FK_V)&&fence[i]<3)a.push(i);return a}
+  }return [];
+}
+function itemTile(t,it){if(t.type==='setzlinge'){const tr=treeById.get(it);return tr?idx(tr.x,tr.y):-1}return it}
+function itemCost(t,it){
+  switch(t.type){
+    case 'maehen':return CFG.cost.maehen*(grass[it]===2?1:0.6);
+    case 'einholen':return CFG.cost.einholen;
+    case 'flicken':return CFG.cost.flicken;
+    case 'setzlinge':return CFG.cost.setzling;
+    case 'loecher':return CFG.cost.loch;
+    case 'beeren':return CFG.cost.beeren;
+  }return 1;
+}
+function singleCost(t){
+  const i=idx(t.x,t.y);
+  switch(t.type){
+    case 'faellen':{const tr=treeById.get(t.ref);return tr?fellCost(tr):0}
+    case 'zerlegen':{const l=logById.get(t.ref);return l?CFG.cost.zerlegen*l.tiles.length:0}
+    case 'roden':return CFG.cost.roden;
+    case 'bau':return feat[i]===F_DEN?CFG.cost.fuchsbau:CFG.cost.hasenbau;
+    case 'falle':return CFG.cost.falle;
+  }return 1;
+}
+// Restarbeit ohne Personen-Faktor (Arbeitspunkte bei 100 % Effektivität)
+function taskWork(t){
+  if(TASKS[t.type].group){let s=0;for(const it of taskItems(t))s+=itemCost(t,it);return s}
+  return Math.max(0,singleCost(t)-t.done);
+}
+function taskRemaining(t,who){
+  if(TASKS[t.type].fixed)return t.doneDay===G.day?0:(CFG.pensum[who]||8)*(t.type==='markt'?3:1);
+  return taskWork(t)*(mult(t.type,who)||1);
+}
+function validTask(t){
+  if(TASKS[t.type].fixed)return true;
+  if(TASKS[t.type].group)return TASKS[t.type].auto||taskItems(t).length>0;
+  const i=idx(t.x,t.y);
+  switch(t.type){
+    case 'faellen':{const tr=treeById.get(t.ref);return !!(tr&&tr.alive)}
+    case 'zerlegen':return logById.has(t.ref);
+    case 'roden':return stumpAt[i]>0;
+    case 'bau':return feat[i]===F_BURROW||feat[i]===F_DEN;
+    case 'falle':return !feat[i]&&trunkAt[i]<0&&lyingAt[i]<0&&walkable(t.x,t.y);
+  }return false;
+}
+function visibleTask(t){const d=TASKS[t.type];
+  if(d.fixed){if(t.doneDay===G.day&&!(t.type==='markt'&&G.marketOut))return false;
+    if(t.type==='fuettern')return G.hensInside&&G.chickens>0;if(t.type==='einsperren')return G.chickens>0;if(t.type==='kochen')return true;return Object.keys(d.who).some(id=>S(id).available)||G.marketOut}
+  return validTask(t)&&(!d.group||taskItems(t).length>0)}
+function taskPos(t){if(t.type==='markt')return[ESTATE.gx,H-2];if(isHen(t))return COOP;if(t.type==='kochen')return HOF;if(!TASKS[t.type].group)return[t.x,t.y];const its=taskItems(t);if(!its.length)return HOF;
+  let sx=0,sy=0;for(const it of its){const j=itemTile(t,it);sx+=j%W;sy+=(j/W)|0}return[Math.round(sx/its.length),Math.round(sy/its.length)]}
+function where(x,y){
+  if(inGarden(x,y))return 'im Garten';
+  const dx=x-ESTATE.cx,dy=y-ESTATE.cy,d=Math.hypot(dx,dy);
+  if(d<15)return 'am Hof';
+  const ns=dy<-d*0.4?'nord':dy>d*0.4?'süd':'',ew=dx>d*0.4?'östlich':dx<-d*0.4?'westlich':'';
+  return `${ns&&ew?ns+ew:ns?ns+'lich':ew}, ${Math.round(d)} Schritt`;
+}
+function treeDesc(tr){if(!tr)return 'Baum';const size=tr.giant?'Riesen-':tr.h>=6?'alte ':tr.h>=4?'':tr.h>=2?'junge ':'';
+  return tr.h<=1?`${SPNAME[tr.sp]}nsetzling`:`${size}${SPNAME[tr.sp]}`}
+function taskTitle(t){
+  if(t.type==='einsperren'&&t.who==='none')return 'Hühner bleiben nachts draußen';
+  if(TASKS[t.type].fixed)return TASKS[t.type].label;
+  if(TASKS[t.type].group){const n=taskItems(t).length;return `${TASKS[t.type].label} (${n} ${TASKS[t.type].unit})`}
+  switch(t.type){
+    case 'faellen':return `Fällen: ${treeDesc(treeById.get(t.ref))}`;
+    case 'zerlegen':return 'Liegenden Stamm zerlegen';
+    case 'roden':return 'Baumstumpf roden';
+    case 'bau':return feat[idx(t.x,t.y)]===F_DEN?'Fuchsbau zuschütten':'Hasenbau zuschütten';
+    case 'falle':return 'Falle stellen';
+  }return t.type;
+}
+function addTask(type,x,y,ref,extra){const t={id:nextId++,type,x,y,ref,who:null,crew:[],done:0,items:[],...(extra||{})};G.tasks.push(t);return t}
+function removeTask(t){const k=G.tasks.indexOf(t);if(k>=0)G.tasks.splice(k,1)}
+function groupTask(type){return G.tasks.find(t=>t.type===type)||addTask(type,HOF[0],HOF[1],null)}
+function ensureAutoTasks(){for(const k of Object.keys(TASKS))if(TASKS[k].auto)groupTask(k)}
+function markedAt(x,y){const i=idx(x,y),tr=treeAt(i),lg=lyingAt[i];
+  return G.tasks.filter(t=>{
+    if(TASKS[t.type].auto)return false;
+    if(t.type==='maehen'||t.type==='loecher'||t.type==='beeren')return t.items.includes(i);
+    if(t.type==='setzlinge')return !!tr&&t.items.includes(tr.id);
+    if(t.type==='faellen')return !!tr&&t.ref===tr.id;
+    if(t.type==='zerlegen')return lg>=0&&t.ref===lg;
+    return t.x===x&&t.y===y})}
+function unmark(t,x,y){const i=idx(x,y),tr=treeAt(i);
+  if(t.type==='maehen'||t.type==='loecher'||t.type==='beeren')t.items=t.items.filter(j=>j!==i);
+  else if(t.type==='setzlinge')t.items=t.items.filter(id=>!tr||id!==tr.id);
+  else removeTask(t);
+  if(TASKS[t.type].group&&!TASKS[t.type].auto&&!t.items.length)removeTask(t)}
+
+// ================================================================ Wirkungen
+function cutLog(l){for(const j of l.tiles){lyingAt[j]=-1;addPile(j,F_WOOD,2)}logs.splice(logs.indexOf(l),1);logById.delete(l.id)}
+function collectPile(i){if(feat[i]===F_WOOD)G.barnWood+=featN[i];else if(feat[i]===F_HAY)G.barnHay+=featN[i];else if(feat[i]===F_TRAPFULL){G.traps++;if(G.hutch<CFG.hutchCap)G.hutch++;else G.pendingDisperse.push({x:i%W,y:(i/W)|0,n:1})}feat[i]=0;featN[i]=0}
+function fillFeat(i){const x=i%W,y=(i/W)|0;
+  if(feat[i]===F_BURROW){const b=burrows.find(b=>b.alive&&b.x===x&&b.y===y);if(b){b.alive=false;if(b.n>0)G.pendingDisperse.push({x,y,n:b.n});log(`Hasenbau (${x},${y}) zugeschüttet – ${b.n} Hasen müssen weiterziehen`)}}
+  if(feat[i]===F_DEN){for(const f of foxes)if(f.alive&&f.den[0]===x&&f.den[1]===y){f.alive=false;log(`Fuchsbau (${x},${y}) zugeschüttet – der Fuchs verlässt das Revier`)}}
+  feat[i]=0;featN[i]=0}
+function mowTile(j){const g=grass[j];if(!g)return;grass[j]=0;gprog[j]=0;
+  if(ground[j]===G_LAWN)return;
+  G.hayAcc=(G.hayAcc||0)+(g===2?1:0.35);if(G.hayAcc>=1){const n=Math.floor(G.hayAcc);G.hayAcc-=n;addPile(j,F_HAY,n)}}
+function applySingle(t){
+  const i=idx(t.x,t.y);
+  switch(t.type){
+    case 'faellen':{const tr=treeById.get(t.ref);if(tr&&tr.alive){fellTree(tr);log(`${treeDesc(tr)} (${tr.x},${tr.y}) gefällt`)}break}
+    case 'zerlegen':{const l=logById.get(t.ref);if(l)cutLog(l);break}
+    case 'roden':stumpAt[i]=0;break;
+    case 'bau':fillFeat(i);break;
+    case 'falle':if(G.traps>0){feat[i]=F_TRAP;G.traps--}else return false;break;
+  }
+  return true;
+}
+function applyItem(t,it){
+  switch(t.type){
+    case 'maehen':mowTile(it);break;
+    case 'einholen':if(feat[it]===F_WOOD||feat[it]===F_HAY||feat[it]===F_TRAPFULL)collectPile(it);break;
+    case 'flicken':if(fence[it]<3){if(G.barnWood>0){G.barnWood--;fence[it]=3}else G.noWood=true}break;
+    case 'setzlinge':{const tr=treeById.get(it);if(tr&&tr.alive){killTree(tr);computeLight()}break}
+    case 'loecher':if(feat[it]===F_HOLE)feat[it]=0;break;
+    case 'beeren':if(berry[it]){berry[it]=0;berryT[it]=0;addFood('beeren',CFG.berryPortion)}break;
+  }
+  if(!TASKS[t.type].auto){t.items=t.items.filter(x=>x!==it);if(!t.items.length)removeTask(t)}
+}
+
+// ================================================================ Personal: Tagesplan in Zeitblöcken
+function capOf(s){return CFG.pensum[s.id]+(G.goodMeal&&!s.weakNext?CFG.mealBonus:0)}
+function stdLabel(s,b){return{hannes:'einholen am Hof',jost:'Stämme am Hof zerlegen',grete:'Hof & Hühner',liese:'Haus & Garten'}[s.id]}
+// Beim Appell (und mittags) wird der Plan festgelegt; Änderungen dazwischen gelten ab der nächsten Verteilung
+function staffTasks(s,live){const base=!live&&G.frozen?(G.frozen[s.id]||[]).map(id=>G.tasks.find(t=>t.id===id)).filter(Boolean):G.tasks.filter(t=>assigned(t,s.id));
+  return base.filter(t=>visibleTask(t)&&canDo(t.type,s.id,t))}
+function freezePlans(){G.frozen={};for(const s of staff)G.frozen[s.id]=G.tasks.filter(t=>assigned(t,s.id)).map(t=>t.id)}
+// Tagesplan aller Leute ab Block `from`, gemeinsam gerechnet: je Block und Person genau eine Aufgabe (sonst das Übliche).
+// Feste Aufgaben liegen fest: Markt morgens bis nachmittags, Kochen vormittags, Einsperren abends, Füttern im ersten freien Block.
+// Arbeiten mehrere am selben Sammelposten, teilen sie sich die Restarbeit. Wegkosten fallen je Person nur einmal am Tag an.
+// Ergebnis: plans[id] = [{b,task,label,std}], finish: Aufgaben-ID → {b: letzter Block, left: Restarbeit}
+function planAll(from,live){
+  const plans={},finish=new Map(),rem=new Map(),slots={},lists={},went=new Set();
+  for(const s of staff){
+    if(!s.available){plans[s.id]=[];for(let b=from;b<4;b++)plans[s.id].push({b,task:null,label:s.weak?'zu schwach – hat nichts gegessen':`ab Tag ${s.from}`});continue}
+    const list=staffTasks(s,live),sl=[null,null,null,null],rest=[];
+    const mk=list.find(t=>t.type==='markt');
+    if(mk&&(from===0||(G.marketOut&&from<=2)))for(let b=from;b<=2;b++)sl[b]=mk;
+    for(const t of list){
+      if(t.type==='markt')continue;
+      if(t.type==='kochen'){if(from<=1&&!sl[1])sl[1]=t}
+      else if(t.type==='einsperren')sl[3]=t;
+      else if(t.type==='fuettern'){for(let b=from;b<4;b++)if(!sl[b]){sl[b]=t;break}}
+      else rest.push(t);
+    }
+    for(let b=from;b<4;b++)if(sl[b])finish.set(sl[b].id,{b,left:0});
+    slots[s.id]=sl;lists[s.id]=rest;
+  }
+  const remOf=t=>{if(!rem.has(t.id))rem.set(t.id,taskWork(t));return rem.get(t.id)};
+  for(let b=from;b<4;b++)for(const s of staff){const sl=slots[s.id];if(!sl||sl[b])continue;
+    const t=lists[s.id].find(t=>remOf(t)>0.01);if(!t)continue;
+    const m=mult(t.type,s.id)||1,key=t.id+':'+s.id;let work=capOf(s);
+    if(!went.has(key)){went.add(key);if(!(t.startedBy&&t.startedBy[s.id]===G.day))work-=wayCost(...taskPos(t))}
+    const r=remOf(t);rem.set(t.id,r*m<=work+CFG.slack?0:r-Math.max(0,work)/m);
+    sl[b]=t;finish.set(t.id,{b,left:rem.get(t.id)});
+  }
+  for(const s of staff)if(slots[s.id]){plans[s.id]=[];for(let b=from;b<4;b++){const t=slots[s.id][b];plans[s.id].push(t?{b,task:t,label:taskTitle(t)}:{b,task:null,std:true,label:stdLabel(s,b)})}}
+  return{plans,finish};
+}
+function planFor(s,from,live){return planAll(from,live).plans[s.id]}
+// Wer kocht heute? (feste Aufgabe „kochen“, üblich laut rollen.js)
+function cookOf(){const t=G.tasks.find(t=>t.type==='kochen'),w=t&&effectiveWho(t);return w&&w!=='none'?S(w):null}
+function cooksToday(live){const c=cookOf();if(!c||!c.available)return false;const p=planFor(c,0,live).find(e=>e.b===1);return !!(p&&p.task&&p.task.type==='kochen')}
+const askerOf=()=>{const c=cookOf();return c&&c.available?c:staff.find(s=>s.available&&TASKS.kochen.who[s.id])||S('grete')};
+function planWarnings(live){const w=[];
+  const ein=G.tasks.find(t=>t.type==='einsperren'),fu=G.tasks.find(t=>t.type==='fuettern');
+  if(ein&&visibleTask(ein)){if(ein.who==='none')w.push('Die Hühner bleiben nachts draußen – Eier, aber Fuchsgefahr.');else{const s=S(effectiveWho(ein));if(!s||!s.available)w.push('Niemand sperrt die Hühner abends ein.')}}
+  if(fu&&visibleTask(fu)){const s=effectiveWho(fu)==='none'?null:S(effectiveWho(fu));if(!s||!s.available)w.push('Niemand füttert die Hühner.')}
+  const ko=G.tasks.find(t=>t.type==='kochen');
+  if(ko&&visibleTask(ko)&&!cooksToday(live)){const c=cookOf();w.push(`${c?c.name+' kocht heute nicht':'Heute kocht niemand'} – mittags gibt es nur kalte Brotzeit (Brot, Beeren, notfalls Geräuchertes).`)}
+  return w}
+function nearestFirst(items,pos,tileOf){const rest=items.slice(),out=[];let [x,y]=pos;
+  while(rest.length){let bi=0,bd=1e9;for(let k=0;k<rest.length;k++){const j=tileOf(rest[k]);const d=dist(x,y,j%W,(j/W)|0);if(d<bd){bd=d;bi=k}}
+    const it=rest.splice(bi,1)[0];out.push(it);const j=tileOf(it);x=j%W;y=(j/W)|0}return out}
+function groupJobs(s,t,budget){
+  const m=mult(t.type,s.id),jobs=[],sb=t.startedBy||(t.startedBy={});let first=sb[s.id]!==G.day;sb[s.id]=G.day;
+  const cl=G.claimed||(G.claimed=new Set());   // was andere in diesem Block schon übernommen haben
+  const its=nearestFirst(taskItems(t).filter(it=>!cl.has(t.id+':'+it)),[Math.round(s.x),Math.round(s.y)],it=>itemTile(t,it)).filter(it=>itemTile(t,it)>=0);
+  if(its.length){let total=first?wayCost(itemTile(t,its[0])%W,(itemTile(t,its[0])/W)|0):0;for(const it of its)total+=itemCost(t,it)*m;if(total<=budget+CFG.slack)budget=total+0.001}
+  for(const it of its){
+    const j=itemTile(t,it);let c=itemCost(t,it)*m;if(first){c+=wayCost(j%W,(j/W)|0);first=false}
+    if(c>budget&&jobs.length)break;budget-=c;jobs.push({kind:'item',task:t,item:it,x:j%W,y:(j/W)|0,pts:c});if(budget<=0)break}
+  for(const j of jobs)cl.add(t.id+':'+j.item);
+  return jobs;
+}
+function stdJobs(s,b,budget){
+  const jobs=[];const push=(j)=>{if(j.pts<=budget||!jobs.length){budget-=j.pts;jobs.push(j);return true}return false};
+  if(s.id==='grete')return jobs;
+  if(s.id==='hannes'){const its=[];for(let i=0;i<N;i++){const f=feat[i];if((f===F_WOOD||f===F_HAY)&&dist(i%W,(i/W)|0,HOF[0],HOF[1])<=16||f===F_TRAPFULL&&dist(i%W,(i/W)|0,HOF[0],HOF[1])<=30)its.push(i)}
+    for(const i of nearestFirst(its,[Math.round(s.x),Math.round(s.y)],i=>i))if(!push({kind:'routine',name:'einholen',x:i%W,y:(i/W)|0,pts:CFG.cost.einholen}))break;return jobs}
+  if(s.id==='jost'){for(const l of logs){const j=l.tiles[0];if(dist(j%W,(j/W)|0,HOF[0],HOF[1])>16)continue;const c=CFG.cost.zerlegen*l.tiles.length;if(c<=budget){budget-=c;jobs.push({kind:'routine',name:'zerlegen',log:l.id,x:j%W,y:(j/W)|0,pts:c})}}return jobs}
+  if(s.id==='liese'){const garden=[];
+    for(let y=ESTATE.y0+1;y<ESTATE.y1;y++)for(let x=ESTATE.x0+1;x<ESTATE.x1;x++){const i=idx(x,y);
+      if(feat[i]===F_HOLE)garden.push({p:3,x,y,pts:CFG.cost.loch,name:'loch'});
+      const t=treeAt(i);if(t&&t.h<=3)garden.push({p:2,x,y,pts:CFG.cost.setzling,name:'setzling'});
+      if(grass[i]===2&&ground[i]===G_LAWN)garden.push({p:1,x,y,pts:CFG.cost.rasen,name:'rasen'})}
+    garden.sort((a,b)=>b.p-a.p);let done=0;
+    for(const g of garden){if(g.pts>budget)break;budget-=g.pts;jobs.push({kind:'routine',...g});done++}
+    G.gardenBacklog=garden.length-done;return jobs}
+  return jobs;
+}
+function buildBlockJobs(s,b,p){
+  if(!s.available||s.away)return[];
+  if(p===undefined)p=planFor(s,b)[0];const budget=capOf(s);
+  if(!p||!p.task)return stdJobs(s,b,budget);
+  const t=p.task;
+  if(t.type==='fuettern')return[{kind:'fuettern',task:t,x:COOP[0]+2,y:COOP[1],pts:capOf(s)}];
+  if(t.type==='einsperren')return[{kind:'einsperren',task:t,x:COOP[0],y:COOP[1],pts:capOf(s)}];
+  if(t.type==='markt')return b===0?[{kind:'markt',task:t,x:ESTATE.gx,y:H-1,pts:0.5}]:[];
+  if(t.type==='kochen')return[{kind:'kochen',task:t,x:HOF[0],y:HOF[1],pts:capOf(s)}];
+  if(TASKS[t.type].group){const jobs=groupJobs(s,t,budget);return jobs.length?jobs:stdJobs(s,b,budget)}
+  const sb=t.startedBy||(t.startedBy={}),first=sb[s.id]!==G.day;sb[s.id]=G.day;
+  const way=first?wayCost(t.x,t.y):0,rem=taskRemaining(t,s.id);let c=Math.min(budget,rem+way);if(rem+way<=budget+CFG.slack)c=rem+way;
+  return[{kind:'single',task:t,x:t.x,y:t.y,pts:c,work:Math.max(0,c-way)/(mult(t.type,s.id)||1)}];
+}
+function applyJob(s,j){
+  switch(j.kind){
+    case 'fuettern':{const need=G.chickens*CFG.chickenHay;if(G.barnHay>=need){G.barnHay-=need;G.hensFoodOk=true}else G.hayShort=true;j.task.doneDay=G.day;break}
+    case 'einsperren':G.coopClosed=true;j.task.doneDay=G.day;break;
+    case 'markt':s.away=true;G.marketOut=true;break;
+    case 'kochen':j.task.doneDay=G.day;cookMeal(s);break;
+    case 'item':if(G.tasks.includes(j.task))applyItem(j.task,j.item);break;
+    case 'single':{const t=j.task;if(!G.tasks.includes(t))break;if(!validTask(t)){removeTask(t);break}
+      t.done+=j.work;
+      if(t.done>=singleCost(t)-1e-6){if(applySingle(t))removeTask(t);else{s.failed.push(t);t.done=singleCost(t)-0.01}}
+      break}
+    case 'routine':{const i=idx(j.x,j.y);
+      if(j.name==='einholen'){if(feat[i]===F_WOOD||feat[i]===F_HAY||feat[i]===F_TRAPFULL)collectPile(i)}
+      else if(j.name==='loch'){if(feat[i]===F_HOLE)feat[i]=0}
+      else if(j.name==='setzling'){const t=treeAt(i);if(t&&t.h<=3){killTree(t);computeLight()}}
+      else if(j.name==='rasen'){grass[i]=0;gprog[i]=0}
+      else if(j.name==='zerlegen'){const l=logById.get(j.log);if(l){cutLog(l);G.tasks.filter(t=>t.type==='zerlegen'&&t.ref===l.id).forEach(removeTask)}}
+      break}
+  }
+}
+function findPath(sx,sy,tx,ty){
+  sx=Math.round(sx);sy=Math.round(sy);
+  const goal=new Set();
+  if(walkable(tx,ty))goal.add(idx(tx,ty));
+  else for(const [dx,dy] of DIRS)if(walkable(tx+dx,ty+dy))goal.add(idx(tx+dx,ty+dy));
+  if(!goal.size)return null;
+  const start=idx(sx,sy);if(goal.has(start))return [];
+  const prev=new Int32Array(N).fill(-2);prev[start]=-1;const q=[start];let h=0;
+  while(h<q.length){const c=q[h++];const cx=c%W,cy=(c/W)|0;
+    for(const [dx,dy] of DIRS){const nx=cx+dx,ny=cy+dy;if(!walkable(nx,ny))continue;const n=idx(nx,ny);if(prev[n]!==-2)continue;prev[n]=c;
+      if(goal.has(n)){const path=[];let k=n;while(k!==start){path.push(k);k=prev[k]}return path.reverse()}
+      q.push(n)}}
+  return null;
+}
+function goTo(s,x,y){const p=findPath(s.x,s.y,x,y);s.cur=null;s.jobs=[];s.path=p||[];s.state='walk';s.goal=[x,y]}
+function nextJob(s){
+  while(s.jobs.length){const j=s.jobs.shift();const p=findPath(s.x,s.y,j.x,j.y);
+    if(p){s.cur=j;s.path=p;s.state='walk';return}
+    if(j.kind==='single'||j.kind==='item'){if(!s.failed.includes(j.task))s.failed.push(j.task)}else applyJob(s,j)}
+  s.cur=null;s.state='rest';s.done=true;
+}
+function followPath(s,dt){
+  if(!s.path.length)return true;
+  const n=s.path[0],tx=n%W,ty=(n/W)|0,dx=tx-s.x,dy=ty-s.y,d=Math.hypot(dx,dy),m=3.2*dt;
+  if(Math.abs(dx)>Math.abs(dy))s.dir=dx>0?'right':'left';else if(dy)s.dir=dy>0?'down':'up';
+  if(d<=m){s.x=tx;s.y=ty;s.path.shift();return !s.path.length}
+  s.x+=dx/d*m;s.y+=dy/d*m;return false;
+}
+function faceTo(s,x,y){const dx=x-s.x,dy=y-s.y;if(Math.abs(dx)>Math.abs(dy))s.dir=dx>0?'right':'left';else if(dy)s.dir=dy>0?'down':'up'}
+function updateStaff(dt){
+  for(const s of staff){if(!s.available||s.away)continue;s.anim+=dt;
+    if(s.state==='idle')nextJob(s);
+    else if(s.state==='walk'){if(followPath(s,dt)){if(s.cur){s.state='work';s.workT=0;faceTo(s,s.cur.x,s.cur.y)}else{s.state='rest';s.dir='down'}}}
+    else if(s.state==='work'){s.workT+=dt;
+      if(s.cur.kind==='single'&&s.cur.task.type==='faellen'&&(s.workT%0.5)<dt)SFX.chop();
+      if(s.workT>=s.cur.pts*CFG.secPerPoint){applyJob(s,s.cur);s.cur=null;nextJob(s)}}
+  }
+}
+
+// ================================================================ Tageslauf: Appell, Blöcke, Pause, Feierabend
+const LINE=[[49,49],[50,49],[51,49],[52,49]],PLAYER_LINE=[50,51];
+function startDay(first,quiet){
+  G.state='play';G.kraft=CFG.kraft;G.enjoyed=false;G.clock=6;G.coopClosed=false;G.phase='appell';G.block=0;G.blockT=0;
+  G.hensFoodOk=!G.hensInside&&G.grazedOk;G.hayShort=false;G.marketOut=false;G.goodMeal=false;G.ateWithStaff=false;G.cooked=false;
+  G.tasks=G.tasks.filter(validTask);ensureAutoTasks();
+  staff.forEach((s,k)=>{s.weak=!!s.weakNext;s.weakNext=false;s.away=false;s.available=G.day>=s.from&&!s.weak;s.jobs=[];s.cur=null;s.path=[];s.state='rest';s.failed=[];s.done=true;s.dismissed=false;
+    s.x=s.tx=LINE[k][0];s.y=s.ty=LINE[k][1];s.dir='down'});
+  spawnCritters();computeLight();
+  G.mealPlan=defaultMeal();
+  if(quiet){beginBlock(0);return}
+  P.x=P.nx=PLAYER_LINE[0];P.y=P.ny=PLAYER_LINE[1];P.px=P.x;P.py=P.y;P.dir='up';P.moving=false;
+  showMorning(first);
+  G.afterCard=first?()=>beginBlock(0):startAppell;
+}
+function beginBlock(b){
+  G.phase='block';G.block=b;G.blockT=0;let est=0;
+  if(b===0||b===2)freezePlans();
+  G.claimed=new Set();const pa=planAll(b).plans;
+  for(const s of staff){if(!s.available)continue;s.jobs=buildBlockJobs(s,b,pa[s.id][0]);s.cur=null;s.done=!!s.away;s.state=s.away?'rest':'idle';
+    let t=0,x=s.x,y=s.y;for(const j of s.jobs){t+=j.pts*CFG.secPerPoint+(Math.abs(j.x-x)+Math.abs(j.y-y))/3.2;x=j.x;y=j.y}est=Math.max(est,t)}
+  G.blockEst=Math.max(CFG.blockMinSec,est);
+}
+function marketReturn(){
+  if(!G.marketOut)return;G.marketOut=false;const l=staff.find(s=>s.away)||S('liese');l.away=false;l.x=ESTATE.gx;l.y=H-2;l.state='rest';
+  const sell=takeFood('eier',Math.max(0,G.food.eier-CFG.keepEggs));G.taler+=sell*CFG.eggPrice;let bought=0;
+  while(G.taler>=CFG.brotPreis&&bought<CFG.brotMax){G.taler-=CFG.brotPreis;addFood('brot',CFG.brotPortion);bought++}
+  const t=G.tasks.find(t=>t.type==='markt');if(t)t.doneDay=G.day;
+  const note=`${l.name} ist vom Markt zurück: ${sell} Eier verkauft, ${bought} Laib Brot gekauft, ${G.taler} Taler in der Kasse.`;log(note);if(G.state==='play')toast(note,5000);
+}
+function endBlock(){
+  const b=G.block;if(b===2)marketReturn();
+  if(b===1){G.phase='mittag';G.blockT=0;G.frozen=null;coldMeal();staff.forEach((s,k)=>{if(s.available&&!s.away)goTo(s,LINE[k][0],LINE[k][1])});
+    toast('Mittagspause. Den Nachmittag kannst du jetzt im Notizbuch [N] umplanen.',4200)}
+  else if(b===3){G.phase='feierabend';G.frozen=null;G.clock=19;staff.forEach(s=>{if(s.available&&!s.away)goTo(s,s.home[0],s.home[1])});toast('Feierabend. Die Leute gehen heim.')}
+  else beginBlock(b+1);
+}
+function updateDay(dt){
+  if(G.phase==='block'){
+    G.blockT+=dt;updateStaff(dt);const [c0,c1]=BLOCK_CLOCK[G.block];G.clock=c0+(c1-c0)*Math.min(1,G.blockT/G.blockEst);
+    if(G.blockT>=CFG.blockMinSec&&staff.every(s=>!s.available||s.done))endBlock();
+  } else if(G.phase==='mittag'){
+    G.blockT+=dt;updateStaff(dt);G.clock=12+Math.min(1,G.blockT/CFG.pauseSec);
+    if(G.blockT>=CFG.pauseSec&&staff.every(s=>!s.available||s.away||s.state==='rest'))beginBlock(2);
+  } else if(G.phase==='feierabend'){updateStaff(dt);G.clock=Math.min(21,G.clock+dt*2/40)}
+}
+function finishDay(){
+  let b=0;
+  if(G.phase==='block'){for(const s of staff){if(!s.available)continue;if(s.cur)applyJob(s,s.cur);for(const j of s.jobs)applyJob(s,j);s.jobs=[];s.cur=null}b=G.block+1}
+  else if(G.phase==='mittag')b=2;else if(G.phase==='feierabend')b=4;
+  for(;b<4;b++){G.claimed=new Set();const pa=planAll(b).plans;for(const s of staff)if(s.available)for(const j of buildBlockJobs(s,b,pa[s.id][0]))applyJob(s,j)}
+  marketReturn();noMeal();
+  G.phase='nacht';G.frozen=null;
+  G.lastDay={fed:G.hensFoodOk,closed:G.coopClosed,failed:staff.flatMap(s=>s.failed.map(t=>({who:s.name,title:taskTitle(t),where:where(...taskPos(t))})))};
+}
+function sleep(){
+  if(P.mowTask)toggleMow();
+  finishDay();nightStep();G.day++;
+  P.x=P.nx=HOF[0];P.y=P.ny=HOF[1];P.px=P.x;P.py=P.y;P.dir='down';P.moving=false;
+  if(G.day>DAYS){showEnding();return}
+  startDay(false);
+}
+function dbgDays(k){
+  for(let n=0;n<k;n++){if(G.state==='end')return;finishDay();nightStep();G.day++;if(G.day>DAYS){showEnding();return}startDay(false,n<k-1)}
+  if(G.state==='card'){} // Morgenkarte des letzten Tages bleibt stehen
+}
+
+// ================================================================ Spieler-Aktionen
+const INSIGHTS={
+  hasenbau:'Hasen graben ihre Baue nur auf hellen Lichtungen – und halten Abstand zueinander.',
+  verbiss:'Hasen verbeißen junge Bäume. Wo viele Hasen leben, kommt der Wald kaum nach.',
+  fuchsbau:'Füchse wohnen im dunklen Altholz.',
+  fuchsweg:'Füchse streifen nachts umher – je hungriger, desto weiter.',
+  fuchsjagd:'Der Fuchs jagt, wo er Hasen wittert. Hohes Gras gibt den Hasen Deckung.',
+  zaun:'Hasen graben sich unter Zäunen durch, wenn ihr Bau in der Nähe ist.',
+  stall:'Ein hungriger Fuchs sucht den Hühnerstall. Nur ein verschlossener Stall ist sicher.',
+  birke:'Die Birke erobert jede Lichtung zuerst. Ihr Samen fliegt weit.',
+  eiche:'Die Eiche wächst langsam. Ihre Eicheln tragen die Häher weit fort.',
+  buche:'Die Buche gedeiht auch im Schatten und macht den Wald darunter dunkel.',
+  gras:'Gras braucht Licht. Wer Bäume fällt, schafft Wiese – und Hasenland.',
+  moos:'Wo Moos wächst, ist es zu dunkel für Gras und Hasen.',
+  stumpf:'Baumstümpfe treiben wieder aus, wenn man sie nicht rodet.',
+  totholz:'Liegendes Holz vermoost mit der Zeit – darauf wachsen Pilze.',
+  bach:'Der Bach trennt das Revier. Tiere queren ihn nur an Furten und am Steg.',
+  heu:'Die Hennen brauchen jeden Tag Heu. Heu gibt es nur von hellen Wiesen.'
+};
+function learn(id){if(id==='moos')guide('examine_moss');if(!id||G.insights.has(id))return;G.insights.add(id);toast('Erkenntnis: '+INSIGHTS[id],5200);SFX.store()}
+function facing(){const d={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]}[P.dir];return[P.x+d[0],P.y+d[1]]}
+function subjectAt(x,y){
+  if(!inb(x,y))return null;const i=idx(x,y);
+  const npc=staff.find(s=>s.available&&!s.away&&Math.round(s.x)===x&&Math.round(s.y)===y);if(npc)return{kind:'npc',s:npc};
+  if(bmap[i]>=0)return{kind:'bau',b:buildings[bmap[i]]};
+  const t=treeAt(i);if(t)return{kind:'baum',t};
+  if(lyingAt[i]>=0)return{kind:'stamm',l:logById.get(lyingAt[i])};
+  if(stumpAt[i])return{kind:'stumpf'};
+  if(feat[i])return{kind:'feat',f:feat[i]};
+  if(fkind[i])return{kind:'zaun'};
+  if(track[i])return{kind:'spur',tr:track[i]};
+  if(ground[i]===G_WATER||ground[i]===G_FORD||ground[i]===G_BRIDGE)return{kind:'wasser'};
+  if(grass[i]>=1&&light[i]>=0.55&&ground[i]!==G_PATH)return{kind:'gras'};
+  if(deco[i])return{kind:'deko',d:deco[i]};
+  return{kind:'boden'};
+}
+function selfAct(cost,fn,msg){
+  if(G.kraft<cost){toast('Dafür fehlt dir heute die Kraft. Das Personal kann es übernehmen.');return}
+  G.kraft-=cost;fn();if(msg)toast(msg);
+}
+// Markieren (Zuteilung geschieht separat im Notizbuch oder beim Appell)
+function markGroupOpt(type,item){return{label:`Markieren: ${TASKS[type].label}`,fn(){const t=groupTask(type);if(!t.items.includes(item))t.items.push(item);
+  SFX.peg();toast(`Notiert unter „${TASKS[type].label}“ (${taskItems(t).length} ${TASKS[type].unit}).`);if(type==='maehen')guide('mow')}}}
+function markSingleOpt(type,x,y,ref){return{label:`Markieren: ${type==='bau'?(feat[idx(x,y)]===F_DEN?'Fuchsbau zuschütten':'Hasenbau zuschütten'):TASKS[type].label}`,fn(){
+  const t=addTask(type,x,y,ref);SFX.peg();toast(`Notiert: ${taskTitle(t)} – ${where(x,y)}. Zuteilen im Notizbuch [N] oder morgens beim Appell.`,4000);if(type==='faellen')guide('mark_tree')}}}
+function enjoyOpt(label){return{label:G.enjoyed?`${label} (heute schon genossen)`:`${label} (+${CFG.enjoyBonus} Kraft)`,fn:enjoy}}
+function buildOptions(sub,x,y){
+  const i=idx(x,y),O=[];let title='';
+  const ex=(t,ins)=>O.push({label:'Untersuchen',fn(){toast(t,5200);learn(ins);guide('examine')}});
+  const marked=markedAt(x,y);
+  switch(sub.kind){
+    case 'npc':{const s=sub.s;title=`${s.name}, ${s.role}`;O.push({label:'Reden',fn(){talk(s)}});
+      if(s.state==='work')O.push({label:'Mit anpacken (1 Kraft)',fn(){selfAct(1,()=>help(s),'Ihr packt gemeinsam an.')}});break}
+    case 'bau':{const b=sub.b;
+      if(b.id==='gesinde'){title='Gesindehaus';O.push({label:'Schlafen gehen (Tag beenden)',fn(){confirmCard(G.phase==='feierabend'?'Schlafen gehen?':'Schon schlafen gehen? Was die Leute heute noch vorhaben, erledigen sie trotzdem.',()=>{guide('sleep');sleep()})}})}
+      else if(b.id==='bank'||b.id==='bank2'){title='Bank';O.push(enjoyOpt('Hinsetzen und genießen'))}
+      else if(b.id==='scheune'){title='Scheune';O.push({label:'Vorräte ansehen',fn(){toast(`In der Scheune: ${G.barnWood} Holz, ${G.barnHay} Heu, ${G.barnHares} Hasen im Rauch. ${G.traps} Fallen hängen an der Wand.`,5200);if(G.barnHay<G.chickens)learn('heu')}})}
+      else if(b.id==='stall'||b.id==='trog'){title='Hühnerstall';O.push({label:'Nach den Hühnern sehen',fn(){toast(`${G.chickens} Hennen. ${G.hensInside?'Sie waren die Nacht im Stall und brauchen heute Heu.':'Sie waren die Nacht draußen, fressen Gras und legen Eier.'} ${G.coopClosed?'Jetzt sind sie eingesperrt.':''}`,5200);learn('heu')}});
+        if(G.chickens>0)O.push({label:`Eine Henne schlachten (+${CFG.meatPortion} Portionen Fleisch)`,fn(){confirmCard('Eine Henne des Barons schlachten? Er zählt seine Hennen …',()=>{G.chickens--;addFood('fleisch',CFG.meatPortion);toast('Grete schlachtet eine Henne. Es gibt Fleisch.')})}})}
+      else if(b.id==='hasenstall'){title=`Hasenstall (${G.hutch}/${CFG.hutchCap})`;O.push({label:'Hineinschauen',fn(){toast(G.hutch?`${G.hutch} Hasen mümmeln Gras. Gefangene Hasen landen hier.`:'Leer. Gefangene Hasen landen hier.')}});
+        if(G.hutch>0){O.push({label:`Einen Hasen schlachten (+${CFG.meatPortion} Portionen Fleisch)`,fn(){G.hutch--;addFood('fleisch',CFG.meatPortion);toast('Fleisch für die Speisekammer.')}});
+          O.push({label:'Einen Hasen räuchern – für den Baron',fn(){G.hutch--;G.barnHares++;toast(`${G.barnHares} Hasen hängen jetzt in der Räucherkammer.`)}});
+          O.push({label:'Einen Hasen freilassen',fn(){G.hutch--;G.pendingDisperse.push({x:44,y:41,n:1});toast('Er hoppelt davon.')}})}}
+      else{title='Herrenhaus';O.push({label:'Das Herrenhaus',fn(){toast('Abgeschlossen. Der Baron ist verreist. Liese hält das Haus in Ordnung.')}})}
+      break}
+    case 'baum':{const t=sub.t;title=treeDesc(t)+(t.dead?' (abgestorben)':'');
+      const l=t.h<=1?light[i]:lightAbove(i,t.h);
+      let txt=t.h<=1?`Ein ${SPNAME[t.sp]}nsetzling.`:t.giant?'Eine uralte Riesen-Eiche. Ihr Stamm braucht drei Männer, um ihn zu umfassen.':`${t.h>=6?'Eine stattliche':t.h>=4?'Eine':'Eine junge'} ${SPNAME[t.sp]}.`;
+      if(t.dead)txt+=' Abgestorben – sie wird bald umstürzen.';
+      else if(t.bitten)txt+=' Die Triebe sind frisch verbissen.';
+      else if(t.h>=4&&light[i]<0.3)txt+=' Unter ihrer Krone ist es dämmrig.';
+      else if(t.stress>1)txt+=' Sie kümmert, ihr fehlt das Licht.';
+      else if(l>0.8&&t.h<4)txt+=' Sie hat viel Licht und schießt in die Höhe.';
+      ex(txt,t.bitten?'verbiss':t.sp);
+      if(t.giant)O.push(enjoyOpt('An die Riesen-Eiche lehnen und genießen'));
+      if(t.h<=1)O.push({label:'Selbst ausreißen (1 Kraft)',fn(){selfAct(1,()=>{killTree(t);SFX.pull()},'Ausgerissen.')}});
+      else if(t.h<=3&&!t.dead)O.push({label:'Selbst fällen (3 Kraft)',fn(){selfAct(3,()=>{fellTree(t);SFX.fell()},'Gefällt. Das Holz liegt am Stumpf.')}});
+      if(!marked.length){if(t.h<=2)O.push(markGroupOpt('setzlinge',t.id));if(t.h>=2)O.push(markSingleOpt('faellen',t.x,t.y,t.id))}
+      break}
+    case 'stamm':{title='Liegender Stamm';ex(sub.l.age>=CFG.logMossDays?'Ein umgestürzter Stamm, schon bemoost. Pilze sprießen daran.':'Ein liegender Stamm. Zerlegt gibt er gutes Brennholz.','totholz');
+      if(!marked.length)O.push(markSingleOpt('zerlegen',x,y,sub.l.id));break}
+    case 'stumpf':{title='Baumstumpf';ex(stumpAge[i]>=2?'Ein Baumstumpf. Am Rand zeigen sich schon frische Triebe.':'Ein frischer Baumstumpf.','stumpf');if(!marked.length)O.push(markSingleOpt('roden',x,y));break}
+    case 'feat':{const f=sub.f;
+      if(f===F_HOLE){title='Loch';ex('Ein frisch gegrabenes Loch. Hier waren Hasen am Werk.',null);O.push({label:'Selbst zuschütten (1 Kraft)',fn(){selfAct(1,()=>{feat[i]=0;SFX.dig()},'Zugeschüttet.')}});if(!marked.length)O.push(markGroupOpt('loecher',i))}
+      else if(f===F_BURROW){const b=burrows.find(b=>b.alive&&b.x===x&&b.y===y);const n=b?b.n:0;title='Hasenbau';
+        ex(n===0?'Ein Hasenbau. Verlassen, die Gänge sind kalt.':n<=2?'Ein Hasenbau. Ein paar frische Köttel – bewohnt.':n<=5?'Ein Hasenbau mit vielen frischen Spuren. Reger Betrieb.':'Ein Hasenbau, um den es nur so wimmelt.','hasenbau');guide('examine_burrow');
+        O.push({label:'Selbst eine Falle daneben stellen (1 Kraft)',fn(){const s=freeNear(x,y,1);if(!s||G.traps<=0){toast(G.traps<=0?'Alle Fallen sind schon aufgestellt.':'Kein Platz für eine Falle.');return}selfAct(1,()=>{feat[idx(s[0],s[1])]=F_TRAP;G.traps--;SFX.pick()},'Die Falle steht.')}});
+        if(!marked.length)O.push(markSingleOpt('bau',x,y))}
+      else if(f===F_DEN){title='Fuchsbau';ex(foxes.some(fx=>fx.alive&&fx.den[0]===x&&fx.den[1]===y)?'Ein Fuchsbau unter altem Holz. Es riecht streng – er ist bewohnt.':'Ein Fuchsbau. Er riecht alt, wohl verlassen.','fuchsbau');if(!marked.length)O.push(markSingleOpt('bau',x,y))}
+      else if(f===F_WOOD||f===F_HAY){title=f===F_WOOD?'Holz':'Heu';ex(`${featN[i]} ${f===F_WOOD?'Scheit Holz':'Bund Heu'}. Steht im Notizbuch unter „Heu & Holz einholen“ – in Hofnähe holt Hannes es auch von selbst.`,f===F_HAY?'heu':null)}
+      else if(f===F_TRAP){title='Falle';O.push({label:'Falle abbauen',fn(){feat[i]=0;G.traps++;SFX.pick()}})}
+      else if(f===F_TRAPFULL){title='Falle mit Hase';O.push({label:'Hasen herausnehmen (in den Hasenstall)',fn(){if(G.hutch>=CFG.hutchCap){toast('Der Hasenstall ist voll.');return}feat[i]=F_TRAP;G.hutch++;SFX.pick();toast(`${G.hutch} Hasen im Hasenstall.`)}});O.push({label:'Freilassen',fn(){feat[i]=F_TRAP;G.pendingDisperse.push({x,y,n:1});toast('Er hoppelt davon.')}})}
+      break}
+    case 'zaun':{title=fkind[i]===FK_GATE?'Hoftor':'Zaun';
+      if(fkind[i]!==FK_GATE){const hp=fence[i];ex(hp>=3?'Der Zaun steht fest.':hp>0?'Der Zaun ist unterwühlt und wackelt. Steht im Notizbuch unter „Zaun flicken“.':'Hier klafft eine Lücke im Zaun. Frische Erde darunter. Steht im Notizbuch unter „Zaun flicken“.','zaun');
+        if(hp<3)O.push({label:'Selbst flicken (2 Kraft, 1 Holz aus der Scheune)',fn(){if(G.barnWood<1){toast('In der Scheune ist kein Holz mehr.');return}selfAct(2,()=>{G.barnWood--;fence[i]=3;SFX.hammer();guide('fence_self')},'Geflickt.')}})}
+      else ex('Das Hoftor. Für Tiere bleibt es verschlossen.',null);break}
+    case 'spur':{const tr=sub.tr;title='Spuren';
+      const txt={[TR_HARE]:['Hasenspuren im weichen Boden.',null],[TR_FOX]:['Eine Fuchsfährte. Er war heute Nacht hier unterwegs.','fuchsweg'],[TR_FELL]:['Fellreste. Hier hat der Fuchs Beute gemacht.','fuchsjagd'],[TR_ERDE]:['Frisch aufgewühlte Erde – hier wurde gegraben.','zaun'],[TR_FEDERN]:['Federn … und Pfotenabdrücke.','stall']}[tr];
+      ex(txt[0],txt[1]);break}
+    case 'wasser':title='Bach';ex(ground[i]===G_FORD?'Eine Furt. Über die Steine kommt man trockenen Fußes – und die Tiere auch.':ground[i]===G_BRIDGE?'Der Steg der Kutschenstraße.':'Der Bach plätschert. Kalt und klar.','bach');O.push(enjoyOpt('Am Bach sitzen und genießen'));break;
+    case 'gras':{title=grass[i]===2?'Hohes Gras':'Wiese';ex(grass[i]===2?'Hohes, saftiges Gras. Hier kommt man nur mühsam voran.':'Eine helle Wiese.','gras');
+      if(!marked.length){const area=mowArea(x,y,40);O.push({label:`Markieren: Wiese hier mähen (${area.length} Felder)`,fn(){const t=groupTask('maehen');for(const j of area)if(!t.items.includes(j))t.items.push(j);SFX.peg();guide('mow');
+        toast(`Notiert unter „Wiese mähen“ (${taskItems(t).length} Felder).`)}})}
+      O.push({label:'Mähfläche selbst abstecken [M]',fn(){toggleMow()}});break}
+    case 'deko':{const d=sub.d;
+      if(d===D_BUSCH){title='Brombeerbusch';ex(berry[i]?'Ein Brombeerbusch voller reifer Beeren.':'Ein Brombeerbusch – abgeerntet, in ein paar Tagen trägt er wieder.',null);
+        if(berry[i]){O.push({label:`Selbst Beeren pflücken (1 Kraft, +${CFG.berryPortion} Portionen)`,fn(){selfAct(1,()=>{berry[i]=0;berryT[i]=0;addFood('beeren',CFG.berryPortion);SFX.pick()},'Eine Handvoll Brombeeren.')}});
+          if(!marked.length)O.push(markGroupOpt('beeren',i))}
+        break}
+      title={[D_FARN]:'Farn',[D_FARN2]:'Farn',[D_BUSCH]:'Busch',[D_PILZE]:'Pilze',[D_BLUMEN]:'Blumen',[D_STEIN]:'Stein',[D_MOOS]:'Moospolster',[D_LAUB]:'Laub'}[d];
+      ex({[D_FARN]:'Farne lieben den Halbschatten.',[D_FARN2]:'Farne lieben den Halbschatten.',[D_BUSCH]:'Ein Brombeerbusch.',[D_PILZE]:'Pilze am morschen Holz.',[D_BLUMEN]:'Wiesenblumen im Licht.',[D_STEIN]:'Ein bemooster Stein.',[D_MOOS]:'Weiches Moos – hier ist es dunkel.',[D_LAUB]:'Altes Laub.'}[d],d===D_MOOS?'moos':d===D_PILZE?'totholz':null);break}
+    default:{title='Waldboden';ex(light[i]<CFG.litMoss?'Moos und Dämmerlicht. Hier wächst kein Gras.':light[i]<CFG.litMeadow?'Laub und Farne im Halbschatten.':'Kurzes Gras im Sonnenlicht.',light[i]<CFG.litMoss?'moos':null);
+      if(!feat[i]&&walkable(x,y)&&ground[i]!==G_PATH){
+        O.push({label:'Selbst eine Falle stellen (1 Kraft)',fn(){if(G.traps<=0){toast('Alle Fallen sind schon aufgestellt.');return}selfAct(1,()=>{feat[i]=F_TRAP;G.traps--;SFX.pick()},'Die Falle steht.')}});
+        if(!marked.length)O.push(markSingleOpt('falle',x,y))}}
+  }
+  for(const t of marked)O.push({label:`Markierung entfernen: ${TASKS[t.type].label}`,fn(){unmark(t,x,y);toast('Markierung entfernt.')}});
+  return{title,opts:O};
+}
+function mowArea(x,y,max){const out=[],seen=new Set([idx(x,y)]),q=[[x,y]];
+  while(q.length&&out.length<max){const [cx,cy]=q.shift();const i=idx(cx,cy);if(grass[i]>=1&&light[i]>=0.55&&ground[i]!==G_PATH&&!fkind[i]){out.push(i);
+    for(const [dx,dy] of DIRS){const nx=cx+dx,ny=cy+dy;if(inb(nx,ny)&&!seen.has(idx(nx,ny))){seen.add(idx(nx,ny));q.push([nx,ny])}}}}
+  return out}
+function toggleMow(){
+  if(P.mowTask){P.mowTask=null;const t=G.tasks.find(t=>t.type==='maehen');toast(t?`Mähfläche abgesteckt – „Wiese mähen“ umfasst jetzt ${taskItems(t).length} Felder.`:'Keine Fläche abgesteckt.');guide('mow');return}
+  P.mowTask=true;addMowTile(idx(P.x,P.y));
+  toast('Pflock-Modus: Lauf über das Gras, das gemäht werden soll. [M] beendet.');
+}
+function addMowTile(i){if(!P.mowTask||grass[i]<1||ground[i]===G_PATH||fkind[i])return;const t=groupTask('maehen');if(t.items.includes(i))return;t.items.push(i);SFX.peg()}
+function help(s){
+  const j=s.cur;if(!j)return;
+  if(j.kind==='single'){j.work+=2/(mult(j.task.type,s.id)||1)}
+  else if(j.kind==='item'){s.jobs.unshift(...groupJobs(s,j.task,2).filter(n=>n.item!==j.item&&!s.jobs.some(o=>o.item===n.item)))}
+  s.workT+=CFG.secPerPoint*1.5;
+}
+const ENJOY=['Ein Specht klopft irgendwo im Wald. Die Sonne wärmt dein Gesicht.','Libellen tanzen über dem Wasser. Du atmest tief durch.',
+  'Der Wind rauscht in den Kronen. Für einen Moment ist alles still in dir.','Ein Reh tritt am Waldrand hervor, äugt und verschwindet wieder.',
+  'Die Blätter werfen tanzende Lichtflecken. Du schließt kurz die Augen.'];
+function enjoy(){
+  if(G.enjoyed){toast('Du hast heute schon eine Weile gesessen.');return}
+  G.enjoyed=true;G.kraft+=CFG.enjoyBonus;guide('enjoy');
+  showCard(`<h2>Eine Weile sitzen</h2><div class="rep">${ENJOY[Math.floor(Math.random()*ENJOY.length)]}</div><div class="rep"><i>Du fühlst dich erholt. (+${CFG.enjoyBonus} Kraft)</i></div>`,'[Leertaste] weiter');
+}
+function doingText(s){const c=s.cur;if(!c)return null;
+  if(c.kind==='single'||c.kind==='item')return TASKS[c.task.type].label.toLowerCase();
+  return{fuettern:'die Hennen füttern',schliessen:'den Stall zusperren'}[c.kind]||{einholen:'einholen, was am Hof liegt',zerlegen:'den Stamm am Hof zerlegen',loch:'Löcher im Rasen zuschütten',setzling:'Unkraut im Garten ziehen',rasen:'den Rasen mähen'}[c.name]||'beschäftigt'}
+function talk(s){
+  if(s.id==='hannes')guide('talk_hannes');
+  if(s.id==='jost')guide('talk_jost');
+  if(s.id==='hannes'&&G.day===1&&!G.talkedIntro){G.talkedIntro=true;
+    showCard(`<h2>Hannes, der Knecht</h2>
+      <div class="rep">„Grüß Gott, Herr Verwalter! Ich bin der Hannes. Der Baron war ja ganz aus dem Häuschen.</div>
+      <div class="rep">Schauen Sie sich ruhig alles an. Was getan werden muss, merken Sie sich im <b>Notizbuch [N]</b> – stellen Sie sich einfach davor <b>[Leertaste]</b>. Gras zum Mähen stecken Sie am besten mit Pflöcken ab <b>[M]</b>; die Wiese vor dem Hoftor hätt's nötig, die Hennen brauchen Heu.</div>
+      <div class="rep">Jeden Morgen stehen wir hier auf dem Hof und Sie sagen jedem, was er tun soll. Wer nichts hört, macht sein Übliches. Wenn Sie wollen, schreiben Sie's schon am Abend ins Notizbuch.</div>
+      <div class="rep">Grete kümmert sich um die Hühner und kocht, Liese hält Haus und Garten in Ordnung und geht für uns zum Markt. Der Jost, unser Holzfäller, ist noch im Dorf – übermorgen ist er zurück.“</div>`,'[Leertaste] weiter');return}
+  if(s.id==='jost'&&G.day>=3&&!G.talkedJost){G.talkedJost=true;
+    showCard(`<h2>Jost, der Holzfäller</h2><div class="rep">„Tach, Herr Verwalter. Bin zurück. Zeigen Sie mir, was weg soll – ich mach ein Zeichen dran und fäll's.</div>
+      <div class="rep">Nur eins: Wo ich Licht reinlass, kommt Gras. Und wo Gras ist, sind bald die Hasen. Und die Birken – die fliegen überall hin, wo's hell ist.“</div>`,'[Leertaste] weiter');return}
+  const doing=doingText(s);let line;
+  if(G.phase==='mittag')line='„Brotzeit, Herr Verwalter.“';
+  else if(doing)line=`„Bin grad dran: ${doing}.“`;
+  else if(s.away)line='';
+  else if(s.done&&G.phase==='block'&&G.block<3)line=`„Mit dem ${['Morgen','Vormittag','Nachmittag'][G.block]} bin ich durch. Nach der nächsten Glocke geht's weiter.“`;
+  else if(G.phase==='feierabend'||G.phase==='nacht'||s.done)line=s.id==='grete'?`„Für heute bin ich fertig.${G.barnHay<G.chickens?' Aber das Heu wird knapp!':''}“`:'„Für heute bin ich fertig.“';
+  else line='„Gleich geht\'s los.“';
+  if(s.id==='liese'&&G.gardenBacklog>0)line+=' „Der Garten wächst mir über den Kopf.“';
+  toast(`${s.name}: ${line}`,4500);
+}
+
+// ================================================================ Leitfaden (erste Tage)
+const GUIDE={
+  1:[['talk_hannes','Sprich mit Hannes vor dem Gesindehaus'],['examine','Untersuche etwas (Leertaste → Untersuchen)'],['mow','Markiere die Wiese vor dem Hoftor zum Mähen'],['assign','Teile Hannes im Notizbuch [N] das Mähen zu'],['sleep','Geh im Gesindehaus schlafen']],
+  2:[['appell','Verteile morgens die Arbeit auf dem Hof'],['watch','Sieh Hannes bei der Arbeit zu'],['fence_self','Flicke die Zaunlücke im Süden selbst'],['examine_burrow','Untersuche einen Hasenbau auf einer Waldwiese']],
+  3:[['talk_jost','Begrüße Jost, den Holzfäller'],['mark_tree','Markiere einen Baum zum Fällen und teile ihn Jost zu'],['examine_moss','Untersuche Moos im dunklen Wald']]
+};
+function guide(id){if(!G||!GUIDE[G.day])return;if(GUIDE[G.day].some(g=>g[0]===id))G.guideDone.add(G.day+':'+id)}
+
+// ================================================================ Morgen, Briefe, Berichte
+const LETTERS={
+  3:{winter:'Hier in der Hauptstadt spricht man von nichts anderem als dem kommenden Winter. Der alte Gustav sagt, er wird bitter. Ich hoffe, Sie sorgen vor, wie ein kluger Mann vorsorgt.',
+     jagd:'Nach meiner Rückkehr gebe ich eine Jagdgesellschaft für die Herren aus der Stadt. Ich verlasse mich darauf, dass es in meinem Revier etwas zu jagen gibt.',
+     holz:'Ein Holzhändler hat sich für nach meiner Rückkehr angekündigt. Er schätzt stattliche Bäume – und ich schätze sein Geld.'},
+  10:{winter:'Hier friert schon das Wasser in den Brunnen. Ist meine Scheune gut gefüllt? Und ein paar Hasen im Rauch wären mir für die mageren Monate recht.',
+      jagd:'Die Herren freuen sich auf Hasen – und auf den roten Burschen. Eine Jagd ohne Fuchs ist keine Jagd.',
+      holz:'Der Händler fragt nach alten Stämmen. Lassen Sie mir die großen Bäume stehen. Ein wenig Brennholz in der Scheune brauche ich dennoch.'},
+  17:{winter:'Ich rechne mit einer Scheune voll Holz – mit mehr, als Sie vermutlich meinen.',
+      jagd:'Ich zähle auf eine ordentliche Strecke. Aber übertreiben Sie es nicht: Eine Kaninchenplage auf meinem Rasen dulde ich nicht.',
+      holz:'Bedenken Sie: Ein Wald ist kein Dickicht. Der Händler will Stämme sehen, keine Gestrüppwüste.'},
+  21:{all:'Morgen früh kehre ich zurück. Ich hoffe, ich finde alles so vor, wie ich es mir wünsche.'}
+};
+function reports(){
+  const n=G.night,st=stats(),prev=G.hist[G.hist.length-2]||st,ld=G.lastDay||{failed:[]},out=[];
+  let g;
+  if(n.chickFox)g='Der Fuchs hat eine Henne geholt! Die waren die Nacht draußen.';
+  else if(n.chickStarve)g='Eine Henne ist eingegangen – die hatten nichts zu fressen.';
+  else if(n.foxAtCoop)g='Heut Nacht hat der Fuchs am Stall gekratzt. Gut, dass sie drin waren.';
+  else if(n.eggs)g=`Die Hennen waren die Nacht draußen und haben ${n.eggs} Eier gelegt.`;
+  else if(n.grassShort)g='Die Hennen finden draußen nicht mehr genug Gras.';
+  else if(G.hensInside&&G.barnHay<G.chickens*CFG.chickenHay)g='Die Hennen sind im Stall, aber für Heu reicht\'s nicht mehr!';
+  else g=G.hensInside?'Die Hennen waren im Stall – heut brauchen sie Heu, Eier gibt\'s keine.':'Die Hennen sind wohlauf.';
+  out.push(['Grete',g]);
+  let h;
+  if(st.fBroken>prev.fBroken)h='Am Zaun ist ein neues Loch – da haben sich die Hasen druntergegraben.';
+  else if(ld.failed.some(f=>f.who==='Hannes')){const f=ld.failed.find(f=>f.who==='Hannes');h=`Zu „${f.title}“ (${f.where}) bin ich nicht durchgekommen.`}
+  else if(n.fenceDug>2)h='Am Zaun wird gegraben, Herr Verwalter.';
+  else if(n.trapped)h='In einer Falle sitzt ein Hase.';
+  else if(G.barnWood<1&&st.fDamaged+st.fBroken>0)h='Für den Zaun ist kein Holz mehr in der Scheune.';
+  else{let far=0;for(let i=0;i<N;i++)if((feat[i]===F_WOOD||feat[i]===F_HAY)&&dist(i%W,(i/W)|0,HOF[0],HOF[1])>16)far++;
+    h=far?'Draußen liegt noch Holz oder Heu – von allein kommt das nicht in die Scheune.':'Alles ruhig, Herr Verwalter.'}
+  out.push(['Hannes',h]);
+  if(G.day>=3){let j;
+    if(G.day===3)j='Bin wieder da, Herr Verwalter! Sagen Sie mir, was weg soll.';
+    else if(ld.failed.some(f=>f.who==='Jost'))j='Zu einem der Bäume bin ich gar nicht durchgekommen.';
+    else if(st.hofSaplings>prev.hofSaplings+2||st.hofSaplings>10)j='Die Birken fliegen schon auf die Hofwiese.';
+    else if(n.logsFell)j='Im Dickicht ist ein toter Baum umgekippt.';
+    else if(st.logs>6)j='Im Wald liegt Holz, das verrottet, wenn\'s keiner zerlegt.';
+    else j='Der Wald steht gut.';
+    out.push(['Jost',j])}
+  let l;const tot=G.food.brot+G.food.eier+G.food.fleisch+G.food.beeren,days=tot/Math.max(1,eaters().length*2);
+  if(G.mealHungry&&G.mealHungry.length>1&&G.mealHungry.length===eaters().filter(s=>s.weak).length)l='Gestern gab\'s nichts zu essen, nicht mal Brotzeit. Heut sind alle zu schwach zum Arbeiten.';
+  else if(G.mealHungry&&G.mealHungry.length)l=`${G.mealHungry.join(' und ')} ${G.mealHungry.length>1?'haben':'hat'} gestern nichts abgekriegt und ${G.mealHungry.length>1?'bleiben':'bleibt'} heut liegen.`;
+  else if(G.coldMeal&&G.day>1&&!(G.mealHungry&&G.mealHungry.length))l='Gestern gab\'s nur kalte Brotzeit. Satt sind wir, aber Freude macht das keine.';
+  else if(n.spoiled&&Object.keys(n.spoiled).length)l=`Über Nacht ist was verdorben: ${Object.entries(n.spoiled).map(([k,v])=>v+' '+FOODS.find(f=>f[0]===k)[1]).join(', ')}. Schade drum.`;
+  else if(st.gardenHares>0)l='Im Garten haben sich Hasen eingegraben!';
+  else if(days<1)l='Die Speisekammer ist so gut wie leer, Herr Verwalter. Soll ich zum Markt?';
+  else if(days<2)l='Das Essen reicht vielleicht noch für einen Tag.';
+  else if(G.gardenBacklog>0&&st.gHoles>0)l='Ich komm mit den Löchern im Rasen nicht nach.';
+  else if(G.gardenBacklog>0)l='Der Garten wächst mir über den Kopf.';
+  else l='Im Haus und im Garten ist alles in Ordnung.';
+  out.push(['Liese',l]);
+  let o;
+  if(n.newFox)o='Nachts hört man jetzt einen weiteren Fuchs bellen.';
+  else if(n.foxGone)o='Ein Fuchs scheint das Revier verlassen zu haben.';
+  else if(n.darkBurrows)o='Auf einer Lichtung, die zuwächst, sind die Hasenbaue verlassen.';
+  else if(st.hares>prev.hares*1.4&&st.hares-prev.hares>4)o='Überall raschelt es im Gras – die Hasen werden mehr.';
+  else if(st.hares<prev.hares*0.7&&prev.hares>5)o='Die Wiesen sind still geworden. Kaum ein Hase.';
+  else if(n.newBurrows)o='Irgendwo im Revier haben Hasen einen neuen Bau gegraben.';
+  else o=['Ein ruhiger Morgen. Tau liegt auf den Wiesen.','Nebel hängt zwischen den Stämmen.','Ein Specht klopft irgendwo im Wald.','Die Amseln singen schon vor Sonnenaufgang.'][G.day%4];
+  return{staff:out,obs:o};
+}
+function showMorning(first){
+  let html=`<h2>Tag ${G.day} · ${WEEKDAYS[(G.day-1)%7]}</h2>`;
+  if(first){
+    html+=`<div class="rep">Die Kutsche rumpelt über den Waldweg. Vor dem Herrenhaus wartet schon der Baron von Eichenhain – eine Depesche in der Hand, die Koffer gepackt.</div>
+      <div class="letter">„Gut, dass Sie endlich da sind! Man ruft mich in die Hauptstadt, ich muss sofort fort. Drei Wochen, vielleicht weniger. Hannes zeigt Ihnen alles.<br><br>
+      Halten Sie mir das Gut in Ordnung: keine Löcher im Rasen, kein Getier im Garten – und meine Hennen sind mir lieb und teuer! Was ich mir sonst wünsche, schreibe ich Ihnen.“</div>
+      <div class="rep">Er drückt dir die Schlüssel in die Hand. Die Kutsche wendet, und fort ist er.</div>
+      <div class="keys">WASD/Pfeile laufen · [Leertaste] vor einem Ding: untersuchen, selbst anpacken, Auftrag erteilen<br>
+      [M] Mähfläche abstecken · [N] Notizbuch · Aufträge erledigt das Personal am nächsten Tag<br>
+      Kraft (●) brauchst du nur für eigene Arbeit · Schlafen im Gesindehaus beendet den Tag</div>`;
+  } else {
+    const L=LETTERS[G.day];
+    if(L){const txt=L[scen.kind]||L.all;G.letters.push({day:G.day,txt});html+=`<h3>Ein Bote bringt einen Brief</h3><div class="letter">${txt}<div class="sig">– Baron von Eichenhain</div></div>`}
+    const r=reports();
+    html+='<h3>Was die Leute berichten</h3>'+r.staff.map(([n,t])=>`<div class="rep"><b>${n}:</b> „${t}“</div>`).join('');
+    html+=`<div class="rep"><i>${r.obs}</i></div>`;
+    if(G.day===3)html+='<div class="rep"><i>Jost, der Holzfäller, ist aus dem Dorf zurück.</i></div>';
+  }
+  showCard(html,first?'[Leertaste] Tag beginnen':'[Leertaste] Zur Arbeitsverteilung auf dem Hof');
+}
+
+// ================================================================ Rückkehr des Barons
+function showEnding(){
+  G.state='end';closeMenu();
+  const s=stats(),items=[];
+  const add=(group,w,v,good,bad)=>items.push({group,w,v:clamp(v,0,1),good,bad});
+  add('haus',0.14,1-s.gHoles/8,'Der Rasen ist makellos, nicht ein Loch.',s.gHoles<=3?'Löcher im Rasen! Kaninchenwerk, eindeutig.':'Mein Rasen gleicht einem Kartoffelacker!');
+  add('haus',0.1,1-s.gTall/20,'Der Rasen ist gepflegt.','Der Rasen steht ja kniehoch!');
+  add('haus',0.1,1-s.gPlants/6,'Kein Wildwuchs im Garten.','Da wachsen Bäume in meinem Garten!');
+  add('haus',0.08,1-(s.fBroken*2+s.fDamaged*0.5)/10,'Der Zaun steht tadellos.',s.fBroken?'Der Zaun hat Löcher wie ein Sieb.':'Der Zaun ist unterwühlt und wacklig.');
+  add('haus',0.08,s.gardenHares?0:1,'Kein Getier im Garten.','Da hoppeln Hasen über meinen Rasen – sie wohnen ja schon hier!');
+  const lost=CFG.chickens-G.chickens;
+  add('haus',0.1,G.chickens/CFG.chickens,'Meine Hennen sind wohlauf, alle sechs.',lost>=CFG.chickens?'Meine Hennen … alle fort?!':lost===1?'Es fehlt eine Henne. Meine Liebste, natürlich.':`Es fehlen ${lost} Hennen!`);
+  if(scen.kind==='winter'){
+    add('wunsch',0.25,G.barnWood/scen.wood,'Die Scheune ist voll Holz. Der Winter kann kommen.',G.barnWood<scen.wood*0.4?'Mit dem bisschen Holz erfrieren wir im Januar!':'Das Holz wird knapp werden bis zum Frühjahr.');
+    add('wunsch',0.15,G.barnHares/scen.hareStock,'Hasen im Rauch – sehr vorausschauend.',G.barnHares?'Ein paar Hasen mehr im Vorrat hätten nicht geschadet.':'Kein einziger Hase im Vorrat? Was sollen wir im Februar essen?');
+  } else if(scen.kind==='jagd'){
+    const n=s.hares-s.gardenHares,lo=scen.hunt,hi=scen.hunt*3;
+    add('wunsch',0.25,n<lo?n/lo:n>hi?1-(n-hi)/hi:1,'Hasen in Hülle und Fülle – die Herren werden staunen.',n<lo?'Kaum ein Hase im Revier. Die Jagd wird eine Blamage.':'Das ist keine Jagd mehr, das ist eine Plage.');
+    add('wunsch',0.15,s.foxes/2,'Und der Fuchs ist auch da. Halali!',s.foxes?'Nur ein einziger Fuchs? Mager.':'Kein Fuchs im ganzen Revier? Unverzeihlich.');
+  } else {
+    add('wunsch',0.25,s.big/scen.big,'Prächtige Stämme. Der Händler wird zahlen.',s.big<scen.big*0.8?'Wo sind meine Bäume? Sie haben mir den Wald verheizt!':'Ein paar stattliche Stämme fehlen mir.');
+    add('wunsch',0.15,G.barnWood/scen.wood,'Und Brennholz ist auch da.','Kein Brennholz in der Scheune.');
+  }
+  add('wald',0.08,s.hofBright/startStats.hofBright/0.8,'Die Hofwiese ist weit und licht.','Der Wald steht mir ja bis vor die Tür!');
+  add('wald',0.08,s.big/startStats.big/0.75,'Der Wald steht gesund und dicht.','Wo ist mein Wald? Das ist ja ein Kahlschlag!');
+  const sw=items.reduce((a,i)=>a+i.w,0),score=items.reduce((a,i)=>a+i.w*i.v,0)/sw;
+  let verdict;
+  if(score>=0.85)verdict=['Der Baron schüttelt Ihnen lange die Hand.','„Hervorragend. Ich wüsste mein Gut in keinen besseren Händen.“'];
+  else if(score>=0.65)verdict=['Der Baron nickt knapp.','„Ordentlich. Sie dürfen bleiben.“'];
+  else if(score>=0.4)verdict=['Der Baron runzelt die Stirn.','„Ich hatte mehr erwartet. Das wird von Ihrem Lohn abgezogen.“'];
+  else verdict=['Der Baron läuft rot an.','„Packen Sie Ihre Sachen. Und zwar sofort!“'];
+  const said=items.filter(i=>i.v>=0.85||i.v<0.6).sort((a,b)=>Math.abs(b.v-0.7)*b.w-Math.abs(a.v-0.7)*a.w).slice(0,6);
+  let html=`<h2>Der Baron kehrt zurück</h2><div class="rep">Die Kutsche hält am Tor. Der Baron schreitet über sein Anwesen und blickt hinaus in den Wald …</div><ul>`;
+  for(const i of said)html+=`<li class="${i.v>=0.6?'good':'bad'}">„${i.v>=0.6?i.good:i.bad}“</li>`;
+  html+=`</ul><div class="rep"><b>${verdict[0]}</b><br>${verdict[1]}</div><h3>Aus dem Notizbuch des Barons</h3><ul>`;
+  for(const g of [['haus','Das Anwesen'],['wunsch','Mein Wunsch'],['wald','Der Wald']])
+    for(const i of items.filter(i=>i.group===g[0]))html+=`<li class="${i.v>=0.6?'good':'bad'}">${g[1]}: ${i.v>=0.6?i.good:i.bad}</li>`;
+  html+='</ul>';
+  const hints=[];
+  if(lost&&G.hist.some(h=>h.hares<8))hints.push('Wo der Fuchs keine Hasen findet, holt er sich die Hennen – wenn der Stall offen steht.');
+  if(lost)hints.push('Grete schließt den Stall nur, wenn ihr am Abend noch Kraft bleibt.');
+  if(s.gardenHares||s.fBroken)hints.push('Hasen wandern zum Licht. Die größte Lichtung ist der Hof – oder eine, die man ihnen anderswo schafft.');
+  if(s.hofBright<startStats.hofBright*0.85)hints.push('Birken fliegen auf jede helle Fläche. Wer die Hofwiese nicht pflegt, verliert sie.');
+  if(s.big<startStats.big*0.8)hints.push('Jede Fällung bringt Licht – und mit dem Licht kommen Gras und Hasen.');
+  if(hints.length)html+=`<h3>Randnotizen</h3><ul>${hints.slice(0,4).map(h=>`<li>${h}</li>`).join('')}</ul>`;
+  html+=`<div style="text-align:center;margin-top:12px"><button onclick="hideCard(true);newGame()">Neue Anstellung (neues Spiel)</button></div>`;
+  showCard(html,null);
+}
+
+// ================================================================ Fenster: Karten, Menü, Notizbuch, Meldungen
+const overlay=document.getElementById('overlay'),menuEl=document.getElementById('menu');
+let cardYes=null,menu=null;
+function showCard(html,cont){if(G.state!=='end')G.state='card';overlay.innerHTML=`<div class="paper">${html}${cont?`<div class="cont">${cont}</div>`:''}</div>`;overlay.style.display='flex';overlay.scrollTop=0;cardYes=null}
+function hideCard(force){overlay.style.display='none';if(G.state!=='end'||force)G.state='play';cardYes=null;keys.clear();dirStack=[];tapDir=null;
+  const f=G.afterCard;G.afterCard=null;if(f&&G.state==='play')f()}
+function confirmCard(text,yes){showCard(`<div class="rep">${text}</div>`,'[Leertaste] ja · [Esc] nein');cardYes=yes}
+overlay.addEventListener('click',e=>{if(G.state==='card'&&!cardYes&&e.target===overlay)hideCard()});
+function openMenu(){const [fx,fy]=facing();const sub=subjectAt(fx,fy);if(!sub)return;const m=buildOptions(sub,fx,fy);if(!m.opts.length)return;
+  if(m.opts.length===1){m.opts[0].fn();return}
+  menu={...m,sel:0};G.state='menu';renderMenu()}
+function renderMenu(){menuEl.innerHTML=`<div class="t">${menu.title}</div>`+menu.opts.map((o,k)=>`<div class="o ${k===menu.sel?'sel':''}" data-k="${k}"><span style="color:#8595a1">${k+1}</span> ${o.label}</div>`).join('');
+  menuEl.style.display='block';menuEl.querySelectorAll('.o').forEach(el=>el.onclick=()=>chooseMenu(+el.dataset.k))}
+function closeMenu(){menuEl.style.display='none';menu=null;if(G&&G.state==='menu')G.state='play'}
+function chooseMenu(k){const o=menu.opts[k];closeMenu();o.fn()}
+function toast(t,ms){const box=document.getElementById('toasts');const d=document.createElement('div');d.className='toast';d.textContent=t;box.appendChild(d);
+  while(box.children.length>4)box.firstChild.remove();setTimeout(()=>{d.style.opacity=0;setTimeout(()=>d.remove(),700)},ms||2800)}
+
+const book={tab:0,sel:0,col:0};
+const TABS=['Aufträge','Tagesplan','Personal','Erkenntnisse','Briefe','Vorräte'];
+const STAFF_TXT={
+  hannes:'Üblich: holt ein, was am Hof liegt.',
+  jost:'Üblich: zerlegt Stämme am Hof. Für Kleinkram ist er zu teuer.',
+  grete:'Üblich: füttert morgens die Hennen mit Heu aus der Scheune, kocht vormittags das Mittagessen und schließt abends den Stall.',
+  liese:'Üblich: hält Haus und Garten in Ordnung – Löcher, Unkraut, Rasen –, so weit ihre Kraft reicht. Geht zum Markt, wenn man sie schickt.'
+};
+const canList=s=>Object.values(TASKS).filter(d=>d.who[s.id]).map(d=>`${d.label.replace(/ \(.*$/,'')}${d.fixed?'':' '+Math.round(100/d.who[s.id])+' %'}${d.nurJung.includes(s.id)?' (nur Jungbäume)':''}`).join(', ');
+const bookTasks=()=>G.tasks.filter(visibleTask);
+function moveTask(t,d){const list=bookTasks(),k=list.indexOf(t),o=list[k+d];if(!o)return;const a=G.tasks.indexOf(t),b=G.tasks.indexOf(o);[G.tasks[a],G.tasks[b]]=[G.tasks[b],G.tasks[a]]}
+function planHtml(s,from,live){const p=planFor(s,from||0,live);
+  return `<div style="display:flex;gap:4px;font:12px monospace;margin:2px 0 6px">${[0,1,2,3].map(b=>{const e=p.find(e=>e.b===b);
+    if(!e)return `<span style="flex:1;padding:2px 4px;background:#c9b896;opacity:.5">${BLOCKS[b]}: vorbei</span>`;
+    return `<span style="flex:1;padding:2px 4px;background:${e.task?'#d2aa99':'#e3d6b8'};border:1px solid #854c30"><b>${BLOCKS[b]}</b><br>${e.task?e.label:'<i>'+e.label+'</i>'}</span>`}).join('')}</div>`}
+// ---------------------------------------------------------------- Tafel: wer macht was
+const avgItem=t=>{const its=taskItems(t);if(!its.length)return 1;let c=0;for(const it of its)c+=itemCost(t,it);return c/its.length};
+const perBlock=(t,s)=>Math.floor(capOf(s)/((mult(t.type,s.id)||1)*avgItem(t)));   // Sammelposten: Einheiten je Zeitblock
+function finishText(t,fin,from){
+  const f=fin.get(t.id),d=TASKS[t.type];
+  if(d.fixed){const w=effectiveWho(t);if(!w||w==='none')return `<i>${whoName(t)}</i>`;if(!f)return from>0?'<i>heute vorbei</i>':'<i class="warn">fällt aus</i>';return t.type==='markt'?'bis nachmittags':BLOCKS[f.b].toLowerCase()}
+  if(!crewOf(t).length)return '<i>offen</i>';
+  if(!f)return '<i class="warn">kommt heute nicht dran</i>';
+  if(f.left>0.01)return d.group?`<i class="warn">${Math.max(1,Math.round(f.left/avgItem(t)))} ${d.unit} bleiben</i>`:'<i class="warn">nicht fertig</i>';
+  return 'fertig '+BLOCKS[f.b].toLowerCase();
+}
+function boardHtml(sel,col,from){
+  const list=bookTasks(),pa=planAll(from,true);
+  let h=`<table class="board"><tr><th>Aufgabe</th>${staff.map((s,c)=>`<th class="${c===col?'cc':''}${s.available?'':' off'}">${s.name}<br><small>${s.available?capOf(s)+' je Block':s.weak?'zu schwach':'ab Tag '+s.from}</small></th>`).join('')}<th>Stand</th></tr>`;
+  h+=list.map((t,r)=>`<tr class="${r===sel?'sel':''}"><td data-row="${r}">${taskTitle(t)}<br><small>${where(...taskPos(t))}</small></td>${staff.map((s,c)=>{
+    const ok=canDo(t.type,s.id,t),on=ok&&assigned(t,s.id),n=ok&&TASKS[t.type].group?perBlock(t,s):null,rt=on&&TASKS[t.type].fixed&&t.who===null;
+    return `<td class="cell${on?' on':''}${ok?'':' no'}${rt?' rt':''}${r===sel&&c===col?' cur':''}" data-r="${r}" data-c="${c}"${rt?' title="üblich"':''}>${ok?(on?'☑':'☐'):'–'}${n!==null?` <small>${n}</small>`:''}</td>`}).join('')}<td class="fin">${finishText(t,pa.finish,from)}</td></tr>`).join('');
+  if(!list.length)h+=`<tr><td colspan="${staff.length+2}"><i>Noch nichts notiert. Stell dich vor etwas und drück [Leertaste] → Markieren.</i></td></tr>`;
+  h+=`</table><div class="legend">☑ eingeteilt · ☐ möglich · – kann er/sie nicht · Zahl: schafft je Zeitblock · Sammelposten teilen sich mehrere, Einzelaufgaben macht eine Person</div>`;
+  const people=staff.filter(s=>G.day>=s.from);
+  h+=`<table class="board plan"><tr><th></th>${[0,1,2,3].filter(b=>b>=from).map(b=>`<th>${BLOCKS[b]}</th>`).join('')}</tr>${people.map(s=>`<tr><td><b>${s.name}</b></td>${pa.plans[s.id].map(e=>`<td class="${e.task?'pt':'ps'}">${e.label}</td>`).join('')}</tr>`).join('')}</table>`;
+  return h;
+}
+function bindBoard(root,onCell,onRow){
+  root.querySelectorAll('td.cell').forEach(el=>el.onclick=e=>{e.stopPropagation();onCell(+el.dataset.r,+el.dataset.c)});
+  root.querySelectorAll('td[data-row]').forEach(el=>el.onclick=e=>{e.stopPropagation();onRow(+el.dataset.row)});
+}
+function openBook(){book.sel=clamp(book.sel,0,Math.max(0,bookTasks().length-1));G.state='book';renderBook()}
+function closeBook(){overlay.style.display='none';G.state='play';keys.clear();dirStack=[]}
+function renderBook(){
+  let h=`<div class="tabs">${TABS.map((t,k)=>`<span class="${k===book.tab?'on':''}" data-t="${k}">${k+1} ${t}</span>`).join('')}</div>`;
+  const list=bookTasks();
+  if(book.tab===0){
+    const pre=G.phase==='block'&&G.block<2,from=G.phase==='mittag'||pre?2:0;
+    h+=`<div class="rep"><small>${from===2?'Änderungen gelten ab Mittag – die Tafel zeigt Nachmittag und Abend.':G.phase==='appell'?'':'Änderungen gelten ab morgen früh – beim Appell kannst du noch umstellen.'}</small></div>`;
+    h+=boardHtml(book.sel,book.col,from);
+    h+='<div class="cont">↑↓ Aufgabe · ←→ Person · Leertaste zuteilen/abnehmen · Shift+↑↓ Reihenfolge (oben = zuerst) · Entf streichen · 1–6 Reiter · Esc schließen</div>';
+  } else if(book.tab===1){
+    const pre=G.phase==='block'&&G.block<2,label=G.phase==='mittag'?'Nachmittag – wird gleich verteilt':pre?'Nächste Verteilung: mittags (für den Nachmittag)':'Nächste Verteilung: morgen früh beim Appell';
+    const from=G.phase==='mittag'||pre?2:0;
+    h+=`<div class="rep"><b>${label}</b> <small>(je Zeitblock genau eine Aufgabe; kursiv = übliche Arbeit)</small></div>`;
+    h+=staff.map(s=>`<div><b>${s.name}</b> <small>· ${capOf(s)} je Block</small>${planHtml(s,from,true)}</div>`).join('');
+    const w=planWarnings(true);if(w.length&&from===0)h+=`<div class="rep bad">⚠ ${w.join(' ⚠ ')}</div>`;
+  } else if(book.tab===2){
+    h+=staff.map(s=>`<div class="rep"><b>${s.name}</b>, ${s.role} – ${CFG.pensum[s.id]} je Zeitblock${G.day<s.from?` · <i>zurück ab Tag ${s.from}</i>`:''}${s.weak?' · <i class="bad">heute zu schwach (hat nichts gegessen)</i>':''}<br><small>Kann: ${canList(s)}.<br>${STAFF_TXT[s.id]}</small></div>`).join('');
+    h+=`<div class="rep"><b>Du selbst</b> – ${G.kraft} Kraft heute. Kleinkram kannst du selbst erledigen; neben jemandem, der arbeitet, kannst du mit anpacken. Einmal am Tag gibt eine Rast auf einer Bank, am Bach oder an einer Riesen-Eiche neue Kraft.</div>`;
+  } else if(book.tab===3){
+    h+=`<div class="rep">${G.insights.size} von ${Object.keys(INSIGHTS).length} Erkenntnissen</div><ul>`+Object.keys(INSIGHTS).map(k=>G.insights.has(k)?`<li>${INSIGHTS[k]}</li>`:'<li style="color:#a89a80">· · ·</li>').join('')+'</ul>';
+  } else if(book.tab===4){
+    h+=G.letters.length?G.letters.map(l=>`<div class="letter"><small>Tag ${l.day}</small><br>${l.txt}</div>`).join(''):'<div class="rep"><i>Noch keine Briefe vom Baron.</i></div>';
+  } else {
+    h+=`<div class="rep"><b>Speisekammer</b>: ${G.food.brot} Portionen Brot · ${G.food.eier} Eier · ${G.food.fleisch} Portionen Fleisch · ${G.food.beeren} Portionen Beeren<br><small>${eaters().length} Leute und du essen je 2 Portionen am Tag · haltbar: Brot ${CFG.spoil.brot}, Eier ${CFG.spoil.eier}, Fleisch ${CFG.spoil.fleisch}, Beeren ${CFG.spoil.beeren} Tage · räuchern macht Hasen haltbar (für den Baron)</small></div>
+    <div class="rep"><b>Kasse</b>: ${G.taler} Taler <small>(Ei ${CFG.eggPrice} Taler · Laib Brot ${CFG.brotPreis} Taler, ${CFG.brotPortion} Portionen)</small></div>
+    <div class="rep"><b>Scheune</b>: ${G.barnWood} Holz · ${G.barnHay} Heu · ${G.barnHares} Hasen im Rauch (für den Baron) · ${G.traps} Fallen<br><b>Hasenstall</b>: ${G.hutch} von ${CFG.hutchCap}</div>
+    <div class="rep"><b>Hennen</b>: ${G.chickens} · ${G.hensInside?'im Stall – brauchen heute Heu':'draußen – fressen Gras, legen Eier'}</div>`;
+  }
+  overlay.innerHTML=`<div class="paper wide"><h2>Notizbuch</h2>${h}</div>`;overlay.style.display='flex';
+  overlay.querySelectorAll('[data-t]').forEach(el=>el.onclick=e=>{e.stopPropagation();book.tab=+el.dataset.t;renderBook()});
+  if(book.tab===0)bindBoard(overlay,(r,c)=>{book.sel=r;book.col=c;toggleAssign(bookTasks()[r],staff[c].id);renderBook()},r=>{book.sel=r;renderBook()});
+}
+function bookKey(e){
+  if(e.code==='Escape'||e.code==='KeyN'){closeBook();return}
+  if(/^Digit[1-6]$/.test(e.code)){book.tab=+e.code.slice(5)-1;renderBook();return}
+  if(e.code==='Tab'){book.tab=(book.tab+1)%TABS.length;renderBook();return}
+  if(book.tab!==0)return;
+  const list=bookTasks(),n=list.length;if(!n)return;const t=list[book.sel];
+  const d=KEYDIR[e.code];
+  if(d==='up'||d==='down'){const k=d==='up'?-1:1;if(e.shiftKey){moveTask(t,k);book.sel=clamp(book.sel+k,0,n-1)}else book.sel=clamp(book.sel+k,0,n-1)}
+  else if(d==='left'||d==='right')book.col=clamp(book.col+(d==='left'?-1:1),0,staff.length-1);
+  else if(e.code==='Space'||e.code==='KeyE')toggleAssign(t,staff[book.col].id);
+  else if((e.code==='Delete'||e.code==='Backspace'||e.code==='KeyX')&&!TASKS[t.type].auto){removeTask(t);book.sel=clamp(book.sel,0,bookTasks().length-1)}
+  renderBook();
+}
+
+// ================================================================ Appell: morgendliche Arbeitsverteilung auf dem Hof
+const appellEl=document.getElementById('appell');
+const REPLIES={hannes:['Wird gemacht, Herr Verwalter.','Jawohl.','Geht klar.'],jost:['Mach ich.','Na dann – Axt raus.','Jo.'],grete:['Na gut.','Wird gemacht.','Aber erst die Hennen, gell?'],liese:['Sehr wohl.','Jawohl, Herr Verwalter.','Gern.']};
+const FOODS=[['brot','Brot'],['eier','Eier'],['fleisch','Fleisch'],['beeren','Beeren']];
+const eaters=()=>staff.filter(s=>G.day>=s.from);
+function defaultMeal(){return FOODS.map(f=>f[0]).filter(k=>G.food[k]>0).sort((a,b)=>G.food[b]-G.food[a]).slice(0,2)}
+// Jede Person braucht 2 Portionen aus den gewählten Zutaten. Wer leer ausgeht, ist morgen zu schwach zum Arbeiten.
+// Reihenfolge beim Austeilen: wer kocht, isst zuerst
+const eatOrder=ppl=>{const c=cookOf();return [c,...['grete','liese','hannes','jost'].map(S)].filter((s,k,a)=>s&&ppl.includes(s)&&a.indexOf(s)===k)};
+function serveMeal(sel){
+  const ppl=eaters(),mouths=ppl.length+1;let need=mouths*2,got=0,k=0;const take={};
+  let pool=sel.filter(f=>G.food[f]>0);
+  while(need>0&&pool.length){const f=pool[k%pool.length];takeFood(f,1);take[f]=(take[f]||0)+1;need--;got++;k++;pool=pool.filter(x=>G.food[x]>0)}
+  const fed=Math.floor(got/2),order=eatOrder(ppl);
+  order.forEach((s,i)=>{s.weakNext=i>=fed&&!s.weak});   // wer heute schon ausgeruht hat, ist morgen wieder dabei
+  G.mealHungry=order.filter(s=>s.weakNext).map(s=>s.name);
+  G.ateWithStaff=fed>order.length;if(G.ateWithStaff)G.kraft+=CFG.mealKraft;   // der Verwalter isst als Letzter
+  G.goodMeal=Object.keys(take).length>=2&&fed>0;
+  return take;
+}
+function cookMeal(cook){
+  if(G.cooked)return;G.cooked=true;G.coldMeal=false;
+  const take=serveMeal(G.mealPlan||defaultMeal()),what=Object.keys(take).map(k=>FOODS.find(f=>f[0]===k)[1]);
+  const msg=`${cook?cook.name:'Die Köchin'} ruft zum Mittagessen: ${what.length?what.join(' und '):'leider nichts – die Kammer ist leer'}.${G.mealHungry.length?' '+G.mealHungry.join(', ')+' geh'+(G.mealHungry.length>1?'en':'t')+' leer aus.':''}`;
+  log(msg);if(G.state==='play'){toast(msg,4500);
+    if(G.ateWithStaff)toast(`Du isst mit deinen Leuten. (+${CFG.mealKraft} Kraft)${G.goodMeal?' Gute Küche – alle packen am Nachmittag kräftiger an.':''}`,4500);
+    else if(G.goodMeal)toast('Gute Küche – alle packen am Nachmittag kräftiger an. Für dich ist nichts übrig.',4500)}
+}
+// Kocht niemand, gibt es mittags kalte Brotzeit: Brot, Beeren, notfalls Geräuchertes aus der Räucherkammer.
+// Macht satt (keine Schwäche), bringt aber weder Kraft noch Küchen-Bonus.
+function coldMeal(){
+  if(G.cooked)return;G.cooked=true;G.coldMeal=true;G.ateWithStaff=false;G.goodMeal=false;
+  const ppl=eaters();let need=ppl.length*2,got=0,smoked=0;const take={};
+  for(const k of ['brot','beeren']){const n=takeFood(k,Math.min(need,G.food[k]));if(n){take[k]=n;need-=n;got+=n}}
+  while(need>0&&(G.smokedLeft>0||G.barnHares>0)){if(!G.smokedLeft){G.barnHares--;G.smokedLeft=CFG.meatPortion;smoked++}const n=Math.min(need,G.smokedLeft);G.smokedLeft-=n;need-=n;got+=n;take.geraeuchert=(take.geraeuchert||0)+n}
+  const fed=Math.floor(got/2),order=eatOrder(ppl);
+  order.forEach((s,i)=>{s.weakNext=i>=fed&&!s.weak});
+  G.mealHungry=order.filter(s=>s.weakNext).map(s=>s.name);
+  const what=[take.brot?'Brot':null,take.beeren?'Beeren':null,take.geraeuchert?'Geräuchertes':null].filter(Boolean);
+  const msg=`Kein warmes Essen heute – ${what.length?'es gibt kalte Brotzeit: '+what.join(', '):'und auch nichts für eine Brotzeit'}.${smoked?` Dafür musste ${smoked>1?smoked+' geräucherte Hasen':'ein geräucherter Hase'} aus der Räucherkammer dran glauben.`:''}${G.mealHungry.length?' '+G.mealHungry.join(', ')+' geh'+(G.mealHungry.length>1?'en':'t')+' leer aus.':''}`;
+  log(msg);if(G.state==='play')toast(msg,5000);
+}
+function noMeal(){coldMeal()}
+function startAppell(){
+  const list=staff.filter(s=>s.available);
+  G.state='appell';G.appell={step:'meal',k:0,sel:0,list,meal:defaultMeal()};renderAppell();
+}
+function appellSentence(s){
+  const p=planFor(s,0,true),parts=[];
+  for(const e of p){const l=e.task?e.label:null;if(l&&parts[parts.length-1]!==l)parts.push(l)}
+  if(!parts.length)return `${s.name}, heute das Übliche.`;
+  return `${s.name}, heute: ${parts.join(', danach ')}${p.some(e=>!e.task)?'. Danach das Übliche':''}.`;
+}
+function renderAppell(){
+  const A=G.appell;
+  if(A.step==='meal'){
+    const cook=askerOf(),ppl=eaters().length+1,have=A.meal.reduce((a,f)=>a+G.food[f],0);
+    appellEl.innerHTML=`<div class="t">Vor der Arbeit · Tag ${G.day}</div>
+      <div style="padding:0 8px"><b>${cook.name}:</b> „Was soll's heute zu essen geben, Herr Verwalter?“
+      <div style="color:#8595a1;font-size:12px;margin:4px 0">${ppl-1} Leute und du · je 2 Portionen aus höchstens zwei Zutaten · ${cooksToday(true)?cookOf().name+' kocht vormittags, gegessen wird mittags':'heute kocht niemand – mittags gibt es nur Brotzeit'} · Kasse: ${G.taler} Taler</div>
+      ${FOODS.map(([k,n],i)=>{const sp=spoilsTonight(k);return `<div class="o ${i===A.sel?'sel':''} ${G.food[k]?'':'dis'}" data-k="${i}">${A.meal.includes(k)?'☑':'☐'} ${n}: ${G.food[k]} Portionen${sp?` <small style="color:#d27d2c">(${sp} verderben heute Nacht)</small>`:''}</div>`}).join('')}
+      <div style="padding:6px 8px 2px;color:${have>=ppl*2?'#6daa2c':'#d04648'}">${have>=ppl*2?'Reicht für alle – du isst mit (+'+CFG.mealKraft+' Kraft).':have>=(ppl-1)*2?'Reicht fürs Personal, für dich bleibt nichts.':`Reicht nur für ${Math.floor(have/2)} von ${ppl-1} – wer leer ausgeht, bleibt morgen liegen.`}
+      ${A.meal.filter(k=>G.food[k]>0).length>=2?`<br><span style="color:#dad45e">Zwei Zutaten – gute Küche: +${CFG.mealBonus} Pensum je Block für alle, die satt werden.</span>`:''}</div></div>
+      <div style="color:#8595a1;padding:4px 8px;font-size:12px">↑↓ wählen · Leertaste an/ab · Enter: „So machen wir's.“</div>`;
+    appellEl.style.display='block';
+    appellEl.querySelectorAll('.o[data-k]').forEach(el=>el.onclick=()=>{A.sel=+el.dataset.k;toggleMeal();renderAppell()});
+    return;
+  }
+  const list=bookTasks();A.sel=clamp(A.sel,0,Math.max(0,list.length-1));A.col=clamp(A.col,0,staff.length-1);
+  const warn=planWarnings(true);
+  appellEl.innerHTML=`<div class="t">Arbeitsverteilung · Tag ${G.day} · ${WEEKDAYS[(G.day-1)%7]}</div>${boardHtml(A.sel,A.col,0)}
+    ${warn.length?`<div style="color:#d04648;padding:4px 8px">⚠ ${warn.join(' ⚠ ')}</div>`:''}
+    <div style="color:#8595a1;padding:4px 8px;font-size:12px">↑↓ Aufgabe · ←→ Person · Leertaste zuteilen/abnehmen · Shift+↑↓ Reihenfolge (oben zuerst) · Enter: „Los geht’s!“</div>`;
+  appellEl.style.display='block';
+  bindBoard(appellEl,(r,c)=>{A.sel=r;A.col=c;toggleAssign(bookTasks()[r],staff[c].id);renderAppell()},r=>{A.sel=r;renderAppell()});
+}
+function toggleMeal(){const A=G.appell,k=FOODS[A.sel][0];if(!G.food[k])return;
+  if(A.meal.includes(k))A.meal=A.meal.filter(x=>x!==k);else{A.meal.push(k);if(A.meal.length>2)A.meal.shift()}}
+function finishMeal(){const A=G.appell;G.mealPlan=A.meal.slice();
+  const what=A.meal.filter(k=>G.food[k]>0).map(k=>FOODS.find(f=>f[0]===k)[1]);const cooks=cooksToday(true);
+  toast(`${askerOf().name}: „${what.length?'Gut, dann gibt’s mittags '+what.join(' und ')+'.':'Da ist nichts, was ich kochen könnte …'}${cooks?'':' Wenn keiner kocht, gibt’s halt Brotzeit.'}“`,4500);
+  A.step='board';A.sel=0;A.col=0;if(!A.list.length){endAppell();return}renderAppell()}
+// Alle auf einmal losschicken: jede Person bekommt ihren Satz, dann beginnt der Morgen
+function sendOff(){const A=G.appell;if(A.step==='go')return;A.step='go';appellEl.style.display='none';
+  A.list.forEach((s,k)=>setTimeout(()=>{if(G.state==='appell')dismiss(s)},k*800));
+  setTimeout(()=>{if(G.state==='appell'&&G.appell===A)endAppell()},A.list.length*800+700)}
+function dismiss(s){
+  s.dismissed=true;const r=REPLIES[s.id];
+  toast(`„${appellSentence(s)}“ – ${s.name}: „${r[Math.floor(Math.random()*r.length)]}“`,4200);
+  s.path=[idx(s.x,s.y+1)].filter(i=>walkable(i%W,(i/W)|0));s.state='walk';
+}
+function appellKey(e){
+  const A=G.appell,d=KEYDIR[e.code];
+  if(A.step==='go')return;
+  if(A.step==='meal'){
+    if(d==='up'||d==='down')A.sel=clamp(A.sel+(d==='up'?-1:1),0,FOODS.length-1);
+    else if(e.code==='Space'||e.code==='KeyE')toggleMeal();
+    else if(e.code==='Enter'||e.code==='Escape'){finishMeal();if(e.code==='Escape'&&G.state==='appell'&&A.step==='board')sendOff();return}
+    renderAppell();return}
+  const list=bookTasks();
+  if(d==='up'||d==='down'){const k=d==='up'?-1:1;if(e.shiftKey&&list[A.sel])moveTask(list[A.sel],k);A.sel=clamp(A.sel+k,0,Math.max(0,list.length-1))}
+  else if(d==='left'||d==='right')A.col=clamp(A.col+(d==='left'?-1:1),0,staff.length-1);
+  else if(e.code==='Space'||e.code==='KeyE')toggleAssign(list[A.sel],staff[A.col].id);
+  else if(e.code==='Enter'||e.code==='Escape'){sendOff();return}
+  renderAppell();
+}
+function endAppell(){appellEl.style.display='none';G.state='play';guide('appell');keys.clear();dirStack=[];beginBlock(0)}
+
+// ================================================================ Tiere als Darstellung (tagsüber ohne Wirkung)
+const rnd=Math.random;
+function freeNear(x,y,r){const c=[];for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){if(!dx&&!dy)continue;const X=x+dx,Y=y+dy;if(!inb(X,Y))continue;const i=idx(X,Y);
+  if(walkable(X,Y)&&!feat[i]&&ground[i]!==G_PATH&&ground[i]!==G_BRIDGE&&ground[i]!==G_FORD)c.push([X,Y])}return c.length?c[Math.floor(rnd()*c.length)]:null}
+function gardenSpot(){for(let k=0;k<100;k++){const x=COOP[0]+Math.floor(rnd()*9)-4,y=COOP[1]+Math.floor(rnd()*6);if(inGarden(x,y)&&walkable(x,y))return[x,y]}return[COOP[0],COOP[1]+1]}
+function spawnCritters(){
+  const V=G.vis;V.hares=[];V.foxes=[];V.chickens=[];
+  for(const b of burrows){if(!b.alive||b.n<=0)continue;for(let k=0;k<Math.min(3,b.n);k++){const s=freeNear(b.x,b.y,2);if(s)V.hares.push({x:s[0],y:s[1],tx:s[0],ty:s[1],hx:b.x,hy:b.y,face:rnd()<.5?1:-1,rest:rnd()*3,anim:rnd()*5,flee:false})}}
+  for(const f of foxes){if(f.alive&&rnd()<0.5){const s=freeNear(f.den[0],f.den[1],1);if(s)V.foxes.push({x:s[0],y:s[1],face:rnd()<.5?1:-1,shown:true})}}
+  for(let k=0;k<G.chickens;k++){const s=gardenSpot();V.chickens.push({x:s[0],y:s[1],tx:s[0],ty:s[1],face:1,rest:rnd()*3,peck:0})}
+}
+function critterPass(x,y){return inb(x,y)&&walkable(x,y)&&fkind[idx(x,y)]!==FK_GATE}
+function stepTo(e,dt,sp){const dx=e.tx-e.x,dy=e.ty-e.y,d=Math.hypot(dx,dy),m=sp*dt;if(Math.abs(dx)>0.01)e.face=dx>0?1:-1;if(d<=m){e.x=e.tx;e.y=e.ty;return true}e.x+=dx/d*m;e.y+=dy/d*m;return false}
+function updateCritters(dt){
+  const V=G.vis;
+  for(const h of V.hares){h.anim+=dt;
+    if(h.rest>0){h.rest-=dt;if(dist(h.x,h.y,P.px,P.py)<3)h.rest=0;else continue}
+    if(!stepTo(h,dt,h.flee?3.6:2.2))continue;h.x=Math.round(h.x);h.y=Math.round(h.y);
+    const near=dist(h.x,h.y,P.px,P.py)<3.2;h.flee=near;
+    if(!near&&rnd()<0.45){h.rest=0.6+rnd()*3;continue}
+    let best=null,bs=-1e9;
+    for(const [dx,dy] of DIRS){const nx=h.x+dx,ny=h.y+dy;if(!critterPass(nx,ny))continue;
+      let s=rnd();if(near)s+=dist(nx,ny,P.px,P.py)*2;else s-=Math.max(0,dist(nx,ny,h.hx,h.hy)-3);if(s>bs){bs=s;best=[nx,ny]}}
+    if(best){h.tx=best[0];h.ty=best[1]}else h.rest=1}
+  for(const f of V.foxes)if(f.shown&&dist(f.x,f.y,P.px,P.py)<5){f.shown=false;SFX.bark()}
+  for(const c of V.chickens){c.peck-=dt;if(c.rest>0){c.rest-=dt;continue}if(!stepTo(c,dt,1.2))continue;c.x=Math.round(c.x);c.y=Math.round(c.y);
+    if(rnd()<0.5){c.rest=1+rnd()*3;if(rnd()<0.6)c.peck=0.6;continue}
+    const o=DIRS.map(([dx,dy])=>[c.x+dx,c.y+dy]).filter(([x,y])=>inGarden(x,y)&&critterPass(x,y)&&dist(x,y,COOP[0],COOP[1])<7);
+    if(o.length){const p=o[Math.floor(rnd()*o.length)];c.tx=p[0];c.ty=p[1]}}
+}
+
+// ================================================================ Spieler & Eingabe
+function stepDuration(x,y){const i=idx(x,y);let d=0.18;
+  if(ground[i]===G_PATH||ground[i]===G_BRIDGE)d*=0.85;else if(grass[i]===2)d*=1.45;else if(deco[i]===D_BUSCH)d*=1.4;
+  if(feat[i]===F_HOLE)d*=1.2;return d}
+function updatePlayer(dt){
+  P.anim+=dt;
+  if(P.moving){P.mt+=dt;const k=Math.min(1,P.mt/P.md);P.px=P.x+(P.nx-P.x)*k;P.py=P.y+(P.ny-P.y)*k;
+    if(k>=1){P.moving=false;P.x=P.nx;P.y=P.ny;if(P.mowTask)addMowTile(idx(P.x,P.y));
+      if(staff.some(s=>s.id==='hannes'&&s.state==='work'&&dist(s.x,s.y,P.x,P.y)<5))guide('watch')}
+    return}
+  // Kurzer Druck in eine neue Richtung dreht nur; erst Halten läuft los
+  const held=currentDir(),tap=tapDir;tapDir=null;let dir=null;
+  if(held){if(held!==P.dir){P.dir=held;P.turnWait=CFG.turnHold;return}if(P.turnWait>0){P.turnWait-=dt;return}dir=held}
+  else{P.turnWait=0;if(tap){if(tap!==P.dir){P.dir=tap;return}dir=tap}}
+  if(dir){P.dir=dir;const [fx,fy]=facing();
+    if(walkable(fx,fy)&&!staff.some(s=>s.available&&Math.round(s.x)===fx&&Math.round(s.y)===fy)){P.nx=fx;P.ny=fy;P.mt=0;P.md=stepDuration(fx,fy);P.moving=true}}
+}
+const keys=new Set();let dirStack=[],tapDir=null;
+const KEYDIR={ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right'};
+const isAct=e=>e.code==='Space'||e.code==='KeyE'||e.code==='Enter';
+addEventListener('keydown',e=>{
+  audioInit();
+  if(e.code==='F2'){e.preventDefault();toggleDebug();return}
+  if(e.target&&e.target.tagName==='INPUT')return;
+  if(e.code in KEYDIR||e.code==='Space'||e.code==='Tab')e.preventDefault();
+  if(!G||G.state==='end')return;
+  if(G.state==='card'){if(e.repeat)return;
+    if(cardYes){if(isAct(e)){const y=cardYes;hideCard();y()}else if(e.code==='Escape')hideCard()}
+    else if(isAct(e)||e.code==='Escape')hideCard();return}
+  if(G.state==='menu'){const d=KEYDIR[e.code];
+    if(d==='up'){menu.sel=(menu.sel+menu.opts.length-1)%menu.opts.length;renderMenu()}
+    else if(d==='down'){menu.sel=(menu.sel+1)%menu.opts.length;renderMenu()}
+    else if(isAct(e)&&!e.repeat)chooseMenu(menu.sel);else if(e.code==='Escape')closeMenu();
+    else if(/^Digit[1-9]$/.test(e.code)&&menu.opts[+e.code.slice(5)-1])chooseMenu(+e.code.slice(5)-1);return}
+  if(G.state==='book'){bookKey(e);return}
+  if(G.state==='appell'){appellKey(e);return}
+  if(e.repeat)return;
+  keys.add(e.code);
+  if(KEYDIR[e.code]){dirStack=dirStack.filter(d=>d!==e.code);dirStack.push(e.code);tapDir=KEYDIR[e.code]}
+  else if(isAct(e)){if(!P.moving)openMenu()}
+  else if(e.code==='KeyM')toggleMow();
+  else if(e.code==='KeyN')openBook();
+  else if(e.code==='KeyL')toggleSound();
+});
+addEventListener('keyup',e=>{keys.delete(e.code);dirStack=dirStack.filter(d=>d!==e.code)});
+addEventListener('blur',()=>{keys.clear();dirStack=[]});
+function currentDir(){for(let k=dirStack.length-1;k>=0;k--)if(keys.has(dirStack[k]))return KEYDIR[dirStack[k]];return null}
+
+// ================================================================ Ton (Web Audio)
+let AC=null,noiseBuf=null;
+let master=null,amb=null,muted=false;
+function audioInit(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();noiseBuf=AC.createBuffer(1,AC.sampleRate*2,AC.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+  master=AC.createGain();master.gain.value=muted?0:1;master.connect(AC.destination);ambInit()}catch(e){}}if(AC&&AC.state==='suspended')AC.resume()}
+function tone(f0,f1,dur,type,vol,delay=0){if(!AC)return;const t=AC.currentTime+delay,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+dur);
+  g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g).connect(master);o.start(t);o.stop(t+dur+0.05)}
+function noise(dur,freq,q,vol,type,delay=0){if(!AC)return;const t=AC.currentTime+delay,s=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain();s.buffer=noiseBuf;f.type=type;f.frequency.value=freq;f.Q.value=q;
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);s.connect(f).connect(g).connect(master);s.start(t,Math.random()*0.5);s.stop(t+dur+0.05)}
+const SFX={
+  chop(){noise(0.08,900,2,0.18,'bandpass');tone(180,90,0.07,'triangle',0.05)},
+  pull(){tone(260,640,0.09,'sine',0.1)},dig(){noise(0.14,240,1,0.35,'lowpass')},hammer(){tone(1300,900,0.04,'square',0.05)},
+  pick(){tone(600,950,0.07,'triangle',0.07)},peg(){tone(900,700,0.03,'square',0.025)},
+  store(){tone(520,520,0.08,'triangle',0.07);tone(780,780,0.12,'triangle',0.07,0.09)},
+  fell(){noise(0.8,160,0.8,0.45,'lowpass');noise(0.3,700,1,0.12,'bandpass',0.1)},
+  bird(){const n=2+Math.floor(Math.random()*4),b=2200+Math.random()*1800;for(let k=0;k<n;k++)tone(b*(1+Math.random()*.2),b*(1.3+Math.random()*.4),0.05+Math.random()*0.05,'sine',0.022,k*0.1)},
+  bark(){tone(560,320,0.11,'sawtooth',0.03);tone(560,300,0.13,'sawtooth',0.03,0.22)},
+  cricket(){const f=4200+Math.random()*600;for(let k=0;k<3;k++)tone(f,f*1.02,0.03,'sine',0.012,k*0.06)}
+};
+// Hintergrund: Wind in den Kronen, Plätschern am Bach, Grillen am Abend, Vögel im Wald
+function ambInit(){
+  const loop=(type,freq,q)=>{const s=AC.createBufferSource();s.buffer=noiseBuf;s.loop=true;const f=AC.createBiquadFilter();f.type=type;f.frequency.value=freq;f.Q.value=q;
+    const g=AC.createGain();g.gain.value=0;s.connect(f).connect(g).connect(master);s.start(0,Math.random());return{f,g}};
+  amb={wind:loop('lowpass',380,0.6),bach:loop('bandpass',1500,0.8),bach2:loop('bandpass',520,1.4),t:0};
+}
+function ambience(dt){
+  if(!AC||!amb)return;amb.t+=dt;
+  let n=0,water=99;
+  for(let dy=-7;dy<=7;dy+=2)for(let dx=-7;dx<=7;dx+=2){const X=P.x+dx,Y=P.y+dy;if(inb(X,Y)&&covers[idx(X,Y)].length)n++}
+  for(let dy=-9;dy<=9;dy++)for(let dx=-9;dx<=9;dx++){const X=P.x+dx,Y=P.y+dy;if(inb(X,Y)){const g=ground[idx(X,Y)];if(g===G_WATER||g===G_FORD||g===G_BRIDGE)water=Math.min(water,Math.hypot(dx,dy))}}
+  const dens=Math.min(1,n/45),evening=G.clock>=18.5,now=AC.currentTime;
+  const gust=0.6+0.4*Math.sin(amb.t*0.23)*Math.sin(amb.t*0.071+1);
+  amb.wind.g.gain.setTargetAtTime(CFG.ambWind*(0.35+dens)*gust,now,0.6);amb.wind.f.frequency.setTargetAtTime(260+260*gust,now,0.8);
+  const w=water<99?Math.max(0,1-water/9)**2:0,ripple=0.7+0.3*Math.sin(amb.t*3.1)*Math.sin(amb.t*1.7);
+  amb.bach.g.gain.setTargetAtTime(CFG.ambBach*w*ripple,now,0.3);amb.bach2.g.gain.setTargetAtTime(CFG.ambBach*0.6*w,now,0.5);
+  const rate=dens*(evening?0.15:1);if(Math.random()<rate*dt*0.9)SFX.bird();
+  if(evening&&Math.random()<dt*1.6)SFX.cricket();
+}
+function toggleSound(){muted=!muted;if(master)master.gain.setTargetAtTime(muted?0:1,AC.currentTime,0.05);toast(muted?'Ton aus':'Ton an')}
+
+// ================================================================ Zeichnen
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const lc=document.createElement('canvas');lc.width=W;lc.height=H;const lctx=lc.getContext('2d');
+const cc=document.createElement('canvas'),cctx=cc.getContext('2d');
+let SC=3,camX=0,camY=0;
+function resize(){cv.width=innerWidth;cv.height=innerHeight;cc.width=cv.width;cc.height=cv.height;SC=clamp(Math.floor(Math.min(innerWidth/(20*T),innerHeight/(13*T))),2,4)}
+addEventListener('resize',resize);resize();
+function spr(c,name,wx,wy,flip){const f=FR[name];if(!f)return;const sx=Math.round(wx*SC-camX),sy=Math.round(wy*SC-camY);
+  if(flip){c.save();c.translate(sx+f[2]*SC,sy);c.scale(-1,1);c.drawImage(atlas,f[0],f[1],f[2],f[3],0,0,f[2]*SC,f[3]*SC);c.restore()}
+  else c.drawImage(atlas,f[0],f[1],f[2],f[3],sx,sy,f[2]*SC,f[3]*SC)}
+function grassCover(wx,wy){const f=FR['01-boden_2'];ctx.drawImage(atlas,f[0],f[1]+10,16,6,Math.round(wx*SC-camX),Math.round((wy+10)*SC-camY),16*SC,6*SC)}
+function updateLightCanvas(){const img=lctx.createImageData(W,H);
+  for(let i=0;i<N;i++){const a=clamp((1-light[i])*CFG.shadeDark-0.06,0,CFG.shadeDark*0.75);img.data[i*4]=6;img.data[i*4+1]=12;img.data[i*4+2]=22;img.data[i*4+3]=a*255}
+  lctx.putImageData(img,0,0);lightDirty=false}
+function groundFrame(i,wf){
+  const g=ground[i];
+  if(g===G_WATER)return '01-wasser_'+wf;if(g===G_FORD)return '01-wasser_2';if(g===G_BRIDGE)return '01-wasser_4';
+  if(g===G_PATH)return '01-boden_4';
+  if(g===G_LAWN)return grass[i]===0?'01-boden_5':'01-boden_'+grass[i];
+  if(g===G_BLOCK)return inGarden(i%W,(i/W)|0)?'01-boden_5':'01-boden_0';
+  if(fkind[i])return inGarden(i%W,(i/W)|0)?'01-boden_5':'01-boden_0';
+  if(grass[i]>0)return '01-boden_'+grass[i];
+  const l=light[i];
+  if(l>=CFG.litMeadow)return '01-boden_0';
+  if(l<CFG.litMoss)return '01-wasser_5';
+  return hash2(i)<0.5?'01-boden_3':'01-wasser_6';
+}
+const STAMM={birke:[0,1,1],eiche:[2,3,4],buche:[5,6,7]};
+const TRACKF=[0,0,1,2,3,4];
+const FLAGTYPES=new Set(['bau','falle','roden','zerlegen']);
+function draw(now){
+  const TS=T*SC,cw=cv.width,ch=cv.height;
+  ctx.imageSmoothingEnabled=false;ctx.fillStyle='#0b0f12';ctx.fillRect(0,0,cw,ch);
+  if(!G||!atlas.complete||!atlas.naturalWidth||!cw||!ch)return;
+  const ww=W*TS,wh=H*TS;
+  camX=Math.round(ww<cw?(ww-cw)/2:clamp((P.px+0.5)*TS-cw/2,0,ww-cw));
+  camY=Math.round(wh<ch?(wh-ch)/2:clamp((P.py+0.5)*TS-ch/2,0,wh-ch));
+  const x0=Math.max(0,Math.floor(camX/TS)-1),y0=Math.max(0,Math.floor(camY/TS)-1),x1=Math.min(W-1,Math.ceil((camX+cw)/TS)+1),y1=Math.min(H-1,Math.ceil((camY+ch)/TS)+3);
+  const wf=Math.floor(now/700)%2;
+  // Boden und flache Dinge
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const i=idx(x,y);spr(ctx,groundFrame(i,wf),x*T,y*T);
+    if(track[i]){ctx.globalAlpha=trackAge[i]?0.5:0.9;spr(ctx,'01-spuren_'+TRACKF[track[i]],x*T,y*T);ctx.globalAlpha=1}
+    const f=feat[i];
+    if(f===F_HOLE)spr(ctx,'01-objekte_2',x*T,y*T);else if(f===F_BURROW)spr(ctx,'01-objekte_3',x*T,y*T);else if(f===F_DEN)spr(ctx,'01-objekte_4',x*T,y*T);
+    else if(f===F_TRAP)spr(ctx,'01-objekte_6',x*T,y*T);else if(f===F_TRAPFULL)spr(ctx,'01-objekte_7',x*T,y*T);
+    if(stumpAt[i])spr(ctx,'01-objekte_1',x*T,y*T)}
+  for(const tk of G.tasks)if(tk.type==='maehen')for(const j of tk.items){const x=j%W,y=(j/W)|0;if(x>=x0&&x<=x1&&y>=y0&&y<=y1)spr(ctx,'01-spuren_6',x*T,y*T-4)}
+  // Sortierte Objekte
+  const L=[];
+  const marked=new Set(G.tasks.flatMap(t=>t.type==='faellen'?[t.ref]:t.type==='setzlinge'?t.items:[]));
+  const flags=new Set(G.tasks.flatMap(t=>FLAGTYPES.has(t.type)?[idx(t.x,t.y)]:t.type==='loecher'?t.items:[]));
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const i=idx(x,y);
+    const d=deco[i];if(d&&trunkAt[i]<0&&lyingAt[i]<0&&!feat[i]&&!stumpAt[i])L.push([y+0.2,()=>spr(ctx,d===D_BUSCH&&!berry[i]?'01-deko_8':'01-deko_'+(d-1),x*T,y*T)]);
+    const t=treeAt(i);
+    if(t&&t.x===x&&t.y===y){
+      if(t.h<=1)L.push([y+0.5,()=>{spr(ctx,'01-setzlinge_'+(t.bitten?3:SPECIES.indexOf(t.sp)),x*T,y*T);if(marked.has(t.id))spr(ctx,'01-spuren_7',x*T,y*T-6)}]);
+      else if(t.giant)L.push([y+1.9,()=>{spr(ctx,'01-riese',x*T,(y+2)*T-40);if(marked.has(t.id))spr(ctx,'01-spuren_7',x*T+8,(y+1)*T)}]);
+      else L.push([y+0.9,()=>{const s=STAMM[t.sp];spr(ctx,'01-stamm_'+(t.dead?8:t.h<=3?s[0]:t.h<=5?s[1]:s[2]),x*T,(y+1)*T-32);if(marked.has(t.id))spr(ctx,'01-spuren_7',x*T,y*T+2)}])}
+    if(lyingAt[i]>=0){const l=logById.get(lyingAt[i]);if(l){const k=l.tiles.indexOf(i),last=l.tiles.length-1;
+      let f=l.dir==='h'?(k===0?0:k===last?2:1):(k===0?3:k===last?5:4);if(l.age>=CFG.logMossDays)f+=6;
+      L.push([y+0.6,()=>spr(ctx,'01-totholz_'+f,x*T,y*T)])}}
+    if(feat[i]===F_WOOD)L.push([y+0.6,()=>spr(ctx,'01-objekte_5',x*T,y*T)]);
+    if(feat[i]===F_HAY)L.push([y+0.6,()=>spr(ctx,'01-spuren_5',x*T,y*T)]);
+    const k=fkind[i];
+    if(k){let n;if(k===FK_GATE)n=15;else{const hp=fence[i],b=k===FK_H?9:12;n=hp>=3?b:hp>0?b+1:b+2}L.push([y+0.7,()=>spr(ctx,'01-objekte_'+n,x*T,y*T)])}
+    if(flags.has(i))L.push([y+0.95,()=>spr(ctx,'01-spuren_8',x*T+4,y*T-8)]);
+  }
+  for(const b of buildings){if(b.x+b.w<x0||b.x>x1||b.y+b.h<y0||b.y-5>y1)continue;
+    if(b.id==='trog'){L.push([b.y+0.8,()=>spr(ctx,'01-objekte_'+(G.barnHay<1?16:G.barnHay<G.chickens?17:18),b.x*T,b.y*T)]);continue}
+    const f=FR[b.spr];L.push([b.y+b.h-0.05,()=>spr(ctx,b.spr,b.x*T+(b.w*T-f[2])/2,(b.y+b.h)*T-f[3])])}
+  const inV=(x,y)=>x>=x0-1&&x<=x1+1&&y>=y0-1&&y<=y1+1;
+  const tallAt=(x,y)=>{const i=idx(Math.round(x),Math.round(y));return grass[i]===2&&(ground[i]===G_FOREST||ground[i]===G_LAWN)};
+  for(const h of G.vis.hares){if(!inV(h.x,h.y))continue;const mv=h.x!==h.tx||h.y!==h.ty;
+    L.push([h.y+0.8,()=>{spr(ctx,mv&&Math.sin(h.anim*14)>0?'01-tiere_1':'01-tiere_0',h.x*T,h.y*T-2,h.face<0);if(tallAt(h.x,h.y))grassCover(h.x*T,h.y*T)}])}
+  for(const f of G.vis.foxes){if(!f.shown||!inV(f.x,f.y))continue;L.push([f.y+0.8,()=>spr(ctx,'01-tiere_2',f.x*T,f.y*T-2,f.face<0)])}
+  for(const c of G.vis.chickens){if(!inV(c.x,c.y))continue;L.push([c.y+0.8,()=>spr(ctx,c.peck>0?'01-tiere_5':'01-tiere_4',c.x*T,c.y*T-2,c.face<0)])}
+  const seq=[1,0,2,0];
+  for(const s of staff){if(!s.available||s.away||!inV(s.x,s.y))continue;
+    L.push([s.y+0.85,()=>{const base={down:0,right:3,left:3,up:6}[s.dir];
+      const fr=s.state==='walk'&&s.path.length?base+seq[Math.floor(s.anim*8)%4]:s.state==='work'?base+(Math.floor(s.anim*4)%2):base;
+      spr(ctx,s.spr+'_'+fr,s.x*T,s.y*T-8+(s.state==='work'&&Math.floor(s.anim*4)%2?1:0),s.dir==='left')}])}
+  L.push([P.py+0.86,()=>{const base={down:0,right:3,left:3,up:6}[P.dir];const fr=P.moving?base+seq[Math.floor(P.anim*8)%4]:base;
+    spr(ctx,'01-verwalter_'+fr,P.px*T,P.py*T-8,P.dir==='left');if(!P.moving&&tallAt(P.x,P.y))grassCover(P.px*T,P.py*T)}]);
+  L.sort((a,b)=>a[0]-b[0]);for(const o of L)o[1]();
+  // Schatten unter dem Kronendach
+  if(lightDirty)updateLightCanvas();
+  ctx.imageSmoothingEnabled=true;ctx.drawImage(lc,0,0,W,H,-camX,-camY,W*TS,H*TS);ctx.imageSmoothingEnabled=false;
+  drawCanopy();
+  // Abendlicht
+  const h=G.clock;if(h>=17){const a=Math.min(0.42,(h-17)/3.5*0.42);ctx.fillStyle=h<18.8?`rgba(140,70,20,${a*0.6})`:`rgba(18,14,50,${a})`;ctx.fillRect(0,0,cw,ch)}
+  if(G.dbg.layers.size)drawDebugLayers(x0,y0,x1,y1);
+}
+const CM=32;                                   // Rand oben im Kronen-Zwischenspeicher (Kronen sitzen angehoben)
+const canopyCv=document.createElement('canvas');canopyCv.width=W*T;canopyCv.height=H*T+CM;const canopyCtx=canopyCv.getContext('2d');
+function sprRaw(c,name,x,y){const f=FR[name];if(f)c.drawImage(atlas,f[0],f[1],f[2],f[3],x,y,f[2],f[3])}
+function renderCanopyCache(){
+  const c=canopyCtx;c.clearRect(0,0,canopyCv.width,canopyCv.height);
+  const vis=trees.filter(t=>t.alive&&!t.dead&&t.h>=2&&t.crown.length).sort((a,b)=>a.h-b.h||a.y-b.y);
+  const jx=k=>Math.floor(hash(k)*7)-3,jy=k=>Math.floor(hash2(k)*7)-3;
+  for(const t of vis){const lift=4+t.h;for(const k of t.crown){const wx=(k%W)*T-4+jx(k),wy=((k/W)|0)*T-4-lift+CM+jy(k);
+    sprRaw(c,'01-krone_rand',wx-1,wy);sprRaw(c,'01-krone_rand',wx+1,wy);sprRaw(c,'01-krone_rand',wx,wy-1);sprRaw(c,'01-krone_rand',wx,wy+1)}}
+  for(const t of vis){const lift=4+t.h;const v=t.sp==='eiche'?['01-krone','01-krone_eiche2']:t.sp==='birke'?['01-krone_birke','01-krone_birke2']:['01-krone_buche','01-krone_buche2'];
+    for(const k of t.crown)sprRaw(c,v[(k+t.id)%2],(k%W)*T-4+jx(k),((k/W)|0)*T-4-lift+CM+jy(k))}
+  canopyDirty=false;
+}
+function drawCanopy(){
+  if(canopyDirty)renderCanopyCache();
+  const c=cctx,cw=cc.width,ch=cc.height;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,cw,ch);c.imageSmoothingEnabled=false;
+  c.drawImage(canopyCv,camX/SC,camY/SC+CM,cw/SC,ch/SC,0,0,cw,ch);
+  const lp=light[idx(P.x,P.y)];G.lp=G.lp===undefined?lp:G.lp+(lp-G.lp)*0.05;
+  // Sichtkreis um den Verwalter: im Dunkeln kleiner
+  const px=(P.px*T+8)*SC-camX,py=(P.py*T+2)*SC-camY,r=CFG.viewRadius*(CFG.viewMin+(1-CFG.viewMin)*G.lp)*SC;
+  c.globalCompositeOperation='destination-out';
+  const g=c.createRadialGradient(px,py,0,px,py,r);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(0.6,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g;c.fillRect(px-r,py-r,2*r,2*r);c.globalCompositeOperation='source-over';
+  ctx.globalAlpha=CFG.canopyAlpha;ctx.drawImage(cc,0,0);ctx.globalAlpha=1;
+  // Dunkelheit folgt dem Licht auf dem eigenen Feld: rund um den Verwalter bleibt es hell, nach außen fast schwarz
+  const dim=(1-G.lp)*CFG.forestDim;if(dim>0.01){const dg=ctx.createRadialGradient(px,py,r*0.55,px,py,r*1.6);
+    dg.addColorStop(0,`rgba(4,10,18,${dim*0.1})`);dg.addColorStop(1,`rgba(4,10,18,${dim})`);ctx.fillStyle=dg;ctx.fillRect(0,0,cw,ch)}
+}
+
+// ================================================================ HUD
+const hudEl=document.getElementById('hud'),hintEl=document.getElementById('hint'),guideEl=document.getElementById('guide');
+let lastHud='',lastGuide='';
+function hud(){
+  if(!G)return;
+  const h=Math.min(20,G.clock),hh=Math.floor(h),mm=Math.floor((h-hh)*6)*10;
+  const k='●'.repeat(Math.max(0,G.kraft))+'○'.repeat(Math.max(0,CFG.kraft-G.kraft));
+  const s=`Tag ${Math.min(G.day,DAYS)} · ${WEEKDAYS[(G.day-1)%7]} · ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}<br>Kraft ${k}`+
+    (P.mowTask?`<br><span style="color:#dad45e">Pflock-Modus: ${taskItems(groupTask('maehen')).length} Felder · [M] beenden</span>`:'')+
+    `<br><small style="color:#8595a1">[Leertaste] Aktion · [N] Notizbuch · [M] Pflöcke · [L] Ton</small>`;
+  if(s!==lastHud){hudEl.innerHTML=s;lastHud=s}
+  let ht='';
+  if(G.state==='play'){const [fx,fy]=facing();const sub=subjectAt(fx,fy);
+    if(sub&&sub.kind!=='boden'){const m=buildOptions(sub,fx,fy);if(m.title)ht=`[Leertaste] ${m.title}`}}
+  if(hintEl.textContent!==ht)hintEl.textContent=ht;
+  let gs='';const gl=GUIDE[G.day];
+  if(gl&&G.state!=='end')gs=`<b>Leitfaden – Tag ${G.day}</b><br>`+gl.map(([id,t])=>G.guideDone.has(G.day+':'+id)?`<span class="ok">✓ ${t}</span>`:`· ${t}`).join('<br>');
+  if(gs!==lastGuide){guideEl.innerHTML=gs;guideEl.style.display=gs?'block':'none';lastGuide=gs}
+}
+
+// ================================================================ Debug / Balancing (F2)
+const dbgEl=document.getElementById('debug');let dbgOpen=false,dbgT=0;
+let oekoSet='01';
+// Ökologie-Werte umschalten: 01 (regeln.js) oder 02 (../02-waldchronik/regeln.js). Übernommen werden nur Schlüssel, die 01 kennt.
+function applyOeko(k){const src=k==='02'?window.REGELN_02:window.REGELN_01;if(!src){toast('02-waldchronik/regeln.js nicht gefunden');return}
+  for(const key of Object.keys(window.REGELN_01)){if(!(key in src))continue;
+    if(key==='sp'){for(const sp of SPECIES)if(src.sp[sp])for(const kk of Object.keys(CFG.sp[sp]))if(kk in src.sp[sp])CFG.sp[sp][kk]=src.sp[sp][kk]}
+    else CFG[key]=JSON.parse(JSON.stringify(src[key]))}
+  oekoSet=k;toast(`Ökologie-Werte ${k} aktiv – voll wirksam ab „Neues Spiel“`)}
+const LAYERS=[['licht','Licht'],['kronen','Kronenhöhe'],['geruch','Geruch'],['reviere','Baue & Füchse'],['wege','Nachtwege'],['auftraege','Aufträge']];
+function toggleDebug(){dbgOpen=!dbgOpen;dbgEl.style.display=dbgOpen?'block':'none';if(dbgOpen)buildDebug()}
+function cfgInputs(){
+  const rows=[];
+  for(const [k,v] of Object.entries(CFG)){
+    if(typeof v==='number')rows.push(`<tr><td>${k}</td><td><input data-k="${k}" value="${v}"></td></tr>`);
+    else if(k==='sp')for(const [s,o] of Object.entries(v))for(const [kk,vv] of Object.entries(o))rows.push(`<tr><td>sp.${s}.${kk}</td><td><input data-k="sp.${s}.${kk}" value="${vv}"></td></tr>`);
+    else if(k==='pensum'||k==='cost'||k==='spoil')for(const [s,vv] of Object.entries(v))rows.push(`<tr><td>${k}.${s}</td><td><input data-k="${k}.${s}" value="${vv}"></td></tr>`);
+  }
+  return `<details><summary>CFG live ändern</summary><table>${rows.join('')}</table></details>`;
+}
+function buildDebug(){
+  dbgEl.innerHTML=`<b>Debug & Balancing</b> <small>[F2] schließen</small>
+    <div><button data-a="1">+1 Tag</button><button data-a="5">+5 Tage</button><button data-a="new">Neues Spiel</button><button data-a="kraft">Kraft auffüllen</button></div>
+    <div>Ökologie-Werte: <button data-o="01" class="${oekoSet==='01'?'on':''}">01</button><button data-o="02" class="${oekoSet==='02'?'on':''}" title="${window.REGELN_02?'aus 02-waldchronik/regeln.js':'02-waldchronik/regeln.js nicht gefunden'}">02</button></div>
+    <h4>Kartenebenen</h4><div>${LAYERS.map(([k,n])=>`<button data-l="${k}" class="${G.dbg.layers.has(k)?'on':''}">${n}</button>`).join('')}</div>
+    <h4>Übersicht</h4><canvas id="dbgMap" width="${W*3}" height="${H*3}" style="width:${W*3}px;image-rendering:pixelated"></canvas>
+    <div id="dbgDyn"></div>${cfgInputs()}`;
+  dbgEl.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{const a=b.dataset.a;
+    if(a==='new'){hideCard(true);newGame()}else if(a==='kraft')G.kraft=CFG.kraft;else{closeMenu();if(G.state==='card'||G.state==='book')hideCard();dbgDays(+a)}refreshDebug()});
+  dbgEl.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>{applyOeko(b.dataset.o);buildDebug()});
+  dbgEl.querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>{const k=b.dataset.l;G.dbg.layers.has(k)?G.dbg.layers.delete(k):G.dbg.layers.add(k);b.classList.toggle('on')});
+  dbgEl.querySelectorAll('input[data-k]').forEach(inp=>inp.onchange=()=>{const p=inp.dataset.k.split('.');let o=CFG;for(let k=0;k<p.length-1;k++)o=o[p[k]];o[p[p.length-1]]=parseFloat(inp.value);toast(`CFG ${inp.dataset.k} = ${inp.value}`)});
+  refreshDebug();
+}
+function refreshDebug(){
+  if(!dbgOpen)return;const s=stats();
+  const m=document.getElementById('dbgMap');if(m){const c=m.getContext('2d');
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=idx(x,y),g=ground[i],l=light[i];let col;
+      if(g===G_WATER||g===G_FORD)col='#30346d';else if(g===G_BLOCK)col='#d04648';else if(g===G_PATH||g===G_BRIDGE)col='#757161';else if(fkind[i])col=fence[i]>0?'#854c30':'#ff00ff';
+      else{const v=Math.round(30+l*170);col=grass[i]===2?`rgb(${v*0.6|0},${v},40)`:`rgb(${v*0.35|0},${v*0.8|0},${v*0.35|0})`}
+      const t=treeAt(i);if(t&&t.x===x&&t.y===y)col=t.h<=1?'#b6e07a':t.h<=3?'#6daa2c':t.dead?'#757161':{birke:'#deeed6',eiche:'#854c30',buche:'#140c1c'}[t.sp];
+      if(lyingAt[i]>=0)col='#d27d2c';if(feat[i]===F_HOLE)col='#442434';
+      c.fillStyle=col;c.fillRect(x*3,y*3,3,3)}
+    c.fillStyle='#dad45e';for(const b of burrows)if(b.alive){c.fillRect(b.x*3-2,b.y*3-2,7,7)}
+    c.fillStyle='#ff6a00';for(const f of foxes)if(f.alive)c.fillRect(f.den[0]*3-2,f.den[1]*3-2,7,7);
+    c.fillStyle='#fff';c.fillRect(P.x*3-1,P.y*3-1,5,5)}
+  const hist=G.hist;
+  const dyn=document.getElementById('dbgDyn');if(!dyn)return;
+  dyn.innerHTML=`<h4>Tag ${G.day} · Saison ×${season(G.day).toFixed(2)} · ${scen.kind}</h4>
+    <table><tr><td>Hasen</td><td>${s.hares} in ${s.burrows} Bauen (Garten ${s.gardenHares})</td></tr>
+    <tr><td>Füchse</td><td>${s.foxes} · Hunger ${foxes.map(f=>f.hunger.toFixed(1)).join(', ')}</td></tr>
+    <tr><td>Hennen</td><td>${G.chickens} · Hunger ${G.chickHunger} · Stall ${G.coopClosed?'zu':'offen'}</td></tr>
+    <tr><td>Bäume</td><td>Setzl ${s.sap} · jung ${s.young} · groß ${s.big} (Bi ${s.birke}/Ei ${s.eiche}/Bu ${s.buche}) · tot ${s.dead}</td></tr>
+    <tr><td>Licht</td><td>hell ${s.bright} · dunkel ${s.dark} · Ø ${s.avgLight.toFixed(2)} · Hofwiese ${s.hofBright} (Start ${startStats.hofBright})</td></tr>
+    <tr><td>Garten</td><td>Löcher ${s.gHoles} · hoch ${s.gTall} · Pflanzen ${s.gPlants} · Rückstand ${G.gardenBacklog||0}</td></tr>
+    <tr><td>Zaun</td><td>kaputt ${s.fBroken} · beschädigt ${s.fDamaged}</td></tr>
+    <tr><td>Scheune</td><td>Holz ${G.barnWood} · Heu ${G.barnHay} · Räucher ${G.barnHares} · Stall ${G.hutch} · Totholz ${s.logs}</td></tr>
+    <tr><td>Essen</td><td>Brot ${G.food.brot} · Eier ${G.food.eier} · Fleisch ${G.food.fleisch} · Beeren ${G.food.beeren} · ${G.taler} Taler · schwach ${staff.filter(x=>x.weak).map(x=>x.name).join(',')||'–'}</td></tr>
+    <tr><td>Hennen</td><td>${G.hensInside?'drinnen':'draußen'} · gefressen ${G.hensFoodOk?'ja':'nein'}</td></tr>
+    <tr><td>Ziel</td><td>${scen.kind==='winter'?`Holz ${scen.wood}, Hasen ${scen.hareStock}`:scen.kind==='jagd'?`Hasen ${scen.hunt}–${scen.hunt*3}, Füchse ≥2`:`große Bäume ≥${scen.big}, Holz ${scen.wood}`}</td></tr></table>
+    <h4>Verlauf</h4><canvas id="dbgChart" width="380" height="150"></canvas>
+    <div><span style="color:#dad45e">Hasen</span> · <span style="color:#d27d2c">Füchse×5</span> · <span style="color:#6daa2c">große Bäume/10</span> · <span style="color:#b6e07a">Setzlinge/10</span> · <span style="color:#deeed6">hell/40</span> · <span style="color:#d04648">Hennen×5</span></div>
+    <h4>Letzte Nacht</h4><div class="log">${G.dbg.log.slice(-80).join('\n')||'–'}</div>`;
+  const c=document.getElementById('dbgChart').getContext('2d');c.fillStyle='#140c1c';c.fillRect(0,0,380,150);
+  const ser=[['hares',1,'#dad45e'],['foxes',5,'#d27d2c'],['big',0.1,'#6daa2c'],['sap',0.1,'#b6e07a'],['bright',1/40,'#deeed6'],['chickens',5,'#d04648']];
+  let max=10;for(const h of hist)for(const [k,f] of ser)max=Math.max(max,h[k]*f);
+  for(const [k,f,col] of ser){c.strokeStyle=col;c.beginPath();hist.forEach((h,n)=>{const x=10+n*(360/Math.max(1,DAYS)),y=140-h[k]*f/max*130;n?c.lineTo(x,y):c.moveTo(x,y)});c.stroke()}
+}
+function drawDebugLayers(x0,y0,x1,y1){
+  const TS=T*SC,Ly=G.dbg.layers;
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const i=idx(x,y),sx=x*TS-camX,sy=y*TS-camY;
+    if(Ly.has('licht')){const l=light[i];ctx.fillStyle=`rgba(${Math.round(255*l)},${Math.round(210*l)},30,0.5)`;ctx.fillRect(sx,sy,TS,TS)}
+    if(Ly.has('kronen')){let top=0;const c=covers[i];for(let k=0;k<c.length;k+=2)top=Math.max(top,c[k]);if(top){ctx.fillStyle=`hsla(${200-top*20},70%,50%,0.45)`;ctx.fillRect(sx,sy,TS,TS)}}
+    if(Ly.has('geruch')&&scent[i]>0){ctx.fillStyle=`rgba(255,40,40,${Math.min(0.6,scent[i]/25)})`;ctx.fillRect(sx,sy,TS,TS)}}
+  ctx.font=`bold ${5*SC}px monospace`;
+  if(Ly.has('reviere')){for(const b of burrows){if(!b.alive)continue;const cx=(b.x+0.5)*TS-camX,cy=(b.y+0.5)*TS-camY;
+      ctx.strokeStyle='#dad45e';ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx,cy,4.5*TS,0,7);ctx.stroke();ctx.fillStyle='#fff';ctx.fillText(`${b.n}`,cx-4,cy-8)}
+    for(const f of foxes){if(!f.alive)continue;const cx=(f.den[0]+0.5)*TS-camX,cy=(f.den[1]+0.5)*TS-camY;ctx.fillStyle='#ff9a3c';ctx.fillText(`F${f.id} H${f.hunger.toFixed(1)}`,cx-20,cy-8)}}
+  if(Ly.has('wege'))for(const p of G.dbg.paths){ctx.strokeStyle=p.type==='fuchs'?(p.caught?'#ff4030':'#ffaa40'):(p.lost?'#8595a1':'#ffffff');ctx.lineWidth=2;ctx.setLineDash(p.lost?[4,4]:[]);
+    ctx.beginPath();p.path.forEach(([x,y],k)=>{const px=(x+0.5)*TS-camX,py=(y+0.5)*TS-camY;k?ctx.lineTo(px,py):ctx.moveTo(px,py)});ctx.stroke();ctx.setLineDash([])}
+  if(Ly.has('auftraege'))for(const t of G.tasks){const c=crewOf(t);if(!c.length)continue;const [tx,ty]=taskPos(t),cx=(tx+0.5)*TS-camX,cy=(ty+0.5)*TS-camY;ctx.fillStyle='#ff00ff';ctx.fillText(c.map(id=>S(id).name[0]).join(''),cx-3,cy)}
+}
+
+// ================================================================ Hauptschleife
+let last=performance.now();
+function frame(now){
+  requestAnimationFrame(frame);   // zuerst: ein Fehler unten darf die Schleife nicht anhalten
+  const dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(G&&G.state==='play'){updatePlayer(dt);updateDay(dt);updateCritters(dt);try{ambience(dt)}catch(e){console.warn('Ton:',e.message)}}
+  else if(G&&G.state==='appell'){updateStaff(dt);updateCritters(dt)}
+  draw(now);hud();
+  if(dbgOpen&&now-dbgT>1000){dbgT=now;refreshDebug()}
+}
+window.__dbg={get G(){return G},get P(){return P},stats,dbgDays,CFG,get trees(){return trees},get burrows(){return burrows},get foxes(){return foxes},get staff(){return staff},sleep,nightStep};
+newGame();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
