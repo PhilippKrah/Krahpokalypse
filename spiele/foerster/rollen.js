@@ -4,6 +4,11 @@
 //            Arbeitsminuten = Kosten (CFG.cost, Arbeitspunkte) × CFG.zeit.punktNorm × Effektivitätsfaktor ÷ Tempo.
 //            abWoche = ab welcher Woche die Person auf dem Gut ist (Woche 1 beginnt mit einem Sonntag).
 //            (Alte Dateien mit pensum/abTag laufen weiter: pensum × 10 = tempo, abTag ersatzweise für abWoche.)
+//            Figur (Demo B2b; jedes Feld mit Rückfall: alles / keine / 5 / zuhause):
+//            mitteil = was die Person am Sonntag erzählt: alles (von sich aus alles) · nachfrage (nur über „Nachfragen“) · luecke (nur die neuesten zahl Dinge, Lieblingsthema zuerst) · laune (alles, aber nur bei guter Laune aus dem Zustand).
+//            zahl = bei luecke: wie viele Dinge. gedaechtnis = wie viele Beobachtungen sie bis zum Erzählen behält (ältere verblassen).
+//            lieblings = Arten, die sie aus größerer Entfernung bemerkt (baumtot, baumliegt, hasenbau, fuchsbau, spur, beeren, loch).
+//            sonntag = wo sie am Sonntag steht: bach · kueche · holz · garten · zuhause.
 // aufgaben: je Person die Effektivität in Prozent (100 = normal, 50 = braucht doppelt so lange, Faktor ×2).
 //           Fehlt eine Person, darf sie die Aufgabe nicht.
 //           fest = feste Aufgabe (läuft als feste Zeitspanne mit eigenem Zeitpunkt, z. B. Füttern, Kochen, Einsperren, Markt; Effektivität ohne Wirkung).
@@ -11,10 +16,10 @@
 //           nurJung = diese Personen fällen nur Jungbäume (Höhe bis 3).
 window.ROLLEN = {
   "personen": {
-    "hannes": {"name": "Hannes", "rolle": "Knecht", "abWoche": 1, "tempo": 100},
-    "jost": {"name": "Jost", "rolle": "Holzfäller", "abWoche": 2, "tempo": 100},
-    "grete": {"name": "Grete", "rolle": "Bäuerin", "abWoche": 1, "tempo": 80},
-    "liese": {"name": "Liese", "rolle": "Magd", "abWoche": 1, "tempo": 80}
+    "hannes": {"name": "Hannes", "rolle": "Knecht", "abWoche": 1, "tempo": 100, "mitteil": "alles", "gedaechtnis": 5, "lieblings": ["spur", "hasenbau", "fuchsbau"], "sonntag": "bach"},
+    "jost": {"name": "Jost", "rolle": "Holzfäller", "abWoche": 2, "tempo": 100, "mitteil": "laune", "gedaechtnis": 5, "lieblings": ["baumtot", "baumliegt"], "sonntag": "holz"},
+    "grete": {"name": "Grete", "rolle": "Bäuerin", "abWoche": 1, "tempo": 80, "mitteil": "nachfrage", "gedaechtnis": 5, "lieblings": ["spur", "loch"], "sonntag": "kueche"},
+    "liese": {"name": "Liese", "rolle": "Magd", "abWoche": 1, "tempo": 80, "mitteil": "luecke", "zahl": 3, "gedaechtnis": 5, "lieblings": ["beeren", "loch"], "sonntag": "garten"}
   },
   "aufgaben": {
     "maehen": {"name": "Wiese mähen", "personen": {"hannes": 100, "grete": 77}},

@@ -9,9 +9,20 @@
         Werkwoche (Personal geht nach der Zeitleiste: Hinweg, Arbeit, Rückweg bis zur Heimkehr; Hoftag mit Mittagspause oder Waldtag ohne; der Plan ist nur zu lesen, Umplanen geht nur durch Ansprechen einer Person: nur ihr Plan, ab jetzt) → Wochenschritt der Natur.
         Heimgehen [T] rechnet denselben Tag ohne Darstellung bis der Verwalter daheim ist (Heimweg = kürzeste Route × 1,5); der Abend läuft bis in die Nacht, spätestens um 2 Uhr schläft
         er am Ort ein; der nächste Sonntag beginnt frühestens 8 Stunden nach dem Einschlafen. Am Sonntag arbeitet der Verwalter nicht selbst; Sonntagabend = nur der Planungsbildschirm. Die Tafel zeigt je Person einen proportionalen Zeitbalken (gemeinsame Stundenachse) über der Aufgabenliste. Alle Zeitwerte stehen in CFG.zeit (Spielstunde in Echtzeit, Wegzeiten, Normminuten je Arbeitspunkt, Mittag/Abend, Sonntag, Wochen).
-  Ortskenntnis (Demo B2a): Jede Person (Verwalter, Personal) kennt jedes Feld des Waldes unterschiedlich gut (CFG.kenntnis); unbekanntes Gelände kostet Zeit (CFG.zeit.fremd, im Dunkeln mehr). Sie wächst durch Betreten, Arbeiten und (Verwalter) Sehen und sinkt nur, wo sich der Wald verändert hat. F2: Kartenebene „Kenntnis“ (je Person umschaltbar).
+  Ortskenntnis (Demo B2a): Jede Person (Verwalter, Personal) kennt jedes Feld des Waldes unterschiedlich gut (CFG.kenntnis); unbekanntes Gelände kostet Zeit (CFG.zeit.fremd, im Dunkeln mehr). Sie wächst durch Betreten, Arbeiten und (Verwalter) Sehen – je Feld höchstens einmal je Tag (Verwalter) bzw. je Woche (Personal), jeder weitere Besuchstag bringt weniger –, sinkt, wo sich der Wald verändert hat, und verblasst ohne Besuch (ab 3 Wochen, nie unter die Hälfte des Höchststands und nie unter das Startwissen). F2: Kartenebenen „Kenntnis“ (je Person umschaltbar) und „Trampelpfade“.
   Trampelpfade (Demo B2a, Paket 2): Wo oft gegangen wird (Verwalter und Personal, über Wochen), tritt sich in der Wochenhülle ein Pfad aus (kurzes Gras, schneller zu gehen, CFG.pfad); unbenutzt wächst er wieder zu. Aufgabe „Weg anlegen“ (Felder markieren wie Mähen, auf einem Pfad den ganzen Pfad ausbauen) macht Felder zum richtigen Weg.
-  Gutskarte (Demo B2a, Paket 3): Notizbuch-Reiter „Karte“ (6): Farbflächen nur für Felder, die der Verwalter kennt (eigene Sicht, Arbeitsorte des Personals, alte Karte des Vorgängers), verblassend nach Alter (CFG.karte); Pfeiltasten oder Antippen zeigen „zuletzt gesehen Woche n“. Die Tafel setzt „ca.“ bzw. „?“ vor Zeiten, deren Ziel oder Route über altes bzw. unbekanntes Kartenwissen führt; die Rechnung bleibt exakt.
+  Gutskarte (Demo B2a, Paket 3): Notizbuch-Reiter „Karte“ (6): Farbflächen nur für Felder, die der Verwalter kennt (eigene Sicht, im Gespräch ergänzte Beobachtungen des Personals, alte Karte des Vorgängers), verblassend nach Alter (CFG.karte); Pfeiltasten oder Antippen zeigen „zuletzt gesehen Woche n“. Die Tafel setzt „ca.“ bzw. „?“ vor Zeiten, deren Ziel oder Route über altes bzw. unbekanntes Kartenwissen führt; die Rechnung bleibt exakt.
+  Gespräche und Beobachtungen (Demo B2b, Paket 2): Am Sonntag stehen die Leute an ihren Sonntagsorten (Hannes am Bach, Grete am Gesindehaus, Jost am Holzplatz, Liese im Garten; aus der Karte abgeleitet, nur Position). Was sie in der Werkwoche gesehen haben (Zeichen, Schäden, Beeren, Orte),
+        merken sie sich (knWeek, höchstens 5 Dinge, je Ort das Neueste) und erzählen es nur im Gespräch dort, je nach Figur (rollen.js: Hannes alles von sich aus, Grete auf „Nachfragen“, Liese die neuesten Dinge mit dem Lieblingsthema zuerst, Jost nur bei guter Laune); erst dann ergänzt sich die Gutskarte.
+        Lieblingsbereich = größerer Wahrnehmungsumkreis für passende Arten. Die Morgenkarte meldet nur den Hof. Untersuchen meldet, was sich gegenüber der Gutskarte verändert hat („ist neu“). Das Wissen der Woche steht als Liste (knWiss: Art, Feld, Woche, Quelle) bereit.
+  Zeichen und Frühwarnung (Demo B2b, Paket 3): Specht (toter/kranker Baum), Häher (Fuchs in der Nähe), Krähen (Riss, Federn) und Fuchsfährten ergeben sich aus dem Weltzustand (zeichenQuellen, ohne Zufall). Der Verwalter hört sie im Hörradius (CFG.zeichen.hoer, Regen/Sturm dämpfen),
+        sieht Fährten im Sichtkreis; Meldung mit Himmelsrichtung, Ton, Wissensliste (gehört/gesehen) und Gutskarten-Notiz als Text/Farbe. Das Personal nimmt sie nur in der Wochenhülle wahr und erzählt sie am Sonntag. Fuchs-Vorstufe: der hungrige Fuchs zieht eine Woche lang zum Hof (Fährte, Häher), der Überfall folgt erst in der Woche danach.
+  Gebietsauftrag (Demo B2b, Paket 4): „Beeren sammeln“ ist kein Flächenauftrag mehr, sondern ein Gebiet: im Menü (Leertaste) markierst du nur einen Fixpunkt (die Stelle, an der du stehst; gespeichert wird die Erwartung, wie viele reife Sträucher du dort siehst). Die Person geht hin, findet
+        den Punkt leicht über Weg oder Pfad, bei genug Licht zur Ankunftsminute, mit eigener Ortskenntnis oder an einer Wegmarke – sonst sucht sie (kostet Zeit) oder gibt im Dunkeln auf – und sammelt im Radius um den Punkt (abhängig von Licht und Kenntnis, CFG.gebiet); der Ertrag ist, was dort wirklich wächst.
+        Der Auftrag ist danach erledigt (auch nach Aufgeben). Die Rückmeldung mit Grund erzählt sie am Sonntag („Das war mir zu dunkel“, „Da kenne ich mich nicht gut aus“, „Da war kaum noch was“ gegen die gespeicherte Erwartung). Wegmarken setzt du nur am Sonntag im Menü („Wegmarke setzen“, kostet Zeit,
+        höchstens CFG.gebiet.markenMax, gezeichnet als Pflock, G.marken); die Tafel rechnet das Gebiet mit denselben Funktionen vor wie der Tag (Wegmarken und die Beeren im Radius stehen im Zwischenspeicher-Schlüssel).
+  Weg zeigen (Demo B2b, Paket 5): In der Werkwoche tagsüber sprichst du eine Person an (Leertaste, Menü; am Handy dasselbe Menü): „Weg zeigen“ – sie geht mit dir (Bewegung in Ticks, nach ihrer eigenen Kostenkarte) und arbeitet in der Zeit nicht; dieselbe Option entlässt sie.
+        Es endet auch mit Heimgehen [T], am Hoftag zum Mittag und am Feierabend (dann plant sie neu ab Ort und Uhrzeit wie beim Umplanen); nicht startbar während einer festen Spanne (Füttern, Kochen, Einsperren). Die Felder ihrer Route heben ihre Ortskenntnis stark (CFG.kenntnis.gezeigt), wirksam ab der nächsten Woche; die Tafel zeigt „geht mit dem Verwalter“.
   Herbst (Demo B3, Paket 1): Herbstkurve je Woche (regeln.js herbst: Wachstum von Bäumen und Gras → 0 bis Woche 11, Hasenwurf ab Woche 6 kaum noch); Hennenhunger je Teilschritt (CFG.henHunger); Fuchsdruck steigt kausal (weniger Hasen → Stall). Verfügbarkeit des Personals aus einer Quelle (staffAvail) für Woche und Tafel.
   Wochenwetter (Demo B3, Paket 2): Jede Woche hat ein Wetter (trocken, Regen, Sturm, Frost; Nebel als Variante) aus einer Herbstkurve (CFG.wetter), einmal in newGame aus eigenem Seed-Strom gezogen (äußerer Auslöser, nicht R). Wirkung nur in der Werkwoche (Sonntag und Planung ohne):
         Regen macht Furt und Wasserrand teurer, Frost beendet die Beeren und erhöht den Heubedarf der Hennen, Sturm wird nur angekündigt, Nebel verkleinert den Sichtradius. Vorhersage am Sonntag (Morgenkarte, Hannes), HUD zeigt das Wetter in Worten.
@@ -24,7 +35,7 @@
   Getestet wird: Trägt der Verwalter-Kreislauf (schauen → markieren → Wochenschritt → Folgen) mit impliziter
   Bewertung eine gemütliche Partie, und erzeugt das Licht-/Kronenmodell glaubwürdigen Wald?
   Balancing: alle Stellschrauben im Objekt CFG (live im Debug-Fenster änderbar).
-  Wer was darf (Aufgaben, Rollen, Effektivität, Arbeitstempo, ab welcher Woche): rollen.js – Editor: tools/rollen-editor.html
+  Wer was darf (Aufgaben, Rollen, Effektivität, Arbeitstempo, ab welcher Woche) und die Figuren (Mitteilsamkeit, Lieblingsbereich, Gedächtnis, Sonntagsort): rollen.js – Editor: tools/rollen-editor.html
 -->
 <html lang="de">
 <head>
@@ -209,9 +220,12 @@ const CFG={
   // Ortskenntnis (Demo B2a): je Person und Feld 0..1 (intern Byte 0..255); Wirkung auf die Wegzeit: CFG.zeit.fremd
   kenntnis:{
     sehenR:5, sehenMin:0.4,   // Verwalter: Sichtradius in FELDERN bei vollem Licht; im Schatten ×(sehenMin + (1−sehenMin) × Licht des eigenen Feldes), je Schritt gerechnet (nicht die gezeichnete Sicht)
-    sehen:0.05, sehenMax:0.5, // Verwalter: Zuwachs je Schritt für jedes Feld im Sichtkreis, nur bis zu dieser Kenntnis (Sehen allein macht nicht vertraut)
-    betreten:0.25,            // Zuwachs durch Betreten: Verwalter je Schritt auf dem Feld; Personal einmal je Woche und Feld (Wochenpuffer, wirksam in der Wochenhülle)
-    arbeit:0.5,               // Zuwachs durch Arbeiten am Feld (Personal: einmal je Woche und Feld; wirksam in der Wochenhülle)
+    sehen:0.15, sehenMax:0.5, // Verwalter: Zuwachs für jedes Feld im Sichtkreis, je Feld höchstens einmal je Tag, nur bis zu dieser Kenntnis (Sehen allein macht nicht vertraut)
+    betreten:0.3,             // Zuwachs durch Betreten (erster Besuchstag): Verwalter je Feld höchstens einmal je Tag (Sonntag, Werktag); Personal einmal je Woche und Feld (Wochenpuffer, wirksam in der Wochenhülle)
+    arbeit:0.5,               // Zuwachs durch Arbeiten am Feld (erster Besuch; Personal: einmal je Woche und Feld; wirksam in der Wochenhülle)
+    ertrag:0.7,               // abnehmender Ertrag: jeder frühere Besuchstag (Betreten, Arbeiten) senkt den Zuwachs auf dieses Vielfache (0,3 → 0,21 → 0,15 …); Hin-und-her im selben Gang zählt nicht
+    verfallAb:3, verfall:0.1, verfallMin:0.5,   // Verfall (Wochenhülle): ohne Besuch seit verfallAb Wochen sinkt die Kenntnis um verfall je Woche, nie unter verfallMin × Höchststand und nie unter die Startkenntnis (Startwissen verfällt nicht). Der Golden-Pfad löscht CFG.kenntnis.verfall
+    gezeigt:0.9, radiusGezeigt:2, folgAbstand:2,   // Weg zeigen (Paket 5): die Person geht mit dem Verwalter; jedes Feld ihrer Route hebt die Kenntnis um gezeigt (stark, mehr als Arbeiten) im Umkreis radiusGezeigt, wirksam erst in der Wochenhülle (Pufferbit „gezeigt“); der abnehmende Ertrag (ertrag) gilt auch hier. folgAbstand: so nah (Felder, Manhattan) bleibt sie stehen.
     radiusBetreten:1, radiusArbeit:2,   // Personal: Umkreis in Feldern (Quadrat), in dem Betreten bzw. Arbeiten die Kenntnis hebt (jedes Feld höchstens einmal je Woche)
     abbau:0.5,                // Anteil der Kenntnis, der an einem Feld verloren geht, dessen Klasse sich verändert hat (Fällung, Stumpf, neue Wuchsstufe, neuer Weg …; feldKlasse)
     abbauLicht:0.2,           // dasselbe, wenn sich nur die Lichtklasse ändert (Wiese ↔ Wald hell ↔ Wald dunkel)
@@ -225,6 +239,18 @@ const CFG={
       grete:{hof:1},
       liese:{hof:1, gelaende:0.6, dorf:0.8}
     }
+  },
+  // Gebietsauftrag (Demo B2b, Paket 4; KONZEPT §5.0): Fixpunkt markieren, die Person findet ihn oder sucht/gibt auf, sammelt im Radius nach Licht und Kenntnis. gebietFinden/gebietRadius sind reine Funktionen des Weltzustands (ohne R).
+  gebiet:{
+    findLicht:0.25,           // Sichtlicht am Fixpunkt (Tageslicht × sichtLicht des Feldes, zur Ankunftsminute): ab hier findet die Person ihn ohne Suchen
+    suchLicht:0.12,           // darunter gibt sie auf („zu dunkel“); dazwischen sucht sie
+    findKenn:0.3,             // eigene Kenntnis des Fixpunkts (0..1), ab der sie ihn auch im Dämmer findet
+    suchMin:40, aufMin:15,    // Suchen kostet suchMin × (1 − Kenntnis) × (findLicht ÷ Sichtlicht, höchstens 2) Minuten; wer aufgibt, hat aufMin Minuten gesucht
+    wegR:2, markeR:4,         // Weg oder Pfad im Umkreis wegR bzw. eine Wegmarke im Umkreis markeR führt sicher hin
+    markenMax:8,              // so viele Wegmarken (Pflöcke) hat der Verwalter höchstens
+    rMax:8, rMin:2, lichtVoll:0.35, lichtMin:0.4, kennMin:0.6,   // Radius = rMax × (Licht ÷ lichtVoll, zwischen lichtMin und 1) × (kennMin + (1 − kennMin) × Kenntnis), mindestens rMin; rMax ist auch der Umkreis der beim Markieren gespeicherten Erwartung
+    kaum:0.5,                 // „kaum noch was“: höchstens dieser Anteil der gespeicherten Erwartung ist noch da
+    minArbeit:10              // so viel Zeit nach der Ankunft muss mindestens bleiben, damit sich der Weg lohnt (Minuten)
   },
   // Wochenwetter (Demo B3, Paket 2) – NUR 01. Spielwerte (wirken auf Wege, Vorräte, Sicht), keine Ökologie: deshalb im CFG statt in regeln.js (02 liest die Datei mit und kennt kein Wetter).
   // Ohne CFG.wetter (Golden-Master-Pfad) gibt es kein Wetter: alles trocken, ohne Wirkung. Äußerer Auslöser: die Tabelle wird einmal in newGame aus eigenem Seed-Strom gezogen (wetterZiehen).
@@ -247,21 +273,46 @@ const CFG={
   },
   // Trampelpfade (Demo B2a, Paket 2): Trittzähler je Feld (Verwalter-Schritte und Personal-Schritte, Wochenzähler trittW), in der Wochenhülle (pfadWeek) in den gleitenden Wert tritt übernommen
   pfad:{
-    cap:4,                    // höchstens so viele Tritte je Woche und Feld zählen (eine einzige geschäftige Woche macht noch keinen Pfad)
-    abkling:0.6,              // Anteil des alten Wertes, der eine Woche übersteht: Wert = alt × abkling + min(Tritte, cap)
-    schwelle:8,               // ab diesem Wert tritt sich der Pfad aus bzw. wird (je Woche) eine Stufe fester; bei cap 4 und abkling 0,6 nach etwa 4 Wochen mit ≥ 4 Tritten
-    zu:3,                     // darunter wächst der Pfad wieder zu (je Woche eine Stufe weniger)
+    cap:2,                    // höchstens so viele Tritte je Woche und Feld zählen (ein Tritt = ein Schritt über das Feld, Hin und Zurück = 2; eine einzige geschäftige Woche macht noch keinen Pfad)
+    abkling:0.7,              // Anteil des alten Wertes, der eine Woche übersteht: Wert = abgerundet(alt × abkling) + min(Tritte, cap)
+    schwelle:3,               // ab diesem Wert tritt sich der Pfad aus bzw. wird (je Woche) eine Stufe fester; bei cap 2 und abkling 0,7 nach 2 Wochen mit je ≥ 2 Tritten (ein Tritt je Woche reicht nie)
+    zu:2,                     // darunter wächst der Pfad wieder zu (je Woche eine Stufe weniger; ohne Begehung nach etwa 3 Wochen ganz)
     stufen:2,                 // Stufe 1 = frisch ausgetreten, 2 = fest (die Wegzeit ist für beide CFG.zeit.faktor.pfad)
-    alpha:[0.35, 0.6]         // Darstellung: Wegkachel mit dieser Deckkraft über dem Boden, je Stufe
+    alpha:[0.5, 0.85]         // Darstellung: Wegkachel mit dieser Deckkraft über dem Boden, je Stufe
   },
   // Gutskarte des Verwalters (Demo B2a, Paket 3): je Feld „zuletzt gesehen“ (Woche) und die damals gesehene Feldklasse; Notizbuch-Reiter „Karte“, Kennzeichnung „ca.“/„?“ an der Tafel
   karte:{
     altWochen:3,              // Tafel: Kartenwissen, das länger als so viele Wochen zurückliegt, gilt als alt („ca.“); die alte Karte des Vorgängers immer; nie gesehen = unbekannt („?“)
     routeAnteil:0.25,         // Tafel: ab diesem Anteil alter bzw. unbekannter Felder auf der Route steht „ca.“ bzw. „?“ (das Ziel zählt für sich: ein altes/unbekanntes Ziel genügt)
-    personalR:1,              // Arbeitsorte des Personals: Umkreis in Feldern (Quadrat), der in der Wochenhülle in die Karte kommt
+    personalR:1,              // Orte, von denen das Personal erzählt: Umkreis in Feldern (Quadrat), der im Gespräch (nur wo die Beobachtung neuer ist) in die Karte kommt
     verblassen:8,             // Darstellung: so viele Wochen ohne Hinsehen bis zur blassesten Stufe
     alphaMin:0.4, alteAlpha:0.3,   // Darstellung: Deckkraft des ältesten Kartenwissens bzw. der alten Karte (frisch = 1)
-    farben:['#000000','#a9c46c','#6f9c50','#3f6d3c','#5f95c8','#93b9d6','#8a5a3c','#cdb88c','#b49e6c','#8fb04a','#2f5632','#a47c52','#7a5a3a','#c6d68c']   // je Feldklasse (KL_*, Index 0 = unbekannt, nie gemalt)
+    farben:['#000000','#a9c46c','#6f9c50','#3f6d3c','#5f95c8','#93b9d6','#8a5a3c','#cdb88c','#e0a82e','#8fb04a','#2f5632','#a47c52','#7a5a3a','#c6d68c']   // je Feldklasse (KL_*, Index 0 = unbekannt, nie gemalt)
+  },
+  // Beobachtungen und Gespräche (Demo B2b, Paket 2): was das Personal in der Werkwoche sieht und am Sonntag erzählt; Figuren (Mitteilsamkeit, Lieblingsbereich, Gedächtnis, Sonntagsort) stehen je Person in rollen.js
+  beob:{
+    radius:3,                 // Wahrnehmungsumkreis in Feldern um jedes betretene oder bearbeitete Feld
+    lieblingPlus:2,           // Lieblingsbereich: so viele Felder mehr für die Arten, die zur Person passen (rollen.js: lieblings)
+    zelle:8,                  // je Art und Zelle (Felder) nur eine Beobachtung („je Ort das Neueste“)
+    ortZelle:8,               // Orte („hier war ich“): je Zelle (Felder) ein Eintrag
+    gedaechtnis:5,            // Rückfall (rollen.js: gedaechtnis): so viele Dinge bis zum Erzählen, Älteres verblasst
+    erzaehlt:3,               // Rückfall für „luecke“ (rollen.js: zahl): so viele Dinge, die neuesten, Lieblingsthema zuerst
+    launeMin:2,               // Jost: gut gelaunt, wenn mindestens so viele von drei Dingen stimmen (gut gegessen, nichts liegengeblieben, Holzarbeit gehabt)
+    wissenMax:60,             // Wissensliste des Verwalters je Woche
+    holzR:25,                 // Jost: der nächste alte Holzschlag (Stumpf, liegendes Holz) darf höchstens so weit vom Hof liegen, sonst steht er am Holzplatz (orte.holz)
+    orte:{garten:[45,38],kueche:[54,47],holz:[43,40]}   // Sonntagsorte mit festem Zielpunkt (bach und holz leiten sich zusätzlich aus der Karte ab)
+  },
+  // Zeichen und Frühwarnung (Demo B2b, Paket 3): Zeichen = reine Funktion des Weltzustands (zeichenQuellen: Specht, Häher, Krähen; Fährten sind `track`). Hörbares hört der Verwalter im Hörradius × Wetter (nicht sichtLicht), Fährten sieht er im Sichtkreis (sichtLicht)
+  zeichen:{
+    hoer:{specht:14,haeher:20,kraehen:18},   // Hörradius in Feldern bei trockenem Wetter, je Art
+    wetter:{regen:0.6,sturm:0.35},           // Faktor auf den Hörradius je Wochenwetter (trocken, Frost: 1); Sonntag ohne Wetterwirkung (wetterJetzt)
+    krankStress:4,            // Specht: Baum (Höhe ≥ 2) gilt als krank, wenn er so viele Teilschritte zu wenig Licht hatte (tot: immer; regeln.js treeStressDie = Tod)
+    zelle:8,                  // Wiederholungssperre: je Art und Zelle (Felder) höchstens eine Meldung je Tag
+    personalR:7,              // Personal: Hörumkreis in Feldern um jedes betretene oder bearbeitete Feld (Wochenhülle, knBuf)
+    kartMax:24,               // Gutskarte: so viele Zeichen-Notizen (Text/Farbe), die ältesten fallen heraus
+    farben:{specht:'#b5651d',haeher:'#2d7fb8',kraehen:'#4a4a4a',spur:'#d27d2c'},   // Gutskarte: Farbfläche je Zeichen-Art
+    // Fuchs-Vorstufe (Auflage 14): hungrig und zum Stall unterwegs in Woche k → er lauert die Woche über („zieht zum Hof“), legt eine Fährte Richtung Stall; der Überfall (raid) ist erst in Woche k+1 möglich. Der Golden-Pfad löscht diesen Schlüssel (dann wie vorher).
+    vorstufe:{laenge:16,bisHof:7,maxSchritte:150}   // Fährte: die letzten `laenge` Felder des Weges vom Bau zum Stall (bis `bisHof` Felder vor dem Stall), höchstens maxSchritte Schritte
   },
   // Zeit & Wege (Demo B1): Kostenkarte cost(i,minute,who) in Spielminuten, Tageslicht aus Sonnenkurve je Woche
   zeit:{
@@ -285,7 +336,7 @@ const CFG={
     anreiseMin:10,         // Vorlauf am Hof (Weg zum Herd) vor einer Spanne am Hof
     minArbeit:10,          // kürzeste Arbeitsspanne an einem Objekt, für die sich der Weg lohnt (Minuten)
     rueckRef:30,           // Rückwegschätzung zur Minute (Heimkehr − rueckRef): gegen Ende des Fensters, dunkler als jetzt
-    sonntag:{untersuchen:5, reden:10, markieren:3, genuss:20, aktion:5},   // Sonntag: Spielminuten je Handlung (die Uhr rückt nur durch Tun vor); eigene Arbeit gibt es am Sonntag nicht
+    sonntag:{untersuchen:5, reden:10, markieren:3, wegmarke:10, genuss:20, aktion:5},   // Sonntag: Spielminuten je Handlung (die Uhr rückt nur durch Tun vor); eigene Arbeit gibt es am Sonntag nicht
     wochen:12,             // Länge der Partie in Wochen (G.week 1 … wochen)
     sonne:[{w:1, auf:6, unter:19}, {w:12, auf:7.5, unter:16.5}]   // Sonnenauf-/-untergang (Uhrzeit in h) je Woche, linear zwischen den Stützstellen: 13 → 9 h Tageslänge
   }
@@ -330,9 +381,10 @@ const STAFF_DEF=[
   {id:'jost',spr:'01-jost',home:[54,49]},
   {id:'grete',spr:'01-grete',home:[54,37]},
   {id:'liese',spr:'01-liese',home:[45,37]}
-].map(d=>{const p=RL.personen[d.id];return{...d,name:p.name,role:p.rolle,from:p.abWoche??p.abTag}});   // from = ab welcher Woche die Person auf dem Gut ist (abWoche, Rückfall abTag)
+].map(d=>{const p=RL.personen[d.id];return{...d,name:p.name,role:p.rolle,from:p.abWoche??p.abTag,
+  fig:{mitteil:p.mitteil||'alles',zahl:p.zahl??CFG.beob.erzaehlt,gedaechtnis:p.gedaechtnis??CFG.beob.gedaechtnis,lieblings:Array.isArray(p.lieblings)?p.lieblings:[],sonntag:p.sonntag||'zuhause'}}});   // fig = Figur (rollen.js, alle Felder mit Rückfall): alles | nachfrage | luecke | laune   // from = ab welcher Woche die Person auf dem Gut ist (abWoche, Rückfall abTag)
 
-let berry,berryT,ground,grass,gprog,light,feat,featN,featAge,track,trackAge,fence,fkind,bmap,trunkAt,lyingAt,stumpAt,stumpAge,deco,scent,covers,bridgeV,klSnap,kenn,knBuf,pfad,tritt,trittW,kartWo,kartKl,nass,anteil;
+let berry,berryT,ground,grass,gprog,light,feat,featN,featAge,track,trackAge,fence,fkind,bmap,trunkAt,lyingAt,stumpAt,stumpAge,deco,scent,covers,bridgeV,klSnap,kenn,knBuf,knV,pfad,tritt,trittW,kartWo,kartKl,nass,anteil,knMem,knWiss,knNeu;
 let trees,treeById,logs,logById,burrows,foxes,buildings,staff,P,G,scen,startStats,nextId=1,lightDirty=true,canopyDirty=true;
 
 function alloc(){
@@ -342,7 +394,7 @@ function alloc(){
   lyingAt=new Int32Array(N).fill(-1);stumpAt=new Uint8Array(N);stumpAge=new Uint8Array(N);deco=new Uint8Array(N);
   scent=new Float32Array(N);berry=new Uint8Array(N);berryT=new Uint8Array(N);bridgeV=new Uint8Array(N);covers=[];for(let i=0;i<N;i++)covers.push([]);
   trees=[];treeById=new Map();logs=[];logById=new Map();burrows=[];foxes=[];
-  klSnap=new Uint8Array(N);kenn={};knBuf={};for(const k of WHO_KEYS){kenn[k]=new Uint8Array(N);if(k!=='P')knBuf[k]=new Uint8Array(N)};pfad=new Uint8Array(N);tritt=new Uint8Array(N);trittW=new Uint8Array(N);kartWo=new Int16Array(N);kartKl=new Uint8Array(N);nass=new Uint8Array(N);anteil=new Float32Array(N*3)   // Ortskenntnis, Pfade und Gutskarte (Weltzustand), siehe die Abschnitte „Ortskenntnis“, „Trampelpfade“, „Gutskarte“
+  klSnap=new Uint8Array(N);kenn={};knBuf={};knV={};for(const k of WHO_KEYS){kenn[k]=new Uint8Array(N);if(k!=='P')knBuf[k]=new Uint8Array(N);knV[k]={bet:new Int16Array(N),seh:new Int16Array(N),cnt:new Uint8Array(N),max:new Uint8Array(N),min:new Uint8Array(N)}};pfad=new Uint8Array(N);tritt=new Uint8Array(N);trittW=new Uint8Array(N);kartWo=new Int16Array(N);kartKl=new Uint8Array(N);nass=new Uint8Array(N);anteil=new Float32Array(N*3);knMem={};for(const d of STAFF_DEF)knMem[d.id]=[];knWiss=[];knNeu=new Map()   // Beobachtungen und Gespräche (Weltzustand), Ortskenntnis, Pfade und Gutskarte (Weltzustand), siehe die Abschnitte „Ortskenntnis“, „Trampelpfade“, „Gutskarte“
 }
 
 // ================================================================ Bäume
@@ -509,14 +561,14 @@ function newGame(seed){
   // Füchse im Dunkel
   for(let k=0;k<2;k++){const s=findDenSite();if(s>=0){feat[s]=F_DEN;foxes.push({id:nextId++,den:[s%W,(s/W)|0],hunger:R(),alive:true})}}
   // Personal, Spieler, Zustand
-  staff=STAFF_DEF.map(d=>({...d,x:d.home[0],y:d.home[1],px:d.home[0],py:d.home[1],path:[],cur:null,state:'rest',dir:'down',anim:0,available:false,failed:[],agenda:[],wait:0,acc:0,skip:new Set()}));
+  staff=STAFF_DEF.map(d=>({...d,x:d.home[0],y:d.home[1],px:d.home[0],py:d.home[1],path:[],cur:null,state:'rest',dir:'down',anim:0,available:false,failed:[],agenda:[],wait:0,acc:0,skip:new Set(),folgt:false}));
   P={x:HOF[0],y:HOF[1],px:HOF[0],py:HOF[1],nx:HOF[0],ny:HOF[1],dir:'down',moving:false,mt:0,md:0.2,anim:0,mowTask:null};
   const kinds=['winter','jagd','holz'],kind=kinds[ri(0,2)];
   G={week:1,min:360,exhausted:false,sleepMin:null,sleepPos:null,bonusNext:false,dayType:'hof',state:'play',kraft:CFG.kraft,enjoyed:false,barnWood:CFG.startWood,barnHay:CFG.startHay,barnHares:0,traps:CFG.traps,
      chickens:CFG.chickens,chickHunger:0,fed:true,coopClosed:true,hensInside:true,grazedOk:false,hensFoodOk:false,hutch:0,taler:CFG.startTaler,
      smokedLeft:0,food:{brot:CFG.startBrot*CFG.brotPortion,eier:CFG.startEier,fleisch:0,beeren:0},
      batches:{brot:[{n:CFG.startBrot*CFG.brotPortion,week:1}],eier:[{n:CFG.startEier,week:1}],fleisch:[],beeren:[]},tasks:[],insights:new Set(),letters:[],hist:[],guideDone:new Set(),
-     night:freshNight(),dbg:{paths:[],log:[],layers:new Set()},vis:{hares:[],foxes:[],chickens:[]},pendingDisperse:[],talked:new Set()};
+     night:freshNight(),dbg:{paths:[],log:[],layers:new Set()},vis:{hares:[],foxes:[],chickens:[]},pendingDisperse:[],talked:new Set(),laune:{},kartZ:[],zSag:{},marken:[]};
   G.wetter=CFG.wetter?wetterZiehen(sd):null;   // Wochenwetter: Tabelle aller Wochen, eigener Strom (nicht R)
   initKenntnis();initKarte();
   startStats=stats();
@@ -590,10 +642,10 @@ function weekStep(n=CFG.ecoStepsPerWeek){
   const s=season(G.week),wf=wurf(G.week);
   G.night=freshNight();G.dbg.paths=[];G.dbg.log=[];
   // Ortskenntnis, feste Reihenfolge (Gate-Auflage 5): 1. Werkwochen-Diff (was die Arbeit der Woche verändert hat: Fällung, Weg …) → 2. Zuwachs aus dem Wochenpuffer (wer dort gearbeitet oder gegangen ist,
-  // hat die Veränderung gesehen) → Trittzähler → Trampelpfade (pfadWeek) → Naturschritte → Bewuchs auf Pfaden weg (pfadClean) → 3. Nacht-Diff (Wuchsstufen, Licht, Stümpfe, neue/zugewachsene Pfade). Nicht Teil des Teilschritts nightStep (Golden Master).
+  // hat die Veränderung gesehen) → Verfall (knVerfall) → Trittzähler → Trampelpfade (pfadWeek) → Naturschritte → Bewuchs auf Pfaden weg (pfadClean) → 3. Nacht-Diff (Wuchsstufen, Licht, Stümpfe, neue/zugewachsene Pfade). Nicht Teil des Teilschritts nightStep (Golden Master).
   // Frost in der Nacht der Werkwoche (Wochenwetter, Paket 2): die Beeren erfrieren und tragen für den Rest des Herbstes nicht mehr (nightStep: kein Nachwachsen); ohne CFG.wetter (Golden-Pfad) nichts
   if(wetter(G.week)==='frost'&&!G.frostSeit){G.frostSeit=G.week;for(let i=0;i<N;i++)if(berry[i]){berry[i]=0;berryT[i]=0}log('Frost: die Beeren sind erfroren')}
-  klDiff();knWeek();pfadWeek();
+  klDiff();knWeek();knVerfall();pfadWeek();fuchsWoche();   // fuchsWoche: die Fuchs-Vorstufe der Vorwoche gilt für diese Wochenhülle (nach knWeek, damit das Personal die Zeichen der Vorstufe noch sieht)
   for(let k=0;k<n;k++)nightStep(s,wf);
   pfadClean();klDiff();
   spoilFood();
@@ -794,11 +846,26 @@ function foxStep(){
     if(s>=0){feat[s]=F_DEN;foxes.push({id:nextId++,den:[s%W,(s/W)|0],hunger:1,alive:true});G.night.newFox++;log(`Ein Fuchs wandert ein und bezieht den Bau (${s%W},${(s/W)|0})`)}
   }
 }
+// Fuchs-Vorstufe (Demo B2b, Paket 3, Gate-Auflage 14): wer in Woche k hungrig zum Stall will (raidWunsch), zieht erst „zum Hof“ (f.vorNeu = k, Wartestellung ohne Jagd und Hunger) und legt eine Fährte Richtung Stall;
+// der Überfall (raid) gilt nur mit der Vorstufe der Vorwoche (f.vor === G.week − 1). Ohne Zufall (die Fährte läuft gierig am Abstand zum Stall entlang); ohne CFG.zeichen.vorstufe (Golden-Pfad) wie vorher.
+function fuchsFaehrte(f,V){
+  const path=[],seen=new Set();let x=f.den[0],y=f.den[1];seen.add(idx(x,y));
+  for(let s=0;s<V.maxSchritte&&dist(x,y,COOP[0],COOP[1])>V.bisHof;s++){
+    let best=-1,bd=Infinity,bx=0,by=0;
+    for(const [dx,dy] of DIRS){const nx=x+dx,ny=y+dy;if(!inb(nx,ny))continue;const j=idx(nx,ny);if(seen.has(j)||!foxPass(j,f))continue;const d=dist(nx,ny,COOP[0],COOP[1]);if(d<bd){bd=d;best=j;bx=nx;by=ny}}
+    if(best<0)break;seen.add(best);x=bx;y=by;path.push(best)}
+  const lay=path.slice(-V.laenge);
+  for(let k=0;k<lay.length;k+=2){const j=lay[k];if(ground[j]===G_BRIDGE||track[j]===TR_FELL||track[j]===TR_FEDERN)continue;track[j]=TR_FOX;trackAge[j]=0}
+  f.vorFeld=lay.length?lay[lay.length-1]:idx(f.den[0],f.den[1])}
+function fuchsWoche(){if(!(CFG.zeichen&&CFG.zeichen.vorstufe))return;for(const f of foxes){f.vor=f.vorNeu||0;f.vorNeu=0}}
 function foxWalk(f){
   const budget=CFG.foxBaseSteps+f.hunger*CFG.foxHungerSteps;
   let [x,y]=f.den,dx=0,dy=0;const path=[[x,y]],seen=new Set();
   // Zum Stall zieht es ihn nur, wenn er daheim kaum Beute wittert – oder der Hunger übermächtig wird
-  const raid=G.chickens>0&&f.hunger>=CFG.foxRaidHunger&&(scent[idx(f.den[0],f.den[1])]<2||R()<0.15*(f.hunger-1));
+  const raidWunsch=G.chickens>0&&f.hunger>=CFG.foxRaidHunger&&(scent[idx(f.den[0],f.den[1])]<2||R()<0.15*(f.hunger-1));
+  const V=CFG.zeichen&&CFG.zeichen.vorstufe;let raid=raidWunsch;
+  if(V&&raidWunsch){f.vorNeu=G.week;fuchsFaehrte(f,V);raid=f.vor>0&&f.vor===G.week-1;   // Vorstufe (Auflage 14): Zeichen jetzt, Überfall erst in der Folgewoche
+    if(!raid){log(`Fuchs ${f.id} zieht zum Hof (Vorstufe, Fährte Richtung Stall)`);return}}
   let caught=false;
   for(let s=0;s<budget&&!caught;s++){
     const toCoop=raid&&s>budget*0.35;
@@ -822,6 +889,7 @@ function foxWalk(f){
       else{G.night.foxAtCoop++;track[c]=TR_FOX;trackAge[c]=0;log(`Fuchs ${f.id} streicht um den verschlossenen Stall`)}
       break}
   }
+  if(V&&caught)f.vorNeu=0;   // satt: keine Vorstufe für die nächste Woche
   G.dbg.paths.push({type:'fuchs',path,caught});
   if(!caught){f.hunger++;
     if(f.hunger>=CFG.foxLeaveHunger){f.alive=false;G.night.foxGone++;log(`Fuchs ${f.id} zieht hungrig fort`)}
@@ -882,7 +950,7 @@ const TASKS={
   roden:    {label:'Stumpf roden'},
   bau:      {label:'Bau zuschütten'},
   falle:    {label:'Falle stellen'},
-  beeren:   {label:'Beeren sammeln',group:true,unit:'Büsche'},
+  beeren:   {label:'Beeren sammeln',gebiet:true},   // Gebietsauftrag (Paket 4): nur der Fixpunkt ist markiert
   fuettern: {label:'Hühner füttern',fixed:true,auto:true},
   einsperren:{label:'Hühner einsperren',fixed:true,auto:true},
   markt:    {label:'Zum Markt (Eier verkaufen, Brot kaufen)',fixed:true,auto:true},
@@ -924,9 +992,13 @@ function walkable(x,y){
 // Kenntnis je Person und Feld, 0..1 – gespeichert als Byte 0..255 (KN_MAX) in kenn[key] ('P' = Verwalter, sonst die Personal-ID); Weltzustand (sim-test-Fingerabdruck: kenn, knBuf, klSnap).
 // Wirkung nur über fremdheit(who,i) = 1 − Kenntnis → Kostenkarte (CFG.zeit.fremd). Alles ohne R: Startwerte und Zuwachs sind reine Funktionen des Weltzustands.
 // Zuwachs: Verwalter an der Schrittstelle (updatePlayer → playerSeen: Betreten + Sehen, Sichtradius in Feldern aus light[] des eigenen Feldes; auch am Sonntag, nie aus draw/G.lp; Versetzen schreibt nichts).
-//   Personal tagsüber nur in den Wochenpuffer knBuf[id] (Bit 1 betreten, Bit 2 gearbeitet; personTick, nur !dry – der Trockenlauf schreibt nichts), wirksam erst in der Wochenhülle (knWeek): ab der nächsten Woche.
+// Grind-Grenze (Demo B2b, Paket 1): ein Feld zählt je Person höchstens einmal je Tag (knTag: Sonntag/Sonntagabend = 2·Woche, Werktag samt Abend = 2·Woche + 1; Personal: einmal je Woche aus dem Wochenpuffer) – Hin-und-her im selben Gang bringt nichts;
+//   jeder weitere Besuchstag (nur Betreten/Arbeiten) bringt weniger (CFG.kenntnis.ertrag^Besuchszahl). Sehen setzt nur den „letzten Besuch“ (einmal je Tag, bis sehenMax). Verlauf je Person und Feld in knV[key] (bet/seh = letzter Tag Betreten/Sehen, cnt = Besuchszahl,
+//   max = Höchststand, min = Startkenntnis): Weltzustand, sim-test-Fingerabdruck. Verfall in der Wochenhülle (knVerfall): nie anheben, nie unter max(min, verfallMin × max); klDiff skaliert max und min mit.
+//   Personal tagsüber nur in den Wochenpuffer knBuf[id] (Bit 1 betreten, Bit 2 gearbeitet, Bit 4 Holzarbeit; personTick, nur !dry – der Trockenlauf schreibt nichts), wirksam erst in der Wochenhülle (knWeek): ab der nächsten Woche.
 // Abbau nur, wo sich das Feld verändert hat: Klassen-Diff der feldKlasse gegen den Schnappschuss klSnap (klDiff, zweimal je Wochenhülle, siehe weekStep) – keine Haken in nightStep/growTrees/applyJob.
 const KN_MAX=255;
+const knTag=()=>G?2*G.week+(G.phase==='sonntag'||G.phase==='plan'?0:1):1;   // Besuchstag des Verwalters: Sonntag (samt Sonntagabend) gerade, Werktag (inkl. Abend bis 2 Uhr) ungerade
 const WHO_KEYS=['P',...STAFF_DEF.map(d=>d.id)];   // Personen mit Ortskenntnis; Index = Slot der Distanzfelder (wayField), ein weiterer Slot für „keine Person“
 let whoMissing=0;   // Aufrufe der Kostenkarte ohne gültige Person (Diagnose im sim-test, muss 0 bleiben; so ein Aufruf rechnet mit voller Kenntnis)
 const KN_VOLL=new Uint8Array(N).fill(KN_MAX),knTmp=new Uint8Array(N);   // reine Hilfsarrays (kein Weltzustand): „alles bekannt“ · Arbeitsfeld von knWeek
@@ -963,52 +1035,253 @@ function initKenntnis(){
       if(s.wasser&&(g===G_WATER||g===G_FORD||g===G_BRIDGE))stamp(kn,x,y,st.wasserR,s.wasser);
       if(s.wege&&g===G_PATH)stamp(kn,x,y,st.wegR,s.wege);
       if(s.holz&&(stumpAt[i]||lyingAt[i]>=0))stamp(kn,x,y,st.holzR,s.holz);
-      if(s.dorf&&g===G_PATH&&y>ESTATE.y1)stamp(kn,x,y,st.dorfR,s.dorf)}}
+      if(s.dorf&&g===G_PATH&&y>ESTATE.y1)stamp(kn,x,y,st.dorfR,s.dorf)}
+    knV[key].min.set(kn);knV[key].max.set(kn)}   // Startwissen = Untergrenze des Verfalls; Höchststand beginnt dort
 }
 // Abbau: Felder, deren Klasse sich seit dem Schnappschuss geändert hat, verlieren für ALLE Personen einen Teil der Kenntnis (Lichtklassen weniger); Schnappschuss nachziehen. Rückgabe: Zahl geänderter Felder.
 function klDiff(){
-  const K=CFG.kenntnis,fh=1-K.abbau,fl=1-K.abbauLicht,fp=1-K.abbauPfad,all=WHO_KEYS.map(k=>kenn[k]);let n=0;
+  const K=CFG.kenntnis,fh=1-K.abbau,fl=1-K.abbauLicht,fp=1-K.abbauPfad,all=[];for(const k of WHO_KEYS)all.push(kenn[k],knV[k].max,knV[k].min);let n=0;   // Höchststand und Startkenntnis werden mit abgebaut (die Verfall-Untergrenze bleibt ≤ Kenntnis)
   for(let i=0;i<N;i++){const c=feldKlasse(i),o=klSnap[i];if(c===o)continue;
     klSnap[i]=c;n++;const f=c===KL_PFAD||o===KL_PFAD?fp:klLicht(c)&&klLicht(o)?fl:fh;
     for(const a of all)a[i]=Math.floor(a[i]*f)}
   return n}
-// Wochenhülle: Zuwachs des Personals aus dem Wochenpuffer (Bit 1 betreten, Bit 2 gearbeitet) mit Umkreis; jedes Feld höchstens einmal je Woche und Person (Maximum der Quellen), Puffer leeren
+// Wochenhülle: Zuwachs des Personals aus dem Wochenpuffer (Bit 1 betreten, Bit 2 gearbeitet, Bit 4 Holzarbeit, Bit 8 gezeigt = mit dem Verwalter gegangen) mit Umkreis; jedes Feld höchstens einmal je Woche und Person (Maximum der Quellen), Puffer leeren.
+// Vor den Naturschritten (Gate-Auflage 9) wird hier auch beobachtet (beobachte: Gedächtnis je Person) – die Gutskarte (kartWo/kartKl) schreibt das Gespräch (kartMelde), nie diese Funktion.
 function knWeek(){
-  const K=CFG.kenntnis,gB=Math.round(K.betreten*KN_MAX),gA=Math.round(K.arbeit*KN_MAX),T=knTmp;
+  const K=CFG.kenntnis,gB=Math.round(K.betreten*KN_MAX),gA=Math.round(K.arbeit*KN_MAX),gZ=Math.round(K.gezeigt*KN_MAX),T=knTmp,tag=2*G.week+1;
   const stamp=(x,y,r,v)=>{for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){if(!inb(x+dx,y+dy))continue;const j=idx(x+dx,y+dy);if(T[j]<v)T[j]=v}};
-  for(const s of staff){const buf=knBuf[s.id],kn=kenn[s.id];
+  let feats=null;   // auffällige Felder, erst bei der ersten Person mit Marken
+  for(const s of staff){const buf=knBuf[s.id],kn=kenn[s.id],marks=[];let holz=false;
     for(let i=0;i<N;i++){const b=buf[i];if(!b)continue;buf[i]=0;const x=i%W,y=(i/W)|0;
       if(b&1)stamp(x,y,K.radiusBetreten,gB);
-      if(b&2){stamp(x,y,K.radiusArbeit,gA);kartSee(x,y,CFG.karte.personalR)}}   // Arbeitsorte kommen auch in die Gutskarte (der Verwalter hört davon)
-    for(let i=0;i<N;i++)if(T[i]){kn[i]=Math.min(KN_MAX,kn[i]+T[i]);T[i]=0}}
+      if(b&2)stamp(x,y,K.radiusArbeit,gA);
+      if(b&8)stamp(x,y,K.radiusGezeigt,gZ);   // „gezeigt“ (Weg zeigen, Paket 5)
+      if(b&4)holz=true;marks.push(i,b)}
+    beobachte(s,marks,marks.length?feats||(feats=beobFelder()):[]);launeWoche(s,holz);   // Beobachtungen und Stimmung der Woche (Weltzustand vor den Naturschritten)
+    const V=knV[s.id];   // Besuch je Feld: abnehmender Ertrag nach früheren Besuchswochen, Höchststand mitführen
+    for(let i=0;i<N;i++)if(T[i]){kn[i]=Math.min(KN_MAX,kn[i]+Math.round(T[i]*Math.pow(K.ertrag,V.cnt[i])));T[i]=0;V.bet[i]=tag;if(V.cnt[i]<255)V.cnt[i]++;if(kn[i]>V.max[i])V.max[i]=kn[i]}}
 }
+// Verfall (Wochenhülle, nach knWeek): ohne Besuch seit verfallAb Wochen −verfall je Woche; hebt nie an, bleibt über max(Startkenntnis, verfallMin × Höchststand). Ohne CFG.kenntnis.verfall (Golden-Pfad) nichts.
+function knVerfall(){
+  const K=CFG.kenntnis;if(!K.verfall)return;
+  const v=Math.round(K.verfall*KN_MAX);
+  for(const key of WHO_KEYS){const kn=kenn[key],V=knV[key];
+    for(let i=0;i<N;i++){const k=kn[i];if(!k)continue;
+      const boden=Math.max(V.min[i],Math.floor(Math.max(V.max[i],k)*K.verfallMin));
+      if(k<=boden||G.week-(Math.max(V.bet[i],V.seh[i])>>1)<K.verfallAb)continue;
+      kn[i]=Math.max(boden,k-v)}}}
 // Personal, ein Tick (nur !dry): Standort und Arbeitsort in den Wochenpuffer
 function knNote(s){
-  const b=knBuf[s.id];b[idx(Math.round(s.x),Math.round(s.y))]|=1;
-  const c=s.cur;if(s.state==='work'&&c)b[idx(c.x,c.y)]|=2}
+  const b=knBuf[s.id];b[idx(Math.round(s.x),Math.round(s.y))]|=s.folgt?9:1;   // Bit 8: gezeigt (Weg zeigen)
+  const c=s.cur;if(s.state==='work'&&c)b[idx(c.x,c.y)]|=c.task&&BEOB_HOLZ.includes(c.task.type)?6:2}
 // Verwalter an der Schrittstelle (updatePlayer, Schritt fertig; auch am Sonntag): Betreten des Feldes + Sehen im lichtabhängigen Sichtkreis (Felder), Sehen nur bis sehenMax
 function playerSeen(){
-  const K=CFG.kenntnis,kn=kenn.P,i0=idx(P.x,P.y),wk=weekNow();
+  const K=CFG.kenntnis,kn=kenn.P,V=knV.P,i0=idx(P.x,P.y),wk=weekNow(),tag=knTag();
   if(trittW[i0]<255)trittW[i0]++;   // Trittzähler (Paket 2): jeder Schritt des Verwalters; wirksam erst in der Wochenhülle (pfadWeek)
-  kn[i0]=Math.min(KN_MAX,kn[i0]+Math.round(K.betreten*KN_MAX));
+  if(V.bet[i0]!==tag){   // Betreten: je Feld höchstens einmal je Tag, jeder frühere Besuchstag senkt den Ertrag
+    kn[i0]=Math.min(KN_MAX,kn[i0]+Math.round(Math.round(K.betreten*KN_MAX)*Math.pow(K.ertrag,V.cnt[i0])));
+    V.bet[i0]=tag;if(V.cnt[i0]<255)V.cnt[i0]++;if(kn[i0]>V.max[i0])V.max[i0]=kn[i0]}
   const r=K.sehenR*(K.sehenMin+(1-K.sehenMin)*sichtLicht(light[i0],laubAt(i0))),ri=Math.ceil(r),cap=Math.round(K.sehenMax*KN_MAX),add=Math.round(K.sehen*KN_MAX);
+  let sp=null;   // nächste Fuchsfährte im Sichtkreis (Zeichen, Paket 3)
   for(let dy=-ri;dy<=ri;dy++)for(let dx=-ri;dx<=ri;dx++){
     if(dx*dx+dy*dy>r*r||!inb(P.x+dx,P.y+dy))continue;
     const j=idx(P.x+dx,P.y+dy);
-    kartWo[j]=wk;kartKl[j]=feldKlasse(j);   // Gutskarte (Paket 3): was er jetzt sieht, ist aktuell
-    if(kn[j]<cap)kn[j]=Math.min(cap,kn[j]+add)}
+    const cl=feldKlasse(j),vor=kartKl[j];if(kartWo[j]!==0&&vor!==cl&&!(klLicht(cl)&&klLicht(vor)))knNeu.set(j,vor);   // „ist neu“ (Untersuchen): echte Veränderung gegenüber dem bisherigen Kartenstand, nur Lichtwechsel nicht
+    kartWo[j]=wk;kartKl[j]=cl;   // Gutskarte (Paket 3): was er jetzt sieht, ist aktuell
+    if(track[j]&&zeichenFuchsSpur(track[j])&&(!sp||dx*dx+dy*dy<sp.d))sp={j,d:dx*dx+dy*dy};
+    if(V.seh[j]===tag)continue;V.seh[j]=tag;   // Sehen: je Feld höchstens einmal je Tag (setzt auch den „letzten Besuch“ für den Verfall)
+    if(kn[j]<cap){kn[j]=Math.min(cap,kn[j]+add);if(kn[j]>V.max[j])V.max[j]=kn[j]}}
+  if(CFG.zeichen)zeichenWahrnehmen(sp)   // Zeichen: Hören im Hörradius, Fährten im Sichtkreis (derselbe Schritt)
 }
 // ---------------------------------------------------------------- Gutskarte (Demo B2a, Paket 3)
 // Kartenwissen des Verwalters, Weltzustand (sim-test-Fingerabdruck): kartWo[i] = Woche, in der er das Feld zuletzt gesehen hat (Int16; 0 = unbekannt, negativ = alte Karte des Vorgängers),
 // kartKl[i] = die damals gesehene Feldklasse (feldKlasse, dieselben KL_*-Codes wie beim Kenntnis-Abbau). Sie bleibt veraltet, bis er wieder hinsieht (Fällung, Zuwachsen …).
-// Quellen: Sicht des Verwalters (playerSeen, an der Schrittstelle, auch am Sonntag), Arbeitsorte des Personals (knWeek, Wochenhülle aus dem Wochenpuffer), die alte Karte als Startzustand (initKarte, ohne R).
+// Quellen: Sicht des Verwalters (playerSeen, an der Schrittstelle, auch am Sonntag), Erzähltes im Gespräch (kartMelde, nur wo die Beobachtung neuer ist als der Eintrag; Demo B2b, Paket 2), die alte Karte als Startzustand (initKarte, ohne R).
 // Nur lesend: Tafel („ca.“/„?“, kartStufe) und Notizbuch-Reiter „Karte“; der Trockenlauf schreibt nichts.
 const KARTE_ALT=-1;
 const KL_NAMEN=['unbekannt','Wiese','Wald (hell)','Wald (dunkel)','Wasser','Furt oder Brücke','Gebäude oder Zaun','Weg','Trampelpfad','Jungwuchs','Hochwald','Baumstumpf','Totholz','Rasen'];
-// Personal hat dort gearbeitet: Umkreis r ist in dieser Woche gesehen (Klasse wie sie jetzt ist)
-function kartSee(x,y,r){
-  const wk=weekNow();
-  for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){if(!inb(x+dx,y+dy))continue;const j=idx(x+dx,y+dy);kartWo[j]=wk;kartKl[j]=feldKlasse(j)}}
+// ---------------------------------------------------------------- Beobachtungen und Gespräche (Demo B2b, Paket 2)
+// Das Personal sieht in der Werkwoche mehr, als der Verwalter je erfährt. Wahrnehmung: CFG.beob.radius Felder um jedes betretene oder bearbeitete Feld (Wochenpuffer knBuf), für die Arten des Lieblingsbereichs (rollen.js: lieblings) lieblingPlus mehr.
+// In der Wochenhülle (knWeek, VOR den Naturschritten – Gate-Auflage 9) entsteht je Person eine Liste typisierter Beobachtungen {k, art, feld, woche, kl, …}: Art = Auffälliges (beobArt: toter Baum, umgestürzter Baum, Bau, Spur, Beeren, Loch) oder „ort“ (hier war ich);
+// kl (bei „ort“ kls, ein kleiner Umkreis) = Feldklasse zum Beobachtungszeitpunkt – das Gespräch liest feldKlasse nie. Gedächtnis knMem[id]: je Art und Ort (Zelle) das Neueste, höchstens fig.gedaechtnis Dinge, Älteres verblasst.
+// Am Sonntag erzählt die Person im Gespräch (talk, nur G.phase 'sonntag') nach ihrer Figur (fig.mitteil, rollen.js; ohne Zufall): alles = von sich aus alles (Hannes) · nachfrage = nur über „Nachfragen“ (Grete) · luecke = die neuesten fig.zahl Dinge, Lieblingsthema zuerst (Liese) ·
+// laune = alles, aber nur bei guter Laune aus dem Zustand der Woche (G.laune: gut gegessen, nichts liegengeblieben, Holzarbeit gehabt; Jost). Erzähltes ergänzt die Gutskarte nur, wo die Beobachtung neuer ist (kartWo; Auflage 10), kommt in die Wissensliste knWiss
+// (Art, Feld, Woche, Quelle „Gespräch“ oder „Untersuchen“ – Grundlage für das Beobachtungsbuch, B2c) und verlässt das Gedächtnis. Weltzustand (sim-test-Fingerabdruck): knMem, knWiss, knNeu, G.laune. Alles ohne R, Worte statt Zahlen.
+const BEOB_HOLZ=['faellen','zerlegen','roden'];   // Holzarbeit (Joschs Laune; Bit 4 im Wochenpuffer)
+const TR_TXT={[TR_HARE]:'Hasenspuren gesehen',[TR_FOX]:'eine Fuchsfährte gesehen',[TR_FELL]:'Fellreste gefunden – da hat der Fuchs Beute gemacht',[TR_ERDE]:'aufgewühlte Erde gesehen',[TR_FEDERN]:'Federn und Pfotenabdrücke gefunden'};
+const KOMPASS=['östlich','südöstlich','südlich','südwestlich','westlich','nordwestlich','nördlich','nordöstlich'];
+// Was an Feld j auffällt (Art oder null) – reine Funktion des Weltzustands
+function beobArt(j){
+  const tid=trunkAt[j];if(tid>=0){const t=treeById.get(tid);if(t&&t.alive&&t.dead)return 'baumtot'}
+  if(lyingAt[j]>=0)return 'baumliegt';
+  const f=feat[j];if(f===F_BURROW)return 'hasenbau';if(f===F_DEN)return 'fuchsbau';if(f===F_HOLE)return 'loch';
+  if(track[j])return 'spur';
+  if(berry[j])return 'beeren';
+  return null}
+const beobZelle=(j,z)=>Math.floor((j%W)/z)+','+Math.floor(((j/W)|0)/z);
+const beobPrio=(e,lieb)=>e.art==='auftrag'?-1:lieb.includes(e.art)?0:e.art!=='ort'?1:e.w?2:3;   // wer behalten wird, wenn das Gedächtnis voll ist: Lieblingsarten, Zeichen und Schäden, Arbeitsorte, bloß begangene Orte
+const beobKls=f=>{const r=CFG.karte.personalR,x=f%W,y=(f/W)|0,o=[];for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++)o.push(inb(x+dx,y+dy)?feldKlasse(idx(x+dx,y+dy)):0);return o};
+// Wochenhülle, eine Person: aus ihren Wegen und Arbeitsorten (marks = Feld, Bit, …) die neuen Beobachtungen, ins Gedächtnis mischen (je Schlüssel das Neueste), auf fig.gedaechtnis kürzen.
+// feats = alle auffälligen Felder der Welt (Feld, Art, …; einmal je Wochenhülle aus beobFelder); die Reichweite einer Person ist die Aufweitung ihrer Marken um den Umkreis (zwei Stempelfelder: normal, Lieblingsbereich).
+const BEOB_N0=new Uint8Array(N),BEOB_N1=new Uint8Array(N),BEOB_N2=new Uint8Array(N);   // reine Hilfsarrays (kein Weltzustand)
+function beobFelder(){const f=[];for(let j=0;j<N;j++){const a=beobArt(j);if(a)f.push(j,a)}if(CFG.zeichen)zeichenQuellen((j,a)=>f.push(j,a));return f}
+function beobachte(s,marks,feats){
+  const B=CFG.beob,wk=weekNow(),fig=s.fig,lieb=fig.lieblings,R0=B.radius,R1=B.radius+B.lieblingPlus,cand=new Map(),n0=BEOB_N0,n1=BEOB_N1,n2=BEOB_N2,R2=CFG.zeichen?CFG.zeichen.personalR:0;
+  const stamp=(arr,x,y,r)=>{for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++)if(dx*dx+dy*dy<=r*r&&inb(x+dx,y+dy))arr[idx(x+dx,y+dy)]=1};
+  const lr=lieb.length>0;
+  for(let m=0;m<marks.length;m+=2){const i=marks[m],b=marks[m+1],x=i%W,y=(i/W)|0;
+    if(!inHofClearing(x,y)){const k='ort:'+beobZelle(i,B.ortZelle),o=cand.get(k),w=b&2?1:0;   // Orte am Hof gehören zum Alltag
+      if(!o)cand.set(k,{k,art:'ort',feld:i,woche:wk,w});else if(w>o.w){o.w=1;o.feld=i}}
+    stamp(n0,x,y,R0);if(lr)stamp(n1,x,y,R1);stamp(n2,x,y,R2)}
+  for(let m=0;m<feats.length;m+=2){const j=feats[m],art=feats[m+1];
+    if(!(ZEICHEN_ARTEN.includes(art)?n2[j]:lr&&lieb.includes(art)?n1[j]:n0[j]))continue;   // Hörbares (Specht, Häher, Krähen) reicht personalR weit, sonst Umkreis bzw. Lieblingsbereich
+    const X=j%W,Y=(j/W)|0,tr=art==='spur'?track[j]:0;
+    if(inHofClearing(X,Y)&&(art==='hasenbau'||art==='beeren'||tr===TR_HARE))continue;   // Alltag am Hof (Hasenspuren, Bau, Sträucher) ist keine Neuigkeit; Fährten, Löcher und Schäden schon
+    const k=art+tr+':'+beobZelle(j,B.zelle),o=cand.get(k);
+    if(!o)cand.set(k,tr?{k,art,feld:j,woche:wk,n:1,tr}:{k,art,feld:j,woche:wk,n:1});else if(o.n<99)o.n++}
+  n0.fill(0);n2.fill(0);if(lr)n1.fill(0);
+  const all=new Map(knMem[s.id].map(e=>[e.k,e]));
+  for(const e of cand.values())all.set(e.k,e);
+  const list=[...all.values()].sort((a,b)=>b.woche-a.woche||beobPrio(a,lieb)-beobPrio(b,lieb)||a.feld-b.feld);
+  list.length=Math.min(list.length,fig.gedaechtnis);
+  for(const e of list)if(e.kl===undefined){e.kl=feldKlasse(e.feld);if(e.art==='ort')e.kls=beobKls(e.feld)}   // Feldklasse zum Zeitpunkt der Beobachtung (nur die behaltenen)
+  knMem[s.id]=list}
+// ---------------------------------------------------------------- Zeichen und Frühwarnung (Demo B2b, Paket 3)
+// Zeichen = reine Funktion des Weltzustands, ohne R und ohne G.dbg.paths (Gate-Auflage 13): kranker oder toter Baum → Specht (am Stamm) · Fuchs in der Nähe (Bau eines lebenden Fuchses; in der Vorstufe auch das Hof-Ende seiner Fährte, f.vorFeld) → Häher · Riss oder Federn (track Fell/Federn) → Krähen.
+// Fährten sind `track` selbst (Art „spur“). Das Personal nimmt Zeichen nur in der Wochenhülle wahr (beobFelder → beobachte: knBuf-Umkreis CFG.zeichen.personalR, als knMem-Art); der Verwalter an der Schrittstelle (playerSeen → zeichenWahrnehmen, auch am Sonntag):
+// Hörbares im Hörradius CFG.zeichen.hoer × Wetter (nicht sichtLicht), Fährten im Sichtkreis (sichtLicht). Meldung = Text mit Himmelsrichtung + Ton (SFX, nur Darstellung) + Eintrag in knWiss (Quelle „gehört“/„gesehen“) + Notiz auf der Gutskarte (G.kartZ, nur Text/Farbe);
+// Wiederholungssperre G.zSag: je Art und Zelle höchstens einmal je Tag (knTag), je Schritt eine hörbare Meldung und eine Fährte. Weltzustand (sim-test-Fingerabdruck): G.kartZ, G.zSag, f.vor/vorNeu/vorFeld der Füchse.
+const ZEICHEN_ARTEN=['specht','haeher','kraehen'];
+const KOMPASS_N=['Osten','Südosten','Süden','Südwesten','Westen','Nordwesten','Norden','Nordosten'];
+const ZEICHEN_WORT={specht:'ein Specht gehört',haeher:'ein Häher gehört',kraehen:'Krähen gehört',spur:'eine Fuchsfährte gesehen'};
+const ZEICHEN_BUCH={specht:'S',haeher:'H',kraehen:'K',spur:'F'};
+const zeichenFuchsSpur=tr=>tr===TR_FOX||tr===TR_FELL||tr===TR_FEDERN;
+// cb(Feld, Art, Warnung): alle Zeichenquellen der Welt – oder nur die im Quadrat ±r um (x0,y0) (nur ein Filter: das Ergebnis dort ist dasselbe; spart dem Schritt des Verwalters die ganze Karte)
+function zeichenQuellen(cb,x0,y0,r){
+  const Z=CFG.zeichen,all=r===undefined,xa=all?0:Math.max(0,x0-r),xb=all?W-1:Math.min(W-1,x0+r),ya=all?0:Math.max(0,y0-r),yb=all?H-1:Math.min(H-1,y0+r);
+  for(const t of trees)if(t.alive&&t.h>=2&&t.x>=xa&&t.x<=xb&&t.y>=ya&&t.y<=yb&&(t.dead||t.stress>=Z.krankStress))cb(idx(t.x,t.y),'specht',false);
+  for(const f of foxes){if(!f.alive)continue;cb(idx(f.den[0],f.den[1]),'haeher',false);if(f.vorNeu>0&&f.vorNeu===G.week-1&&f.vorFeld>=0)cb(f.vorFeld,'haeher',true)}
+  for(let y=ya;y<=yb;y++)for(let x=xa;x<=xb;x++){const j=idx(x,y);if(track[j]===TR_FELL||track[j]===TR_FEDERN)cb(j,'kraehen',false)}}
+const zeichenOrt=(x0,y0,j)=>{const x=j%W,y=(j/W)|0;return x===x0&&y===y0?'Hier':'Im '+KOMPASS_N[(Math.round(Math.atan2(y-y0,x-x0)/(Math.PI/4))+8)%8]};
+function zeichenText(art,ort,warn,tr){
+  switch(art){
+    case 'specht':return `${ort} klopft ein Specht.`;
+    case 'haeher':return warn?`${ort} warnt ein Häher lautstark – ein Fuchs scheint zum Hof zu ziehen.`:`${ort} schimpft ein Häher.`;
+    case 'kraehen':return `${ort} kreisen Krähen und krächzen.`;
+    default:return `${ort} ${tr===TR_FELL?'liegen Fellreste – da hat der Fuchs Beute gemacht':tr===TR_FEDERN?'liegen Federn und Pfotenabdrücke':'ist eine Fuchsfährte zu erkennen'}.`}}
+function zeichenMelden(art,j,warn,tr,quelle,vol){
+  const Z=CFG.zeichen,key=(art==='spur'?'spur'+tr:art+(warn?'!':''))+':'+beobZelle(j,Z.zelle),tag=knTag();
+  if(G.zSag[key]===tag)return;G.zSag[key]=tag;
+  toast(zeichenText(art,zeichenOrt(P.x,P.y,j),warn,tr),4200);
+  if(vol&&SFX[art])SFX[art](vol);   // Darstellung (Web Audio, Math.random erlaubt)
+  wissen(tr?{art,feld:j,woche:G.week,tr}:{art,feld:j,woche:G.week},quelle)}
+// An der Schrittstelle (playerSeen): das nächste noch nicht gemeldete hörbare Zeichen im Hörradius × Wetter, und die nächste Fuchsfährte im Sichtkreis (sp = {j})
+function zeichenWahrnehmen(sp){
+  const Z=CFG.zeichen,tag=knTag(),fk=Z.wetter[wetterJetzt()]??1;let best=null;
+  zeichenQuellen((j,art,warn)=>{const rad=Z.hoer[art]*fk,d=dist(P.x,P.y,j%W,(j/W)|0);
+    if(d>rad||(best&&d>=best.d)||G.zSag[art+(warn?'!':'')+':'+beobZelle(j,Z.zelle)]===tag)return;
+    best={j,art,warn,d,vol:Math.max(0.2,1-d/rad)}},P.x,P.y,Math.max(Z.hoer.specht,Z.hoer.haeher,Z.hoer.kraehen));
+  if(best)zeichenMelden(best.art,best.j,best.warn,0,'gehört',best.vol);
+  if(sp)zeichenMelden('spur',sp.j,false,track[sp.j],'gesehen',0)}
+// Gutskarte: Zeichen-Notiz (Text/Farbe, keine Symbole – B7); je Art und Zelle das Neueste, höchstens CFG.zeichen.kartMax
+function kartZeichen(e){
+  if(!(ZEICHEN_ARTEN.includes(e.art)||(e.art==='spur'&&zeichenFuchsSpur(e.tr))))return;
+  const Z=CFG.zeichen,k=e.art+':'+beobZelle(e.feld,Z.zelle),L=G.kartZ,i=L.findIndex(z=>z.k===k);
+  if(i>=0){if(L[i].woche>e.woche)return;L.splice(i,1)}
+  L.push({k,art:e.art,feld:e.feld,woche:e.woche});if(L.length>Z.kartMax)L.shift()}
+// Stimmung der Woche aus dem Zustand (Wochenhülle, vor den Naturschritten): gut gegessen · nichts liegengeblieben · Holzarbeit gehabt
+function launeWoche(s,holz){
+  const ld=G.lastDay||{failed:[]};
+  G.laune[s.id]={essen:!(G.mealHungry||[]).includes(s.name)&&!!(G.goodMeal||G.bonusNext),last:ld.failed.some(f=>f.who===s.name),holz}}
+const launeGut=s=>{const l=G.laune[s.id];return !l||(l.essen?1:0)+(l.last?0:1)+(l.holz?1:0)>=CFG.beob.launeMin}
+const launeText=s=>{const l=G.laune[s.id];return !l.essen?'Mit leerem Magen red ich nicht viel.':l.last?'Mir steht die Arbeit bis zum Hals – später.':'Ohne Axt in der Hand red ich nicht gern.'}
+// Worte statt Zahlen: wo, grob (Garten / am Hof / ein Stück … vom Hof / weit … vom Hof)
+function ortWort(f){const x=f%W,y=(f/W)|0;
+  if(inGarden(x,y))return 'im Garten';
+  const dx=x-ESTATE.cx,dy=y-ESTATE.cy,d=Math.hypot(dx,dy);
+  if(d<15)return 'am Hof';
+  const r=KOMPASS[(Math.round(Math.atan2(dy,dx)/(Math.PI/4))+8)%8];
+  return d<28?`ein Stück ${r} vom Hof`:`weit ${r} vom Hof`}
+const mengeWort=(n,eins,paar,viele)=>n>=4?viele:n>=2?paar:eins;
+function beobText(e){
+  const o=ortWort(e.feld),O=o[0].toUpperCase()+o.slice(1);
+  switch(e.art){
+    case 'ort':return e.w?`${O} habe ich gearbeitet.`:`${O} bin ich langgekommen.`;
+    case 'baumtot':return `${O} habe ich einen Baum gesehen, der abstirbt.`;
+    case 'baumliegt':return `${O} habe ich einen umgestürzten Baum gesehen.`;
+    case 'hasenbau':return `${O} habe ich einen Hasenbau gesehen.`;
+    case 'fuchsbau':return `${O} habe ich einen Fuchsbau gesehen.`;
+    case 'spur':return `${O} habe ich ${TR_TXT[e.tr]||'Spuren gesehen'}.`;
+    case 'beeren':return `${O} habe ich ${mengeWort(e.n,'einen Strauch mit reifen Beeren','ein paar Sträucher mit reifen Beeren','viele Sträucher voller reifer Beeren')} gesehen.`;
+    case 'specht':return `${O} habe ich einen Specht klopfen gehört.`;
+    case 'haeher':return `${O} hat ein Häher laut geschimpft.`;
+    case 'kraehen':return `${O} habe ich Krähen kreisen sehen, da muss etwas liegen.`;
+    case 'auftrag':return auftragText(e,o,O);
+    case 'loch':return `${O} habe ich ${mengeWort(e.n,'ein frisches Loch','ein paar frische Löcher','viele frische Löcher')} gesehen.`;
+    default:return `${O} ist mir etwas aufgefallen.`}}
+// Rückmeldung zu einem Gebietsauftrag (Beeren), mit Grund in Worten – o = Ort klein, O = Ort groß geschrieben
+function auftragText(e,o,O){
+  const m=mengeWort(e.n,'ein paar Beeren','eine Schürze voll Beeren','einen ganzen Korb Beeren'),fund=e.n?`nur ${m} gefunden`:'nichts gefunden',such=e.such?' Es hat gedauert, bis ich die Stelle gefunden habe.':'';
+  switch(e.grund){
+    case 'dunkel':return e.auf?`Das war mir zu dunkel: ${o} habe ich die Beeren nicht gefunden.`:`Das war mir zu dunkel: ${o} habe ich ${fund}, weiter draußen sah ich nichts mehr.${such}`;
+    case 'fremd':return e.auf?`Da kenne ich mich gar nicht aus: ${o} habe ich die Beeren nicht gefunden.`:`Da kenne ich mich nicht gut aus: ${o} habe ich ${fund}, den Rest habe ich nicht gefunden.${such}`;
+    case 'kaum':return `Da war kaum noch was: ${o} habe ich ${e.n?'nur '+m:'fast nichts'} gefunden.${such}`;
+    case 'zeit':return e.n?`${O} habe ich ${m} gepflückt, mehr habe ich vor dem Heimweg nicht geschafft.${such}`:`${O} bin ich nicht mehr zum Pflücken gekommen, die Zeit war um.${such}`;
+    default:return `${O} habe ich ${m} gepflückt.${such}`}}
+// Gutskarte aus einer Beobachtung ergänzen – nur, wo ihre Woche neuer ist als der Karteneintrag (kein feldKlasse, nur die damals gemerkte Klasse); Rückgabe: Zahl geänderter Felder
+function kartMelde(e){
+  let n=0;
+  if(e.kls){const r=CFG.karte.personalR,x=e.feld%W,y=(e.feld/W)|0;let k=0;
+    for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const kl=e.kls[k++];if(!kl||!inb(x+dx,y+dy))continue;const j=idx(x+dx,y+dy);if(e.woche>kartWo[j]){kartWo[j]=e.woche;kartKl[j]=kl;n++}}}
+  else if(e.woche>kartWo[e.feld]){kartWo[e.feld]=e.woche;kartKl[e.feld]=e.kl;n++}
+  return n}
+// Wissensliste des Verwalters (diese Woche): typisiert, Quelle „Gespräch“ oder „Untersuchen“; B2c baut das Beobachtungsbuch darauf
+function wissen(e,quelle,von){
+  kartZeichen(e);
+  if(knWiss.length>=CFG.beob.wissenMax||knWiss.some(w=>w.art===e.art&&w.feld===e.feld&&w.woche===e.woche&&w.quelle===quelle))return;
+  const w={art:e.art,feld:e.feld,woche:e.woche,quelle};if(von)w.von=von;if(e.tr)w.tr=e.tr;if(e.grund)w.grund=e.grund;if(e.n)w.n=e.n;if(e.w)w.w=e.w;if(e.neu)w.neu=true;
+  knWiss.push(w)}
+// Was die Person jetzt erzählt: {list} | {brummt} (Jost bei schlechter Laune) | null (nichts)
+function erzaehlWahl(s,nachfrage){
+  const mem=knMem[s.id],fig=s.fig,lieb=fig.lieblings;
+  if(!mem.length)return null;
+  switch(fig.mitteil){
+    case 'nachfrage':return nachfrage?{list:mem.slice()}:null;
+    case 'luecke':{const t=new Set();return{list:mem.slice().sort((a,b)=>beobPrio(a,lieb)-beobPrio(b,lieb)||b.woche-a.woche||a.feld-b.feld).filter(e=>{const x=beobText(e);return !t.has(x)&&t.add(x)}).slice(0,fig.zahl)}}   // gleiche Sätze nur einmal
+    case 'laune':return launeGut(s)?{list:mem.slice()}:{brummt:launeText(s)};
+    default:return{list:mem.slice()}}}
+// Gespräch am Sonntagsort: Text, Gutskarte, Wissensliste, Gedächtnis leeren; kopf = Einleitung der Person
+function erzaehlen(s,list,kopf){
+  let kart=0,h=`<h2>${s.name}, ${s.role}</h2>${kopf?`<div class="rep">${kopf}</div>`:''}`;
+  const gesagt=new Set();
+  for(const e of list){const x=beobText(e);if(!gesagt.has(x)){gesagt.add(x);h+=`<div class="rep">„${x}“</div>`}kart+=kartMelde(e);wissen(e,'Gespräch',s.id);
+    const k=knMem[s.id].indexOf(e);if(k>=0)knMem[s.id].splice(k,1)}
+  if(kart)h+=`<div class="rep"><i>Du trägst es auf deiner Gutskarte nach.</i></div>`;
+  return h}
+// Option „Nachfragen“ (Figuren mit fig.mitteil 'nachfrage', Sonntag)
+function nachfragen(s){
+  const w=erzaehlWahl(s,true);
+  if(!w||!w.list){toast(`${s.name}: „Nichts, was mir aufgefallen wäre, Herr Verwalter.“`,4200);return}
+  showCard(erzaehlen(s,w.list,'„Wenn Sie schon fragen, Herr Verwalter …“'),'[Leertaste] weiter')}
+// Eigenes Untersuchen (buildOptions → ex): meldet, was sich gegenüber der Gutskarte verändert hat („ist neu“, knNeu aus playerSeen), und merkt es in der Wissensliste
+function untersuche(i){
+  const art=beobArt(i),vor=knNeu.get(i);
+  if(art||vor!==undefined)wissen({art:art||'neu',feld:i,woche:G.week,neu:vor!==undefined},'Untersuchen');
+  knNeu.delete(i);
+  return vor!==undefined?` Neu: Auf deiner Gutskarte stand hier noch „${KL_NAMEN[vor]}“.`:''}
+// Sonntagsorte (rollen.js: sonntag = bach | kueche | holz | garten | zuhause): wo die Person am Sonntag steht. Nur die Position in startWeek, aus der Karte abgeleitet, ohne R, begehbar und ansprechbar; Werkwoche, Appell und Trockenlauf bleiben bei LINE.
+function nearestWhere(cx,cy,ok){let best=-1,bd=Infinity;
+  for(let i=0;i<N;i++){const x=i%W,y=(i/W)|0,d=(x-cx)*(x-cx)+(y-cy)*(y-cy);if(d<bd&&ok(i,x,y)){bd=d;best=i}}
+  return best}
+function sonntagsOrt(s,used){
+  const o=s.fig.sonntag;let z=CFG.beob.orte[o]||s.home;
+  if(o==='bach'){const j=nearestWhere(HOF[0],HOF[1],(i,x,y)=>nass[i]===1&&walkable(x,y));if(j>=0)z=[j%W,(j/W)|0]}   // das Ufer, das dem Hof am nächsten liegt
+  else if(o==='holz'){const j=nearestWhere(HOF[0],HOF[1],i=>stumpAt[i]||lyingAt[i]>=0);if(j>=0&&dist(j%W,(j/W)|0,HOF[0],HOF[1])<=CFG.beob.holzR)z=[j%W,(j/W)|0]}   // der nächste alte Holzschlag (Stumpf oder liegendes Holz) in Reichweite, sonst der Holzplatz
+  const k=nearestWhere(z[0],z[1],(i,x,y)=>!used.has(i)&&walkable(x,y));
+  return k>=0?[k%W,(k/W)|0]:s.home}
+function sonntagsorte(){
+  const used=new Set([idx(P.x,P.y)]);
+  for(const s of staff){const p=sonntagsOrt(s,used);s.x=p[0];s.y=p[1];s.px=s.x;s.py=s.y;s.dir='down';used.add(idx(p[0],p[1]))}}
 // Startzustand (newGame, ohne R, aus dem Weltzustand): Hof und Gutsgelände kennt der Verwalter (Woche 1); sonst nur die alte Karte des Vorgängers – Wasser, Wege, Gebäude, Wiesen, Stümpfe und Totholz (alte Holzschläge),
 // und Flächen mit Jungwuchs, solange es dort hell genug ist, gelten dort noch als offen (Wiese): teils zugewachsen, also falsch.
 function initKarte(){
@@ -1164,7 +1437,6 @@ function taskItems(t){
     case 'setzlinge':return t.items=t.items.filter(id=>{const tr=treeById.get(id);return tr&&tr.alive&&tr.h<=2});
     case 'loecher':return t.items=t.items.filter(j=>feat[j]===F_HOLE);
     case 'weg':return t.items=t.items.filter(wegOk);
-    case 'beeren':return t.items=t.items.filter(j=>deco[j]===D_BUSCH&&berry[j]);
     case 'einholen':{const a=[];for(let i=0;i<N;i++)if(feat[i]===F_WOOD||feat[i]===F_HAY||feat[i]===F_TRAPFULL)a.push(i);return a}
     case 'flicken':{const a=[];for(let i=0;i<N;i++)if((fkind[i]===FK_H||fkind[i]===FK_V)&&fence[i]<3)a.push(i);return a}
   }return [];
@@ -1178,7 +1450,6 @@ function itemCost(t,it){
     case 'setzlinge':return CFG.cost.setzling;
     case 'loecher':return CFG.cost.loch;
     case 'weg':return CFG.cost.weg;
-    case 'beeren':return CFG.cost.beeren;
   }return 1;
 }
 function singleCost(t){
@@ -1189,6 +1460,7 @@ function singleCost(t){
     case 'roden':return CFG.cost.roden;
     case 'bau':return feat[i]===F_DEN?CFG.cost.fuchsbau:CFG.cost.hasenbau;
     case 'falle':return CFG.cost.falle;
+    case 'beeren':return CFG.cost.beeren;   // nur Nennwert (Gebiet: die Zeit ergibt sich aus Finden, Radius und Wegen)
   }return 1;
 }
 function validTask(t){
@@ -1201,6 +1473,7 @@ function validTask(t){
     case 'roden':return stumpAt[i]>0;
     case 'bau':return feat[i]===F_BURROW||feat[i]===F_DEN;
     case 'falle':return !feat[i]&&trunkAt[i]<0&&lyingAt[i]<0&&walkable(t.x,t.y);
+    case 'beeren':return true;   // Gebiet: gilt, bis es einmal abgearbeitet (oder aufgegeben) ist
   }return false;
 }
 function visibleTask(t){const d=TASKS[t.type];
@@ -1228,6 +1501,7 @@ function taskTitle(t){
     case 'roden':return 'Baumstumpf roden';
     case 'bau':return feat[idx(t.x,t.y)]===F_DEN?'Fuchsbau zuschütten':'Hasenbau zuschütten';
     case 'falle':return 'Falle stellen';
+    case 'beeren':return 'Beeren sammeln (Gebiet)';
   }return t.type;
 }
 function addTask(type,x,y,ref,extra){const t={id:nextId++,type,x,y,ref,who:null,crew:[],done:0,items:[],...(extra||{})};G.tasks.push(t);return t}
@@ -1237,13 +1511,13 @@ function ensureAutoTasks(){for(const k of Object.keys(TASKS))if(TASKS[k].auto)gr
 function markedAt(x,y){const i=idx(x,y),tr=treeAt(i),lg=lyingAt[i];
   return G.tasks.filter(t=>{
     if(TASKS[t.type].auto)return false;
-    if(t.type==='maehen'||t.type==='loecher'||t.type==='beeren'||t.type==='weg')return t.items.includes(i);
+    if(t.type==='maehen'||t.type==='loecher'||t.type==='weg')return t.items.includes(i);
     if(t.type==='setzlinge')return !!tr&&t.items.includes(tr.id);
     if(t.type==='faellen')return !!tr&&t.ref===tr.id;
     if(t.type==='zerlegen')return lg>=0&&t.ref===lg;
     return t.x===x&&t.y===y})}
 function unmark(t,x,y){const i=idx(x,y),tr=treeAt(i);
-  if(t.type==='maehen'||t.type==='loecher'||t.type==='beeren'||t.type==='weg')t.items=t.items.filter(j=>j!==i);
+  if(t.type==='maehen'||t.type==='loecher'||t.type==='weg')t.items=t.items.filter(j=>j!==i);
   else if(t.type==='setzlinge')t.items=t.items.filter(id=>!tr||id!==tr.id);
   else removeTask(t);
   if(TASKS[t.type].group&&!TASKS[t.type].auto&&!t.items.length)removeTask(t)}
@@ -1277,7 +1551,6 @@ function applyItem(t,it){
     case 'setzlinge':{const tr=treeById.get(it);if(tr&&tr.alive){killTree(tr);computeLight()}break}
     case 'loecher':if(feat[it]===F_HOLE)feat[it]=0;break;
     case 'weg':if(wegOk(it))wegLegen(it);break;
-    case 'beeren':if(berry[it]){berry[it]=0;berryT[it]=0;addFood('beeren',CFG.berryPortion)}break;
   }
   if(!TASKS[t.type].auto){t.items=t.items.filter(x=>x!==it);if(!t.items.length)removeTask(t)}
 }
@@ -1310,6 +1583,7 @@ function freezePlans(){G.frozen={};for(const s of staff)G.frozen[s.id]=G.tasks.f
 // Feste Spannen (Hinweg oder Durchführung von füttern/kochen/einsperren) sind nicht unterbrechbar: die Änderung greift danach. Läuft auch im Trockenlauf (dryRun, ab jetzt) auf der Kopie.
 const staffSig=s=>G.tasks.filter(t=>assigned(t,s.id)).map(t=>t.id).join();
 function replanPerson(s){
+  s.folgt=false;   // Weg zeigen endet mit jedem Umplanen (Entlassen, [T], Hoftag-Mittag, Abend: folgeEnde)
   if(G.frozen)G.frozen[s.id]=G.tasks.filter(t=>assigned(t,s.id)).map(t=>t.id);
   const c=s.cur,fest=c&&c.ag;
   if(!fest){
@@ -1334,8 +1608,8 @@ function buildAgenda(s,live,from){
   return ag.sort((a,b)=>a.go-b.go)}
 // ---------------------------------------------------------------- Arbeit wählen
 function pathMinutes(path,minute,who){const cf=costFn(minute,who),mb=CFG.zeit.minBoden;let m=0;for(const i of path){const c=cf(i);m+=c<Infinity?c:mb}return m}
-function nearestFirst(items,pos,tileOf){const rest=items.slice(),out=[];let [x,y]=pos;
-  while(rest.length){let bi=0,bd=1e9;for(let k=0;k<rest.length;k++){const j=tileOf(rest[k]);const d=dist(x,y,j%W,(j/W)|0);if(d<bd){bd=d;bi=k}}
+function nearestFirst(items,pos,tileOf,tie){const rest=items.slice(),out=[];let [x,y]=pos;
+  while(rest.length){let bi=0,bd=1e9;for(let k=0;k<rest.length;k++){const j=tileOf(rest[k]);const d=dist(x,y,j%W,(j/W)|0);if(d<bd||(tie&&d===bd&&j<tileOf(rest[bi]))){bd=d;bi=k}}
     const it=rest.splice(bi,1)[0];out.push(it);const j=tileOf(it);x=j%W;y=(j/W)|0}return out}
 // Das Übliche, wenn nichts Zugeteiltes mehr passt (Reihenfolge = Wichtigkeit bzw. nächstgelegen zuerst)
 function stdItems(s){
@@ -1365,6 +1639,11 @@ function pickWork(s,b){
   for(const t of staffTasks(s,false)){
     const d=TASKS[t.type];if(d.fixed)continue;
     const rate=rateOf(s,t.type);
+    if(d.gebiet){   // Gebietsauftrag: Hinweg zum Fixpunkt; Finden, Radius und Sammeln entscheidet erst gebietTick bei der Ankunft (Licht zur Ankunftsminute)
+      if(!validTask(t)||s.skip.has(key(t,'*'))||(dry&&dry.done.has(key(t,'*'))))continue;
+      const r=route(t.x,t.y);if(!r){fail(t,key(t,'*'));continue}
+      if(now+r.min+CFG.gebiet.minArbeit+back(t.x,t.y)<=b)return{kind:'gebiet',task:t,x:t.x,y:t.y,fx:t.x,fy:t.y,path:r.path,left:0,rate,b};
+      continue}
     if(d.group){
       const its=taskItems(t).filter(it=>itemTile(t,it)>=0&&!G.claimed.has(key(t,it))&&!s.skip.has(key(t,it))&&!(dry&&dry.done.has(key(t,it))));
       for(const it of nearestFirst(its,[sx,sy],it=>itemTile(t,it)).slice(0,3)){
@@ -1387,6 +1666,62 @@ function pickWork(s,b){
   }
   return null;
 }
+// ---------------------------------------------------------------- Gebietsauftrag (Demo B2b, Paket 4)
+// Auftragsart „Gebiet“ (KONZEPT §5.0): markiert wird nur der Fixpunkt (t.x, t.y), dazu die Erwartung t.erw (reife Sträucher im Umkreis CFG.gebiet.rMax beim Markieren). Ablauf (gebietTick; ein Auftrag = ein Gang, einmalig, auch nach Aufgeben):
+// Ankunft → gebietFinden (Weg/Pfad am Fixpunkt, Wegmarke, eigene Kenntnis, Licht zur Ankunftsminute; sonst Suchen auf Zeit oder Aufgeben) → gebietRadius (Licht, Kenntnis) → die Sträucher im Radius nearestFirst (Index als Gleichstand), je Strauch Gehen und Pflücken, solange
+// Hinweg + Arbeit + Rückweg ins Fenster passen. Reine Funktionen des Weltzustands (G.marken, kenn, pfad, light, Wetter), ohne R; der Trockenlauf merkt sich nur in dry.done (Schlüssel „t.id:*“ = Auftrag erledigt, „b<Feld>“ = Strauch gepflückt) und setzt es zurück.
+// Rückmeldung mit Grund (gebietMelde → Gedächtnis der Person, Art „auftrag“, erzählt sie am Sonntag): gepflückt · „zu dunkel“ · „kenne mich nicht aus“ · „kaum noch was“ (gegen t.erw) · Zeit um. Wegmarken G.marken (Weltzustand): Feldnummern, Sonntag per Menü.
+const gebietLicht=(i,minute)=>daylight(minute)*sichtLicht(light[i],laubAt(i));
+const gebietMarke=(x,y,r)=>G.marken.some(m=>dist(m%W,(m/W)|0,x,y)<=r);
+function gebietWeg(x,y,r){for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){if(dx*dx+dy*dy>r*r||!inb(x+dx,y+dy))continue;const j=idx(x+dx,y+dy);if(ground[j]===G_PATH||pfad[j]>0)return true}return false}
+// Findet who den Fixpunkt (x,y) zur Minute? direkt (via weg|marke|kenntnis|licht) · sucht (min Minuten, grund dunkel|fremd = was fehlt mehr) · auf (zu dunkel, nach min Minuten Suchen)
+function gebietFinden(who,x,y,minute){
+  const C=CFG.gebiet,i=idx(x,y),licht=gebietLicht(i,minute),kn=kennOf(who)[i]/KN_MAX;
+  const via=gebietWeg(x,y,C.wegR)?'weg':gebietMarke(x,y,C.markeR)?'marke':kn>=C.findKenn?'kenntnis':licht>=C.findLicht?'licht':null;
+  if(via)return{art:'direkt',min:0,via,licht,kn};
+  if(licht<C.suchLicht)return{art:'auf',min:C.aufMin,grund:'dunkel',licht,kn};
+  return{art:'sucht',min:Math.round(C.suchMin*(1-kn)*Math.min(2,C.findLicht/Math.max(licht,1e-6))),grund:licht/C.findLicht<kn/C.findKenn?'dunkel':'fremd',licht,kn}}
+// Wie weit reicht die Runde um den Fixpunkt? Licht (zur Minute) und eigene Kenntnis dort; lf/kf = die beiden Faktoren (der kleinere ist der Grund, wenn Sträucher außerhalb bleiben)
+function gebietRadius(who,x,y,minute){
+  const C=CFG.gebiet,i=idx(x,y),lf=clamp(gebietLicht(i,minute)/C.lichtVoll,C.lichtMin,1),kf=C.kennMin+(1-C.kennMin)*kennOf(who)[i]/KN_MAX;
+  return{r:Math.max(C.rMin,C.rMax*lf*kf),lf,kf}}
+// reife Sträucher im Kreis r um (x,y), aufsteigend nach Feldnummer
+function gebietBeeren(x,y,r){const o=[],ri=Math.floor(r);
+  for(let dy=-ri;dy<=ri;dy++)for(let dx=-ri;dx<=ri;dx++){if(dx*dx+dy*dy>r*r||!inb(x+dx,y+dy))continue;const j=idx(x+dx,y+dy);if(deco[j]===D_BUSCH&&berry[j])o.push(j)}
+  return o}
+const gebietVorrat=(x,y)=>gebietBeeren(x,y,CFG.gebiet.rMax).length;
+const markGebiet=(type,x,y)=>addTask(type,x,y,null,{erw:gebietVorrat(x,y)});   // Erwartung = was beim Markieren im Umkreis stand
+const beerenSig=t=>{const l=gebietBeeren(t.x,t.y,CFG.gebiet.rMax);return t.id+':'+l.length+':'+l.reduce((a,j)=>a+j,0)};   // Signatur der Beeren im Radius (planKey)
+// Ein Tick am Gebiet. c = s.cur: ph 0 Ankunft, 1 Suchen (such Minuten), 2 nächsten Strauch wählen, 3 pflücken (left), Ende über gebietEnde. Nur Zahlen ändern sich; c.f, c.R und c.liste bleiben unverändert (Tiefenkopie im Trockenlauf „ab jetzt“).
+function gebietTick(s,c){
+  const t=c.task,C=CFG.gebiet;
+  if(!G.tasks.includes(t)||(dry&&dry.done.has(t.id+':*'))){endLeg(s);return}
+  if(!c.ph){c.f=gebietFinden(s,c.fx,c.fy,G.min);c.ph=1;c.such=c.f.min;c.suchGes=c.f.min}   // Ankunft: finden oder suchen
+  if(c.ph===1){
+    if(c.such>0){c.such--;return}
+    const f=c.f,fit=withWayField(()=>G.min+wayBackMinutes(c.fx,c.fy,c.b-CFG.zeit.rueckRef,s)+C.minArbeit<=c.b);
+    if(f.art==='auf'||!fit){gebietEnde(s,c,{n:0,auf:true,grund:f.grund||'dunkel',such:c.suchGes>0});return}
+    const R=gebietRadius(s,c.fx,c.fy,G.min);
+    c.R=R;c.vorrat=gebietVorrat(c.fx,c.fy);c.liste=nearestFirst(gebietBeeren(c.fx,c.fy,R.r),[c.fx,c.fy],j=>j,true);c.imR=c.liste.length;c.k=0;c.n=0;c.ph=2}
+  if(c.ph===3){
+    c.left-=c.rate;
+    if(c.left<=1e-6){const j=c.item;if(berry[j]&&!(dry&&dry.done.has('b'+j))){applyJob(s,{kind:'beere',task:t,item:j});c.n++}c.k++;c.ph=2}}
+  if(c.ph===2){
+    withWayField(()=>{const ref=c.b-CFG.zeit.rueckRef,norm=normOf(CFG.cost.beeren);
+      while(c.k<c.liste.length){const j=c.liste[c.k],x=j%W,y=(j/W)|0;
+        if(!berry[j]||(dry&&dry.done.has('b'+j))){c.k++;continue}   // inzwischen gepflückt
+        const p=findPath(s.x,s.y,x,y,s);if(!p){c.k++;continue}
+        if(G.min+pathMinutes(p,G.min,s)+norm/c.rate+wayBackMinutes(x,y,ref,s)>c.b)break;   // passt nicht mehr: die Runde ist zu Ende
+        c.x=x;c.y=y;c.item=j;c.left=norm;c.ph=3;s.path=p;s.acc=0;s.state=p.length?'walk':'work';if(!p.length)faceTo(s,x,y);return}
+      c.ph=4});
+    if(c.ph===4){const kaum=c.vorrat<=t.erw*C.kaum;
+      gebietEnde(s,c,{n:c.n,such:c.suchGes>0,grund:kaum?'kaum':c.imR<c.vorrat?(c.R.lf<c.R.kf?'dunkel':'fremd'):c.n<c.imR?'zeit':'ok'})}}}
+function gebietEnde(s,c,res){applyJob(s,{kind:'gebiet',task:c.task,res});endLeg(s)}
+// Rückmeldung ins Gedächtnis der Person (nur echt, nie im Trockenlauf): sie erzählt sie am Sonntag; die Feldklasse wird jetzt gemerkt (das Gespräch liest feldKlasse nie)
+function gebietMelde(s,t,res){
+  const f=idx(t.x,t.y),e={k:'auftrag:'+t.id,art:'auftrag',feld:f,woche:G.week,grund:res.grund,n:res.n,kl:feldKlasse(f)};
+  if(res.auf)e.auf=1;if(res.such)e.such=1;
+  knMem[s.id]=knMem[s.id].filter(x=>x.k!==e.k);knMem[s.id].push(e)}
 // ---------------------------------------------------------------- Wirkung
 function applyJob(s,j){
   if(dry){dryApply(s,j);return}
@@ -1396,6 +1731,8 @@ function applyJob(s,j){
     case 'markt':s.away=true;s.awayUntil=G.times.mittag;G.marketOut=true;break;
     case 'kochen':j.task.doneWeek=G.week;cookMeal(s);break;
     case 'item':if(G.tasks.includes(j.task))applyItem(j.task,j.item);break;
+    case 'beere':{const i=j.item;if(berry[i]){berry[i]=0;berryT[i]=0;addFood('beeren',CFG.berryPortion)}break}
+    case 'gebiet':if(G.tasks.includes(j.task)){removeTask(j.task);gebietMelde(s,j.task,j.res)}break;   // einmalig: erledigt, auch nach Aufgeben
     case 'single':{const t=j.task;if(!G.tasks.includes(t))break;if(!validTask(t)){removeTask(t);break}
       if(applySingle(t))removeTask(t);else{if(!s.failed.includes(t))s.failed.push(t);s.skip.add(t.id+':*');t.done=normOf(singleCost(t))-0.01}
       break}
@@ -1479,14 +1816,31 @@ function workTick(s){
     t.done+=c.rate;
     if(t.done>=normOf(singleCost(t))-1e-6){applyJob(s,c);endLeg(s)}
     else if(G.min+1>=c.stop)endLeg(s);   // Zeit um, Rückweg: der Fortschritt bleibt am Objekt
+  } else if(c.kind==='gebiet'){gebietTick(s,c)
   } else if(c.kind==='item'||c.kind==='routine'){
     if(c.kind==='item'&&!G.tasks.includes(t)){endLeg(s);return}
     c.left-=c.rate;if(c.left<=1e-6){applyJob(s,c);endLeg(s)}
   } else {c.left-=1;if(c.left<=0){applyJob(s,c);c.ag.done=true;endLeg(s)}}
 }
+// Weg zeigen (Demo B2b, Paket 5; Gate-Auflagen 19, 20): In der Werkwoche (G.phase 'tag') spricht der Verwalter eine Person an: „Weg zeigen“ – sie folgt ihm (s.folgt), bis er sie entlässt (gleiche Option) oder der Tag es beendet:
+// Heimgehen [T], Hoftag-Mittag, Abend. Bewegung nur in personTick (folgenTick, Ticks; sie geht nach ihrer eigenen Kostenkarte), ihr Plan ruht; jedes Ende ist replanPerson (Agenda neu ab Ort und Uhrzeit wie beim Umplanen).
+// Nicht startbar während einer festen Spanne (s.cur.ag). Die Felder ihrer Route landen mit Pufferbit 8 im Wochenpuffer (knNote) und heben ihre Kenntnis erst ab der nächsten Woche stark (knWeek, CFG.kenntnis.gezeigt). Weltzustand: s.folgt (staff im Fingerabdruck), im Trockenlauf DRY_FIELDS.
+const folgeKann=s=>G.phase==='tag'&&s.available&&!s.away&&!s.folgt&&!(s.cur&&s.cur.ag);
+function folgenStart(s){
+  const c=s.cur;if(c&&c.kind==='item')G.claimed.delete(c.task.id+':'+c.item);   // wie replanPerson: laufender Auftrag endet (Objekt: Fortschritt bleibt, Sammelposten: Claim frei, Gebiet beginnt später neu)
+  s.cur=null;s.path=[];s.acc=0;s.state='rest';s.wait=0;s.folgt=true}
+function folgeEnde(s){if(s.folgt)withWayField(()=>replanPerson(s))}
+function folgeAlle(){for(const s of staff)folgeEnde(s)}
+// Ein Tick: weiter als folgAbstand (Manhattan) vom Verwalter (P.x/P.y, die Schrittstelle): Weg zu seinem Feld suchen (neu nur, wenn er sich vom Wegende entfernt hat) und gehen; sonst stehen und ihn ansehen
+function folgenTick(s){
+  if(Math.abs(s.x-P.x)+Math.abs(s.y-P.y)<=CFG.kenntnis.folgAbstand){s.path=[];s.acc=0;s.state='rest';faceTo(s,P.x,P.y);return}
+  const e=s.path.length?s.path[s.path.length-1]:-1;
+  if(e<0||dist(e%W,(e/W)|0,P.x,P.y)>1){const p=findPath(s.x,s.y,P.x,P.y,s);if(!p||!p.length){s.path=[];s.acc=0;s.state='rest';return}s.path=p}
+  s.state='walk';followPath(s)}
 function personTick(s){
   if(!s.available)return;
   if(s.away){if(G.min>=s.awayUntil)marketReturn();return}
+  if(s.folgt){folgenTick(s);if(!dry)knNote(s);return}   // Weg zeigen: nur hier (Tick-Hoheit) folgt die Person dem Verwalter
   if(s.state==='walk'){if(followPath(s))arrive(s)}
   else if(s.state==='work')workTick(s);
   if(!dry)knNote(s);   // Ortskenntnis: nur Wochenpuffer, nie im Trockenlauf
@@ -1495,7 +1849,7 @@ function personTick(s){
 // ---------------------------------------------------------------- Der Tag
 // Wochenablauf: Sonntag (Inspektion, G.phase 'sonntag') → Sonntagabend (Planen, 'plan') → Werkwoche (Appell, Tag, Mittag, Abend) → Nacht (weekStep) → nächste Woche.
 // Am Sonntag steht die Uhr: sie rückt nur durch Handlungen des Spielers vor (Gehen nach der Kostenkarte, Untersuchen, Reden … – sundayAdvance); mit dem Sonnenuntergang endet
-// der Sonntag (endSunday: Heimweg automatisch, Montag ohne Kraft). Das Personal tickt nur in der Werkwoche; am Sonntag steht es daheim.
+// der Sonntag (endSunday: Heimweg automatisch, Montag ohne Kraft). Das Personal tickt nur in der Werkwoche; am Sonntag steht es an seinem Sonntagsort (sonntagsorte, nur Position) und erzählt im Gespräch.
 // Sonntagsbeginn (reine Funktion): Sonnenaufgang, aber frühestens schlafMin nach dem Einschlafen (sleepMin = Minute seit Mitternacht des Werktags, auch über 1440); ohne Schlaf (Woche 1) Sonnenaufgang
 function sundayStart(auf,sleepMin){return sleepMin==null?auf:Math.max(auf,sleepMin+CFG.zeit.schlafMin-1440)}
 // Einzige Stelle, die den Schlafzustand setzt (Weltzustand): alle Wege in die Nacht laufen über nextWeek; startWeek liest ihn und setzt ihn zurück
@@ -1508,10 +1862,12 @@ function startWeek(first,quiet){
   G.kraft=CFG.kraft;G.enjoyed=false;G.coopClosed=false;
   G.hensFoodOk=!G.hensInside&&G.grazedOk;G.hayShort=false;G.marketOut=false;G.goodMeal=false;G.ateWithStaff=false;G.cooked=false;
   G.tasks=G.tasks.filter(validTask);ensureAutoTasks();
-  staff.forEach(s=>{s.weak=!!s.weakNext;s.weakNext=false;s.away=false;s.available=staffAvail(s,G.week,s.weak);s.cur=null;s.path=[];s.state='rest';s.failed=[];s.agenda=[];s.wait=0;s.acc=0;s.skip=new Set();
+  knWiss.length=0;knNeu.clear();G.zSag={};   // Wissensliste und „ist neu“ gelten für die Woche; Zeichen dürfen wieder gemeldet werden
+  staff.forEach(s=>{s.weak=!!s.weakNext;s.weakNext=false;s.away=false;s.available=staffAvail(s,G.week,s.weak);s.cur=null;s.path=[];s.state='rest';s.failed=[];s.agenda=[];s.wait=0;s.acc=0;s.skip=new Set();s.folgt=false;
     s.x=s.home[0];s.y=s.home[1];s.px=s.x;s.py=s.y;s.dir='down'});
   spawnCritters();computeLight();tickAcc=0;
   if(sp){P.x=P.nx=sp[0];P.y=P.ny=sp[1];P.px=P.x;P.py=P.y;P.dir='down';P.moving=false}   // der Verwalter wacht dort auf, wo er eingeschlafen ist (Hof oder unterwegs)
+  sonntagsorte();   // Sonntagsorte: nur Position (Gate-Auflage 11), nach dem Verwalter, damit niemand auf ihm steht
   if(quiet)return;
   if(!sp){P.x=P.nx=PLAYER_LINE[0];P.y=P.ny=PLAYER_LINE[1];P.px=P.x;P.py=P.y;P.dir='up';P.moving=false}   // Woche 1: Ankunft auf dem Hof
   showMorning(first);
@@ -1546,7 +1902,7 @@ function startWorkday(quiet){
   G.phase='appell';G.state='play';G.kraft=G.exhausted?0:G.kraft;G.exhausted=false;G.enjoyed=false;G.min=G.times.start;G.frozen=null;G.claimed=new Set();
   G.goodMeal=!!G.bonusNext;G.bonusNext=false;   // gute Küche vom Waldtag-Abend wirkt bis zum Mittag (noonOutside)
   G.tasks=G.tasks.filter(validTask);ensureAutoTasks();
-  staff.forEach((s,k)=>{s.x=LINE[k][0];s.y=LINE[k][1];s.px=s.x;s.py=s.y;s.dir='down';s.cur=null;s.path=[];s.state='rest';s.agenda=[];s.wait=0;s.acc=0;s.skip=new Set();s.failed=[]});
+  staff.forEach((s,k)=>{s.x=LINE[k][0];s.y=LINE[k][1];s.px=s.x;s.py=s.y;s.dir='down';s.cur=null;s.path=[];s.state='rest';s.agenda=[];s.wait=0;s.acc=0;s.skip=new Set();s.failed=[];s.folgt=false});
   tickAcc=0;
   if(quiet){beginDay();return}
   P.x=P.nx=PLAYER_LINE[0];P.y=P.ny=PLAYER_LINE[1];P.px=P.x;P.py=P.y;P.dir='up';P.moving=false;
@@ -1565,7 +1921,7 @@ function marketReturn(){
   const note=`${l.name} ist vom Markt zurück: ${sell} Eier verkauft, ${bought} Laib Brot gekauft, ${G.taler} Taler in der Kasse.`;log(note);if(G.state==='play'&&!ffMode)toast(note,5000);
 }
 function lunchStart(){
-  G.phase='mittag';if(!G.cooked)coldMeal();   // wer kocht, hat bis jetzt gekocht (cookMeal setzt G.cooked); sonst kalte Brotzeit
+  G.phase='mittag';folgeAlle();if(!G.cooked)coldMeal();   // Weg zeigen endet (folgeEnde);  wer kocht, hat bis jetzt gekocht (cookMeal setzt G.cooked); sonst kalte Brotzeit
   if(!ffMode&&G.state==='play')toast('Mittagspause. Wer am Nachmittag etwas anderes tun soll, den sprichst du an: „Umplanen“.',4200)}
 function lunchEnd(){
   G.phase='tag';G.claimed=new Set();   // G.frozen bleibt: in der Werkwoche ändert nur Umplanen (replanPerson) den Plan einer Person
@@ -1581,6 +1937,7 @@ function endOfDay(){
 function dayEvents(){
   const T=G.times;
   if(G.phase==='tag'){
+    if(G.min>=T.ende)folgeAlle();   // Abend: Weg zeigen endet
     if(G.dayType!=='wald'&&G.min===T.mittag)lunchStart();
     else if(G.dayType==='wald'&&G.min===T.mittag)noonOutside();
     else if(G.min>=T.ende&&(G.min>=T.spaet||staff.every(s=>!s.available||(!s.away&&s.state==='rest'))))endOfDay();   // Abendgrenze und alle daheim, sonst harte Spätgrenze
@@ -1600,6 +1957,7 @@ function advanceDay(dt){
 // Kern von Heimgehen [T] (früher „Tag beenden“): dieselben Ticks wie im Spiel, ohne Darstellung, bis der Abend beginnt (Ergebnis = sichtbares Durchspielen)
 function finishDayTicks(){
   if(G.phase==='appell')beginDay();
+  folgeAlle();   // [T] beendet das Weg zeigen (wie Entlassen jetzt)
   ffMode=true;try{for(let n=0;(G.phase==='tag'||G.phase==='mittag')&&n<4000;n++)dayTick()}finally{ffMode=false}
   tickAcc=0;
 }
@@ -1678,15 +2036,16 @@ function updateStaff(dt){
 // Personen stehen in der Reihe, Fortschritt (t.done), Posten, Claims und Agenden sind virtuell, applyJob wirkt nicht auf die Welt (dryApply), danach wird alles
 // zurückgesetzt. Bei unveränderter Welt ist die Vorhersage damit das Ergebnis des Tages. Planung ab `from`: T.start (ganzer Tag, nach dem Appell oder abends als
 // „morgen früh“) bzw. T.wiederAb (Hoftag, Nachmittag). Das Ergebnis wird zwischengespeichert, solange sich Zuteilung, Tageszustand und Welt-Stand nicht ändern.
-// Ergebnis: plans[id] = [{from,to,kind:'fest'|'work'|'std'|'heim'|'pause'|'frei',task,label,walk?}], finish: Aufgaben-ID → {end: Minute, left: Restarbeit in Normminuten},
+// Ergebnis: plans[id] = [{from,to,kind:'fest'|'work'|'std'|'heim'|'folgt'|'pause'|'frei',task,label,walk?}], finish: Aufgaben-ID → {end: Minute, left: Restarbeit in Normminuten},
 // home[id] = voraussichtliche Heimkehr, warn = Warnungen (Abendarbeit fällt aus, Heimkehr nach Einbruch der Dunkelheit)
 const mealGood=()=>cooksToday(true)&&defaultMeal().filter(k=>G.food[k]>0).length>=2;   // gute Küche: wer kocht, hat mindestens zwei Zutaten
 // Der Kartenstand (kartWo/kartKl) gehört bewusst NICHT in den Schlüssel: „ca.“/„?“ liest ihn beim Rendern (segUnsure) aus Route und Ziel im Ergebnis, das Ergebnis selbst bleibt vom Kartenwissen unabhängig.
 function planKey(from,jetzt){
   const rp=jetzt&&book.replan?book.replan+':'+book.replanSig+':'+staffSig(S(book.replan)):'';
   return [from,jetzt,rp,JSON.stringify(G.frozen),G.week,G.phase,G.min,G.dayType,G.times.start,G.marketOut,G.cooked,G.goodMeal,G.bonusNext,JSON.stringify(G.food),
-    staff.map(s=>s.available+':'+s.weakNext).join(),
-    G.tasks.map(t=>[t.id,t.type,(t.crew||[]).join('+'),t.who,t.done,t.items?t.items.length:'',t.doneWeek].join('/')).join(';')].join('|')}
+    staff.map(s=>s.available+':'+s.weakNext+':'+!!s.folgt).join(),staff.some(s=>s.folgt)?P.x+','+P.y:'',   // Weg zeigen: wer folgt und wohin (der Verwalter steht im Trockenlauf still)
+    G.tasks.map(t=>[t.id,t.type,(t.crew||[]).join('+'),t.who,t.done,t.items?t.items.length:'',t.doneWeek].join('/')).join(';'),
+    G.marken.join(),G.tasks.filter(t=>TASKS[t.type].gebiet).map(beerenSig).join()].join('|')}   // Wegmarken und je Gebiet die Beeren im Radius (Auflage 17): beides ändert Finden und Ertrag
 // jetzt (nur Werkwoche tagsüber): „ab jetzt“ vom Ist-Zustand aller Personen (Tafel in der Werkwoche, Umplanen), sonst Tagesbeginn bzw. Nachmittag wie bisher
 function planAll(from,live,fresh,jetzt){
   jetzt=!!jetzt&&(G.phase==='tag'||G.phase==='mittag');
@@ -1697,6 +2056,8 @@ function planAll(from,live,fresh,jetzt){
 function dryApply(s,j){
   switch(j.kind){
     case 'item':dry.done.add(j.task.id+':'+j.item);break;
+    case 'beere':dry.done.add('b'+j.item);break;
+    case 'gebiet':dry.done.add(j.task.id+':*');break;
     case 'single':j.task.done=normOf(singleCost(j.task));break;
     case 'routine':s.skip.add('s:'+j.name+j.x+','+j.y);break;
     case 'markt':s.away=true;s.awayUntil=G.times.mittag;dry.markt.set(s.id,j.task);break;
@@ -1704,7 +2065,7 @@ function dryApply(s,j){
     case 'kochen':dry.cooked=true;if(G.dayType!=='wald')G.goodMeal=mealGood();j.task.doneWeek=G.week;break;   // Waldtag: gute Küche wirkt erst am nächsten Morgen (bonusNext)
   }
 }
-const DRY_FIELDS=['x','y','dir','state','cur','path','acc','wait','away','awayUntil','skip','failed','agenda','available','weak'];
+const DRY_FIELDS=['x','y','dir','state','cur','path','acc','wait','away','awayUntil','skip','failed','agenda','available','weak','folgt'];
 // Betriebsart „ab jetzt“ (jetzt): alle Personen vom Ist-Zustand (Tiefenkopie von cur/path/agenda/skip/failed, G.claimed und G.frozen als Kopie, G.phase bleibt tag/mittag);
 // ist ein Umplanen offen und hat sich der Plan der Person geändert, bekommt nur sie replanPerson – genau das, was beim Schließen der Tafel wirklich geschieht.
 function dryRun(from,jetzt){
@@ -1722,15 +2083,16 @@ function dryRun(from,jetzt){
     const p=r.segs[r.segs.length-1];
     if(p&&p.task===g.task&&p.kind===g.kind&&(g.kind==='work'||g.kind==='std')&&g.from-p.to<=1){p.to=g.to;p.walk+=g.walk;if(g.rt)p.rt=(p.rt||[]).concat(g.rt);if(g.zt)p.zt=(p.zt||[]).concat(g.zt)}else r.segs.push(g)};
   const observe=(s,r,m)=>{
-    const c=s.cur,act=s.away?'markt':c||(s.state==='walk'?'heim':null);
+    const c=s.cur,act=s.away?'markt':s.folgt?'folgt':c||(s.state==='walk'?'heim':null);
     if(act!==r.act){close(r,m);r.act=act;
       if(act==='markt')r.seg={from:m,kind:'fest',task:dry.markt.get(s.id)||null,label:'unterwegs zum Markt',walk:0};
       else if(act==='heim')r.seg={from:m,kind:'heim',task:null,label:'Heimweg',walk:0};
+      else if(act==='folgt')r.seg={from:m,kind:'folgt',task:null,label:'geht mit dem Verwalter',walk:0};
       else if(act&&act.ag)r.seg={from:m,kind:'fest',task:act.task,label:taskTitle(act.task),walk:0};
       else if(act&&act.kind==='routine')r.seg={from:m,kind:'std',task:null,label:stdLabel(s),walk:0};
       else if(act)r.seg={from:m,kind:'work',task:act.task,label:taskTitle(act.task),walk:0}}
-    if(r.seg&&r.seg.kind!=='heim'&&s.state==='walk'&&!s.away)r.seg.walk++;
-    if(r.seg&&!s.away){   // Route (gegangene Felder) und Ziel (Arbeitsort) je Segment für „ca./?“ der Tafel: nur Feldnummern, kein Weltzugriff
+    if(r.seg&&r.seg.kind!=='heim'&&r.seg.kind!=='folgt'&&s.state==='walk'&&!s.away)r.seg.walk++;
+    if(r.seg&&!s.away&&r.seg.kind!=='folgt'){   // Route (gegangene Felder) und Ziel (Arbeitsort) je Segment für „ca./?“ der Tafel: nur Feldnummern, kein Weltzugriff
       if(s.state==='walk'){const q=r.seg.rt||(r.seg.rt=[]),k=idx(Math.round(s.x),Math.round(s.y));if(q[q.length-1]!==k)q.push(k)}
       else if(s.state==='work'&&s.cur&&s.cur.x!==undefined){const q=r.seg.zt||(r.seg.zt=[]),k=idx(s.cur.x,s.cur.y);if(q[q.length-1]!==k)q.push(k)}}};
   try{
@@ -1744,18 +2106,19 @@ function dryRun(from,jetzt){
     } else {
       G.frozen=null;G.claimed=new Set();G.phase='tag';G.min=from;
       G.goodMeal=from>T.start?(G.cooked?keep.goodMeal:mealGood()):(tomorrow||keep.phase==='sonntag'||keep.phase==='plan'?!!G.bonusNext:keep.goodMeal);   // Tagesbeginn: gute Küche vom Waldtag-Abend (bonusNext)
-      for(const s of live){const [x,y]=lineSpot(s);s.x=x;s.y=y;s.dir='down';s.state='rest';s.cur=null;s.path=[];s.acc=0;s.wait=0;s.away=false;s.skip=new Set();s.failed=[];s.agenda=buildAgenda(s,false,from)}
+      for(const s of live){const [x,y]=lineSpot(s);s.x=x;s.y=y;s.dir='down';s.state='rest';s.cur=null;s.path=[];s.acc=0;s.wait=0;s.away=false;s.folgt=false;s.skip=new Set();s.failed=[];s.agenda=buildAgenda(s,false,from)}
     }
     for(let n=0;n<2500;n++){
       if(G.phase==='abend'&&(G.min>=T.dunkel||live.every(s=>s.away||s.state==='rest')))break;
       const m=G.min;
       for(const s of live){
         if(s.away&&m>=s.awayUntil){s.away=false;s.x=ESTATE.gx;s.y=H-2;s.cur=null;s.path=[];s.acc=0;s.state='rest';s.wait=0}   // wie marketReturn, ohne Wirkung auf die Welt
-        const c=s.cur;if(s.state==='work'&&c&&c.task&&(c.kind==='single'||c.kind==='item'))lastWork.set(c.task.id,m+1);
+        const c=s.cur;if(s.state==='work'&&c&&c.task&&(c.kind==='single'||c.kind==='item'||c.kind==='gebiet'))lastWork.set(c.task.id,m+1);
         personTick(s);observe(s,rec.get(s.id),m)}
       G.min++;
       if(G.phase==='tag'){
-        if(hof&&G.min===T.mittag){G.phase='mittag';if(!G.cooked&&!dry.cooked)G.goodMeal=false}   // wie lunchStart: wer nicht gekocht hat, bringt kalte Brotzeit
+        if(G.min>=T.ende)folgeAlle();   // wie dayEvents: Weg zeigen endet am Abend
+        if(hof&&G.min===T.mittag){G.phase='mittag';folgeAlle();if(!G.cooked&&!dry.cooked)G.goodMeal=false}   // wie lunchStart: wer nicht gekocht hat, bringt kalte Brotzeit
         else if(!hof&&G.min===T.mittag)G.goodMeal=false;   // wie noonOutside: die Brotzeit draußen beendet den Bonus vom Vorabend
         else if(G.min>=T.ende&&(G.min>=T.spaet||live.every(s=>s.away||s.state==='rest'))){   // wie endOfDay
           harvest(true);G.phase='abend';G.frozen=null;
@@ -1769,6 +2132,7 @@ function dryRun(from,jetzt){
     for(const t of G.tasks){const d=TASKS[t.type];if(d.fixed||!lastWork.has(t.id))continue;
       let left=0;
       if(d.group){for(const it of taskItems(t))if(!dry.done.has(t.id+':'+it))left+=normOf(itemCost(t,it))}
+      else if(d.gebiet)left=dry.done.has(t.id+':*')?0:normOf(singleCost(t));
       else left=Math.max(0,normOf(singleCost(t))-t.done);
       finish.set(t.id,{end:lastWork.get(t.id),left})}
     for(const s of staff){
@@ -1845,6 +2209,16 @@ function markGroupOpt(type,item){return{min:CFG.zeit.sonntag.markieren,label:`Ma
   SFX.peg();toast(`Notiert unter „${TASKS[type].label}“ (${taskItems(t).length} ${TASKS[type].unit}).`);if(type==='maehen')guide('mow')}}}
 function markSingleOpt(type,x,y,ref){return{min:CFG.zeit.sonntag.markieren,label:`Markieren: ${type==='bau'?(feat[idx(x,y)]===F_DEN?'Fuchsbau zuschütten':'Hasenbau zuschütten'):TASKS[type].label}`,fn(){
   const t=addTask(type,x,y,ref);SFX.peg();toast(`Notiert: ${taskTitle(t)} – ${where(x,y)}. Zuteilen am Sonntag im Notizbuch [N] – in der Werkwoche: Person ansprechen, „Umplanen“.`,4000);if(type==='faellen')guide('mark_tree')}}}
+// Gebietsauftrag markieren: nur der Fixpunkt (die Stelle, vor der der Verwalter steht); das Gebiet selbst ist nicht markiert
+function gebietOpt(type,x,y){return{min:CFG.zeit.sonntag.markieren,label:`Markieren: ${TASKS[type].label} (Gebiet um diese Stelle)`,fn(){
+  const n=gebietVorrat(x,y),t=markGebiet(type,x,y);SFX.peg();
+  toast(`Notiert: ${taskTitle(t)} – ${where(x,y)}. ${n?`In der Nähe siehst du ${mengeWort(n,'einen Strauch','ein paar Sträucher','viele Sträucher')} mit reifen Beeren.`:'In der Nähe siehst du keine reifen Beeren.'} Zuteilen am Sonntag im Notizbuch [N].`,4600)}}}
+// Wegmarke (Sonntag, Menü; kostet CFG.zeit.sonntag.wegmarke Minuten): ein Pflock am Feld, an dem das Personal einen Gebietsauftrag leichter findet
+function wegmarkeOpt(x,y){const i=idx(x,y);
+  if(G.marken.includes(i))return{min:CFG.zeit.sonntag.markieren,label:'Wegmarke entfernen',fn(){G.marken=G.marken.filter(m=>m!==i);toast('Die Wegmarke ist abgebaut.')}};
+  return{min:CFG.zeit.sonntag.wegmarke,label:'Wegmarke setzen (kostet Zeit)',fn(){
+    if(G.marken.length>=CFG.gebiet.markenMax){actSpent=true;toast('Du hast keine Pflöcke mehr für weitere Wegmarken.');return}
+    G.marken.push(i);SFX.peg();toast('Wegmarke gesetzt: Wer hierher soll, findet die Stelle leichter.')}}}
 // „Weg anlegen“ (Flächenaufgabe, Menü für Tastatur und Touch): ein Feld markieren, auf einem Trampelpfad den zusammenhängenden Pfad zum Weg ausbauen
 function wegOpts(O,marked,x,y){const i=idx(x,y);if(marked.some(t=>t.type==='weg'))return;
   if(pfad[i]>0){const area=pfadArea(x,y,40);O.push({min:CFG.zeit.sonntag.markieren,label:`Markieren: Pfad zum Weg ausbauen (${area.length} Felder)`,fn(){const t=groupTask('weg');for(const j of area)if(!t.items.includes(j))t.items.push(j);SFX.peg();
@@ -1853,11 +2227,14 @@ function wegOpts(O,marked,x,y){const i=idx(x,y);if(marked.some(t=>t.type==='weg'
 function enjoyOpt(label){return{label:G.enjoyed?`${label} (heute schon genossen)`:`${label} (+${CFG.enjoyBonus} Kraft)`,fn:enjoy}}
 function buildOptions(sub,x,y){
   const i=idx(x,y),O=[];let title='';
-  const ex=(t,ins)=>O.push({label:'Untersuchen',min:CFG.zeit.sonntag.untersuchen,fn(){toast(t,5200);learn(ins);guide('examine')}});
+  const ex=(t,ins)=>O.push({label:'Untersuchen',min:CFG.zeit.sonntag.untersuchen,fn(){toast(t+untersuche(i),5200);learn(ins);guide('examine')}});
   const marked=markedAt(x,y);
   switch(sub.kind){
     case 'npc':{const s=sub.s;title=`${s.name}, ${s.role}`;O.push({label:'Reden',min:CFG.zeit.sonntag.reden,fn(){talk(s)}});
+      if(s.fig.mitteil==='nachfrage'&&G.phase==='sonntag')O.push({label:'Nachfragen: Was ist dir aufgefallen?',min:CFG.zeit.sonntag.reden,fn(){nachfragen(s)}});
       if(s.state==='work')O.push({label:'Mit anpacken (1 Kraft)',work:true,fn(){selfAct(1,()=>help(s),'Ihr packt gemeinsam an.')}});
+      if(G.phase==='tag')O.push(s.folgt?{label:'Entlassen (geht wieder an die Arbeit)',min:0,fn(){folgeEnde(s);toast(`${s.name} geht wieder an die Arbeit.`)}}
+        :{label:'Weg zeigen (geht mit dir)',min:0,fn(){if(!folgeKann(s)){toast(`${s.name} hat gerade eine feste Aufgabe und kann nicht mitkommen.`);return}folgenStart(s);toast(`${s.name} geht mit dir. Zum Entlassen noch einmal ansprechen.`,4200)}});
       if(G.phase==='tag'||G.phase==='mittag')O.push({label:'Umplanen (nur '+s.name+', ab jetzt)',min:0,fn(){openReplan(s)}});break}
     case 'bau':{const b=sub.b;
       if(b.id==='gesinde'){title='Gesindehaus';
@@ -1916,7 +2293,7 @@ function buildOptions(sub,x,y){
     case 'deko':{const d=sub.d;
       if(d===D_BUSCH){title='Brombeerbusch';ex(berry[i]?'Ein Brombeerbusch voller reifer Beeren.':'Ein Brombeerbusch – abgeerntet, nächste Woche trägt er wieder.',null);
         if(berry[i]){O.push({work:true,label:`Selbst Beeren pflücken (1 Kraft, +${CFG.berryPortion} Portionen)`,fn(){selfAct(1,()=>{berry[i]=0;berryT[i]=0;addFood('beeren',CFG.berryPortion);SFX.pick()},'Eine Handvoll Brombeeren.')}});
-          if(!marked.length)O.push(markGroupOpt('beeren',i))}
+          }
         break}
       title={[D_FARN]:'Farn',[D_FARN2]:'Farn',[D_BUSCH]:'Busch',[D_PILZE]:'Pilze',[D_BLUMEN]:'Blumen',[D_STEIN]:'Stein',[D_MOOS]:'Moospolster',[D_LAUB]:'Laub'}[d];
       ex({[D_FARN]:'Farne lieben den Halbschatten.',[D_FARN2]:'Farne lieben den Halbschatten.',[D_BUSCH]:'Ein Brombeerbusch.',[D_PILZE]:'Pilze am morschen Holz.',[D_BLUMEN]:'Wiesenblumen im Licht.',[D_STEIN]:'Ein bemooster Stein.',[D_MOOS]:'Weiches Moos – hier ist es dunkel.',[D_LAUB]:'Altes Laub.'}[d],d===D_MOOS?'moos':d===D_PILZE?'totholz':null);wegOpts(O,marked,x,y);break}
@@ -1926,6 +2303,9 @@ function buildOptions(sub,x,y){
         if(!marked.length)O.push(markSingleOpt('falle',x,y))}
       wegOpts(O,marked,x,y)}
   }
+  if(['boden','gras','deko','spur'].includes(sub.kind)&&walkable(x,y)&&!inGut(x,y)){   // Gebietsauftrag und Wegmarke: Menü (Tastatur und Touch)
+    if(!marked.some(t=>t.type==='beeren'))O.push(gebietOpt('beeren',x,y));
+    if(G.phase==='sonntag')O.push(wegmarkeOpt(x,y))}
   for(const t of marked)O.push({min:CFG.zeit.sonntag.markieren,label:`Markierung entfernen: ${TASKS[t.type].label}`,fn(){unmark(t,x,y);toast('Markierung entfernt.')}});
   return{title,opts:O};
 }
@@ -1943,10 +2323,10 @@ function help(s){
   const c=s.cur;if(!c||s.state!=='work')return;
   const n=normOf(2);   // wie bisher 2 Arbeitspunkte
   if(c.kind==='single')c.task.done+=n;
-  else if(c.kind==='item'||c.kind==='routine')c.left-=n;
+  else if(c.kind==='item'||c.kind==='routine'||c.kind==='gebiet')c.left-=n;
   else c.left-=n*100/capOf(s);   // feste Spannen laufen in Minuten
 }
-const ENJOY=['Ein Specht klopft irgendwo im Wald. Die Sonne wärmt dein Gesicht.','Libellen tanzen über dem Wasser. Du atmest tief durch.',
+const ENJOY=['Irgendwo im Wald ruft ein Kuckuck. Die Sonne wärmt dein Gesicht.','Libellen tanzen über dem Wasser. Du atmest tief durch.',
   'Der Wind rauscht in den Kronen. Für einen Moment ist alles still in dir.','Ein Reh tritt am Waldrand hervor, äugt und verschwindet wieder.',
   'Die Blätter werfen tanzende Lichtflecken. Du schließt kurz die Augen.'];
 function enjoy(){
@@ -1956,7 +2336,7 @@ function enjoy(){
   actSpent=true;sundayAdvance(CFG.zeit.sonntag.genuss);
 }
 function doingText(s){const c=s.cur;if(!c)return null;
-  if(c.kind==='single'||c.kind==='item')return TASKS[c.task.type].label.toLowerCase();
+  if(c.kind==='single'||c.kind==='item'||c.kind==='gebiet')return TASKS[c.task.type].label.toLowerCase();
   return{fuettern:'die Hennen füttern',einsperren:'den Stall zusperren',kochen:'das Mittagessen kochen'}[c.kind]||{einholen:'einholen, was am Hof liegt',zerlegen:'den Stamm am Hof zerlegen',loch:'Löcher im Rasen zuschütten',setzling:'Unkraut im Garten ziehen',rasen:'den Rasen mähen'}[c.name]||'beschäftigt'}
 function talk(s){
   if(s.id==='hannes')guide('talk_hannes');
@@ -1973,6 +2353,7 @@ function talk(s){
   const doing=doingText(s);let line;
   if(G.phase==='sonntag'||G.phase==='plan')line=G.phase==='plan'?'„Gleich ist Feierabend. Schreiben Sie auf, was wir am Montag tun sollen.“':'„Sonntag, Herr Verwalter. Wir haben frei.“';
   else if(G.phase==='mittag')line='„Brotzeit, Herr Verwalter.“';
+  else if(s.folgt)line='„Ich geh mit Ihnen, Herr Verwalter – zeigen Sie mir den Weg.“';
   else if(doing)line=`„Bin grad dran: ${doing}.“`;
   else if(s.away)line='';
   else if(G.phase==='tag'&&s.state==='rest')line='„Im Moment hab ich nichts mehr zu tun – ich halte mich bereit.“';
@@ -1981,12 +2362,14 @@ function talk(s){
   if(s.id==='liese'&&G.gardenBacklog>0)line+=' „Der Garten wächst mir über den Kopf.“';
   const vor=s.id==='hannes'&&(G.phase==='sonntag'||G.phase==='plan')&&G.wetter&&CFG.wetter&&line.endsWith('“');   // Sonntag: Hannes' Vorhersage für die kommende Werkwoche
   if(vor)line=line.slice(0,-1)+' '+wetterKnie(G.week)+'“';
-  toast(`${s.name}: ${line}`,vor?8000:4500);
+  const w=G.phase==='sonntag'?erzaehlWahl(s,false):null;   // Sonntag am Sonntagsort: was die Person aus der Woche erzählt (Figur: rollen.js)
+  if(w&&w.list){showCard(erzaehlen(s,w.list,line),'[Leertaste] weiter');return}
+  toast(`${s.name}: ${line}${w&&w.brummt?` „${w.brummt}“`:''}`,vor?8000:4500);
 }
 
 // ================================================================ Leitfaden (erste Tage)
 const GUIDE={   // je Woche
-  1:[['talk_hannes','Sprich mit Hannes vor dem Gesindehaus'],['examine','Untersuche etwas (Leertaste → Untersuchen)'],['mow','Markiere die Wiese vor dem Hoftor zum Mähen'],['assign','Teile Hannes im Notizbuch [N] das Mähen zu'],['sleep','Schließe am Sonntagabend die Planung ab (Notizbuch schließen)'],['watch','Sieh Hannes in der Werkwoche bei der Arbeit zu']],
+  1:[['talk_hannes','Sprich mit Hannes (Sonntag am Bach, südlich vom Hof)'],['examine','Untersuche etwas (Leertaste → Untersuchen)'],['mow','Markiere die Wiese vor dem Hoftor zum Mähen'],['assign','Teile Hannes im Notizbuch [N] das Mähen zu'],['sleep','Schließe am Sonntagabend die Planung ab (Notizbuch schließen)'],['watch','Sieh Hannes in der Werkwoche bei der Arbeit zu']],
   2:[['talk_jost','Begrüße Jost, den Holzfäller'],['mark_tree','Markiere einen Baum zum Fällen und teile ihn Jost zu'],['fence_self','Flicke die Zaunlücke im Süden selbst'],['examine_burrow','Untersuche einen Hasenbau auf einer Waldwiese']],
   3:[['examine_moss','Untersuche Moos im dunklen Wald']]
 };
@@ -2005,6 +2388,7 @@ const LETTERS={
       holz:'Bedenken Sie: Ein Wald ist kein Dickicht. Der Händler will Stämme sehen, keine Gestrüppwüste.'},
   12:{all:'Morgen früh kehre ich zurück. Ich hoffe, ich finde alles so vor, wie ich es mir wünsche.'}
 };
+// Morgenkarte (Demo B2b, Paket 2): nur Meldungen vom Hof (Hennen, Zaun, Vorräte, Garten, Briefe, Frost); was im Wald aufgefallen ist, erzählen die Leute am Sonntagsort (erzaehlen)
 function reports(){
   const n=G.night,st=stats(),prev=G.hist[G.hist.length-2]||st,ld=G.lastDay||{failed:[]},out=[];
   let g;
@@ -2022,17 +2406,14 @@ function reports(){
   else if(n.fenceDug>2)h='Am Zaun wird gegraben, Herr Verwalter.';
   else if(n.trapped)h='In einer Falle sitzt ein Hase.';
   else if(G.barnWood<1&&st.fDamaged+st.fBroken>0)h='Für den Zaun ist kein Holz mehr in der Scheune.';
-  else{let far=0;for(let i=0;i<N;i++)if((feat[i]===F_WOOD||feat[i]===F_HAY)&&dist(i%W,(i/W)|0,HOF[0],HOF[1])>16)far++;
-    h=far?'Draußen liegt noch Holz oder Heu – von allein kommt das nicht in die Scheune.':'Alles ruhig, Herr Verwalter.'}
+  else h='Am Hof ist alles ruhig, Herr Verwalter.'
   out.push(['Hannes',h]);
   if(G.week>=2){let j;
     if(G.week===2)j='Bin wieder da, Herr Verwalter! Sagen Sie mir, was weg soll.';
     else if(ld.failed.some(f=>f.who==='Jost'))j='Zu einem der Bäume bin ich gar nicht durchgekommen.';
     else if(st.hofSaplings>prev.hofSaplings+2||st.hofSaplings>10)j='Die Birken fliegen schon auf die Hofwiese.';
-    else if(n.logsFell)j='Im Dickicht ist ein toter Baum umgekippt.';
-    else if(st.logs>6)j='Im Wald liegt Holz, das verrottet, wenn\'s keiner zerlegt.';
-    else j='Der Wald steht gut.';
-    out.push(['Jost',j])}
+    else j=null;
+    if(j)out.push(['Jost',j])}
   let l;const tot=G.food.brot+G.food.eier+G.food.fleisch+G.food.beeren,wks=tot/Math.max(1,(eaters().length+1)*CFG.ration);   // Wochenrationen im Vorrat
   if(G.mealHungry&&G.mealHungry.length>1&&G.mealHungry.length===eaters().filter(s=>s.weak).length)l='Letzte Woche gab\'s nichts zu essen, nicht mal Brotzeit. Diese Woche sind alle zu schwach zum Arbeiten.';
   else if(G.mealHungry&&G.mealHungry.length)l=`${G.mealHungry.join(' und ')} ${G.mealHungry.length>1?'haben':'hat'} letzte Woche nichts abgekriegt und ${G.mealHungry.length>1?'bleiben':'bleibt'} diese Woche liegen.`;
@@ -2047,13 +2428,7 @@ function reports(){
   out.push(['Liese',l]);
   let o;
   if(G.frostSeit&&G.frostSeit===G.week-1)o='Über Nacht hat der Frost die Beeren erwischt – an den Sträuchern hängt nichts mehr.';
-  else if(n.newFox)o='Nachts hört man jetzt einen weiteren Fuchs bellen.';
-  else if(n.foxGone)o='Ein Fuchs scheint das Revier verlassen zu haben.';
-  else if(n.darkBurrows)o='Auf einer Lichtung, die zuwächst, sind die Hasenbaue verlassen.';
-  else if(st.hares>prev.hares*1.4&&st.hares-prev.hares>4)o='Überall raschelt es im Gras – die Hasen werden mehr.';
-  else if(st.hares<prev.hares*0.7&&prev.hares>5)o='Die Wiesen sind still geworden. Kaum ein Hase.';
-  else if(n.newBurrows)o='Irgendwo im Revier haben Hasen einen neuen Bau gegraben.';
-  else o=['Ein ruhiger Morgen. Tau liegt auf den Wiesen.','Nebel hängt zwischen den Stämmen.','Ein Specht klopft irgendwo im Wald.','Die Amseln singen schon vor Sonnenaufgang.'][G.week%4];
+  else o=['Ein ruhiger Morgen. Tau liegt auf den Wiesen.','Die Amseln singen schon vor Sonnenaufgang.'][G.week%2];
   return{staff:out,obs:o};
 }
 function showMorning(first){
@@ -2064,13 +2439,13 @@ function showMorning(first){
       Halten Sie mir das Gut in Ordnung: keine Löcher im Rasen, kein Getier im Garten – und meine Hennen sind mir lieb und teuer! Was ich mir sonst wünsche, schreibe ich Ihnen.“</div>
       <div class="rep">Er drückt dir die Schlüssel in die Hand. Die Kutsche wendet, und fort ist er.</div>
       <div class="keys">WASD/Pfeile laufen · [Leertaste] vor einem Ding: untersuchen, selbst anpacken, Auftrag erteilen<br>
-      Sonntag: Die Uhr rückt nur durch dein Tun vor (Gehen, Untersuchen, Reden) – bei Dämmerung ist er vorbei · Sonntagabend: im Notizbuch [N] planen, [H] Hof-/Waldtag · Werkwoche: Plan nur lesen, Person ansprechen → Umplanen<br>
+      Sonntag: Die Uhr rückt nur durch dein Tun vor (Gehen, Untersuchen, Reden) – bei Dämmerung ist er vorbei · Sonntagabend: im Notizbuch [N] planen, [H] Hof-/Waldtag · Werkwoche: Plan nur lesen, Person ansprechen → Umplanen oder Weg zeigen (sie geht mit dir, bis du sie entlässt)<br>
       [M] Mähfläche abstecken · [T] heimgehen (vorher siehst du Dauer und Ankunft; in der Werkwoche rechnet der Rest des Tages ohne Zuschauen, am Abend gehst du danach schlafen) · Am Sonntag arbeitest du nicht selbst · Kraft (●) brauchst du nur in der Werkwoche für eigene Arbeit</div>`;
   } else {
     const L=LETTERS[G.week];
     if(L){const txt=L[scen.kind]||L.all;G.letters.push({week:G.week,txt});html+=`<h3>Ein Bote bringt einen Brief</h3><div class="letter">${txt}<div class="sig">– Baron von Eichenhain</div></div>`}
     const r=reports();
-    html+='<h3>Was die Leute berichten</h3>'+r.staff.map(([n,t])=>`<div class="rep"><b>${n}:</b> „${t}“</div>`).join('');
+    html+='<h3>Was am Hof berichtet wird</h3>'+r.staff.map(([n,t])=>`<div class="rep"><b>${n}:</b> „${t}“</div>`).join('');   // nur der Hof; was draußen aufgefallen ist, erzählen die Leute am Sonntagsort
     html+=`<div class="rep"><i>${r.obs}</i></div>`;
     if(G.week===2)html+='<div class="rep"><i>Jost, der Holzfäller, ist aus dem Dorf zurück.</i></div>';
     if(G.wetter&&CFG.wetter)html+=`<div class="rep"><b>Hannes:</b> „${wetterKnie(G.week)}“</div>`;   // Vorhersage für die kommende Werkwoche (der Sonntag selbst bleibt ohne Wetterwirkung)
@@ -2204,13 +2579,13 @@ function finishText(t,fin,from,u){
   if(d.fixed){const w=effectiveWho(t);if(!w||w==='none')return `<i>${whoName(t)}</i>`;if(!f)return from>G.times.start?'<i>heute vorbei</i>':'<i class="warn">fällt aus</i>';return `bis ${unsureTxt(u)}${hm(f.end)}`}
   if(!crewOf(t).length)return '<i>offen</i>';
   if(!f)return '<i class="warn">kommt heute nicht dran</i>';
-  if(f.left>0.01)return d.group?`<i class="warn">${Math.max(1,Math.round(f.left/normOf(avgItem(t))))} ${d.unit} bleiben</i>`:`<i class="warn">nicht fertig – ${Math.round(100*(1-f.left/normOf(singleCost(t))))} % getan</i>`;
+  if(f.left>0.01)return d.group?`<i class="warn">${Math.max(1,Math.round(f.left/normOf(avgItem(t))))} ${d.unit} bleiben</i>`:d.gebiet?'<i class="warn">nicht geschafft – bleibt stehen</i>':`<i class="warn">nicht fertig – ${Math.round(100*(1-f.left/normOf(singleCost(t))))} % getan</i>`;
   return 'fertig '+unsureTxt(u)+hm(f.end);
 }
 // ---------------------------------------------------------------- Zeitleiste (Paket 13): je Person eine Zeile, Balken proportional auf gemeinsamer Stundenachse
 // Segmente aus dem Trockenlauf (planAll) – reine Darstellung, keine eigene Planung. Klick/Tipp auf Balken oder Namen wählt Person und (falls vorhanden) Aufgabe.
 // Weg = hell gestreift (vorn im Segment; bei zusammengefassten Sammelposten nur die Summe der Wegminuten), Arbeit kräftig, feste Routine grün, Übliches/Pause/Heimweg/ruht hell.
-const SEG_CLASS={fest:'sg-fest',work:'sg-work',std:'sg-std',heim:'sg-heim',pause:'sg-pause',frei:'sg-frei'};
+const SEG_CLASS={fest:'sg-fest',work:'sg-work',std:'sg-std',heim:'sg-heim',folgt:'sg-pause',pause:'sg-pause',frei:'sg-frei'};
 const attrText=x=>String(x).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 // Verfügbarkeit laut Plan (der Trockenlauf „nächste Woche“ kennt sie für die kommende Woche), sonst die der laufenden
 const availIn=(pa,s)=>pa&&pa.avail&&s.id in pa.avail?pa.avail[s.id]:s.available;
@@ -2326,7 +2701,12 @@ function bookKey(e){
 // Farbflächen nur für Felder, die der Verwalter kennt (Ausnahme der Grafik-Invariante, CLAUDE.md: keine Sprites, kein getImageData), ganzzahlig skaliert; Symbole für besondere Orte folgen in Paket 4.
 // Je älter das Wissen, desto blasser (CFG.karte), die alte Karte am blassesten. Auswahl: Pfeiltasten (Umschalt = 5 Felder, am Handy das Steuerkreuz) oder Klick/Antippen; Standort = roter Rahmen.
 let kartSc=3;
-function karteText(x,y){
+function karteText(x,y){return karteText0(x,y)+karteZNotiz(x,y)}
+// Zeichen-Notizen (Paket 3): im 3×3-Umkreis des gewählten Feldes
+function karteZNotiz(x,y){
+  return G.kartZ.filter(z=>Math.abs(z.feld%W-x)<=1&&Math.abs(((z.feld/W)|0)-y)<=1).map(z=>` <i>Notiert: ${ZEICHEN_WORT[z.art]} (Woche ${z.woche}).</i>`).join('')}
+function karteZLegende(){const u=new Set(G.kartZ.map(z=>z.art));return [...u].map(a=>`<span><i style="background:${CFG.zeichen.farben[a]}"></i>${ZEICHEN_BUCH[a]} ${ZEICHEN_WORT[a]}</span>`).join('')}
+function karteText0(x,y){
   const i=idx(x,y),w=kartWo[i],k=kartKl[i],ort=where(x,y);
   if(!w)return `<b>${ort}</b>: unbekannt – hier warst du noch nie, und die alte Karte kennt die Stelle nicht.`;
   if(w<0)return `<b>${ort}</b>: ${KL_NAMEN[k]} – so steht es auf der alten Karte des Vorgängers (von vor Jahren, vielleicht längst anders).`;
@@ -2337,7 +2717,7 @@ function karteHtml(){
   const used=new Set();for(let i=0;i<N;i++)if(kartWo[i])used.add(kartKl[i]);
   const leg=[...used].sort((a,b)=>a-b).map(k=>`<span><i style="background:${CFG.karte.farben[k]}"></i>${KL_NAMEN[k]}</span>`).join('');
   return `<div class="rep"><small>Deine Gutskarte zeigt nur, was du weißt: was du selbst gesehen hast, wo deine Leute gearbeitet haben, und die alte Karte deines Vorgängers. Je blasser, desto länger her. Verändert sich etwas, steht es erst richtig drauf, wenn du wieder hinsiehst.</small></div>
-    <div class="kwrap"><canvas id="karte"></canvas></div><div class="rep" id="karteInfo">${karteText(book.kx,book.ky)}</div><div class="klegend">${leg}<span><i class="kst"></i>dein Standort</span></div>
+    <div class="kwrap"><canvas id="karte"></canvas></div><div class="rep" id="karteInfo">${karteText(book.kx,book.ky)}</div><div class="klegend">${leg}${karteZLegende()}<span><i class="kst"></i>dein Standort</span></div>
     <div class="cont">↑↓←→ Feld wählen (Umschalt: 5 Felder) · Klick/Antippen wählt ein Feld · 1–${TABS.length} Reiter · Esc schließen</div>`}
 function karteDraw(cv,sc){
   const g=cv.getContext('2d'),K=CFG.karte,wk=weekNow();
@@ -2349,6 +2729,10 @@ function karteDraw(cv,sc){
     const c=K.farben[kartKl[i]];if(c!==fs){g.fillStyle=c;fs=c}
     g.fillRect((i%W)*sc,((i/W)|0)*sc,sc,sc)}
   g.globalAlpha=1;
+  for(const z of G.kartZ){   // Zeichen-Notizen: Farbfläche mit Buchstabe (nur Text/Farbe), blasser mit dem Alter
+    const s=3*sc,x=(z.feld%W)*sc-sc,y=((z.feld/W)|0)*sc-sc;
+    g.globalAlpha=Math.max(K.alphaMin,1-(1-K.alphaMin)*Math.min(1,(wk-z.woche)/K.verblassen));g.fillStyle=CFG.zeichen.farben[z.art];g.fillRect(x,y,s,s);
+    g.globalAlpha=1;g.fillStyle='#fff';g.font=`bold ${Math.max(7,Math.round(s*0.75))}px sans-serif`;g.textAlign='center';g.textBaseline='middle';g.fillText(ZEICHEN_BUCH[z.art],x+s/2,y+s/2+1)}
   const rim=(x0,y0,w,h,col)=>{g.fillStyle=col;g.fillRect(x0,y0,w,1);g.fillRect(x0,y0+h-1,w,1);g.fillRect(x0,y0,1,h);g.fillRect(x0+w-1,y0,1,h)};
   rim((P.x-1)*sc,(P.y-1)*sc,3*sc,3*sc,'#d04648');rim((P.x-1)*sc+1,(P.y-1)*sc+1,3*sc-2,3*sc-2,'#d04648');   // Standort des Verwalters
   rim(book.kx*sc-2,book.ky*sc-2,sc+4,sc+4,'#2a1a10');rim(book.kx*sc-1,book.ky*sc-1,sc+2,sc+2,'#fff4dc')}   // Cursor
@@ -2562,7 +2946,11 @@ const SFX={
   fell(){noise(0.8,160,0.8,0.45,'lowpass');noise(0.3,700,1,0.12,'bandpass',0.1)},
   bird(){const n=2+Math.floor(Math.random()*4),b=2200+Math.random()*1800;for(let k=0;k<n;k++)tone(b*(1+Math.random()*.2),b*(1.3+Math.random()*.4),0.05+Math.random()*0.05,'sine',0.022,k*0.1)},
   bark(){tone(560,320,0.11,'sawtooth',0.03);tone(560,300,0.13,'sawtooth',0.03,0.22)},
-  cricket(){const f=4200+Math.random()*600;for(let k=0;k<3;k++)tone(f,f*1.02,0.03,'sine',0.012,k*0.06)}
+  cricket(){const f=4200+Math.random()*600;for(let k=0;k<3;k++)tone(f,f*1.02,0.03,'sine',0.012,k*0.06)},
+  // Zeichen (Paket 3, v = Lautstärke nach Entfernung): Specht = Klopfwirbel, Häher = heiseres Schimpfen, Krähen = Krächzen
+  specht(v=1){const n=5+Math.floor(Math.random()*4);for(let k=0;k<n;k++)noise(0.03,1800,3,0.1*v,'bandpass',k*0.07)},
+  haeher(v=1){for(let k=0;k<3;k++){noise(0.12,1400,2,0.07*v,'bandpass',k*0.17);tone(1500,900,0.1,'sawtooth',0.03*v,k*0.17)}},
+  kraehen(v=1){const n=2+Math.floor(Math.random()*2);for(let k=0;k<n;k++){tone(420,300,0.16,'sawtooth',0.04*v,k*0.28);noise(0.16,800,1,0.05*v,'bandpass',k*0.28)}}
 };
 // Hintergrund: Wind in den Kronen, Plätschern am Bach, Grillen am Abend, Vögel im Wald
 function ambInit(){
@@ -2614,7 +3002,7 @@ function groundFrame(i,wf){
 }
 const STAMM={birke:[0,1,1],eiche:[2,3,4],buche:[5,6,7]};
 const TRACKF=[0,0,1,2,3,4];
-const FLAGTYPES=new Set(['bau','falle','roden','zerlegen']);
+const FLAGTYPES=new Set(['bau','falle','roden','zerlegen','beeren']);
 function draw(now){
   const TS=T*SC,cw=cv.width,ch=cv.height;
   ctx.imageSmoothingEnabled=false;ctx.fillStyle='#0b0f12';ctx.fillRect(0,0,cw,ch);
@@ -2632,6 +3020,7 @@ function draw(now){
     if(f===F_HOLE)spr(ctx,'01-objekte_2',x*T,y*T);else if(f===F_BURROW)spr(ctx,'01-objekte_3',x*T,y*T);else if(f===F_DEN)spr(ctx,'01-objekte_4',x*T,y*T);
     else if(f===F_TRAP)spr(ctx,'01-objekte_6',x*T,y*T);else if(f===F_TRAPFULL)spr(ctx,'01-objekte_7',x*T,y*T);
     if(stumpAt[i])spr(ctx,'01-objekte_1',x*T,y*T)}
+  for(const j of G.marken){const x=j%W,y=(j/W)|0;if(x>=x0&&x<=x1&&y>=y0&&y<=y1)spr(ctx,'01-spuren_6',x*T,y*T-4)}   // Wegmarken: der vorhandene Pflock-Frame
   for(const tk of G.tasks)if(tk.type==='maehen'||tk.type==='weg')for(const j of tk.items){const x=j%W,y=(j/W)|0;if(x>=x0&&x<=x1&&y>=y0&&y<=y1)spr(ctx,'01-spuren_6',x*T,y*T-4)}
   // Sortierte Objekte
   const L=[];
@@ -2739,7 +3128,7 @@ function applyOeko(k){const src=k==='02'?window.REGELN_02:window.REGELN_01;if(!s
     if(key==='sp'){for(const sp of SPECIES)if(src.sp[sp])for(const kk of Object.keys(CFG.sp[sp]))if(kk in src.sp[sp])CFG.sp[sp][kk]=src.sp[sp][kk]}
     else CFG[key]=JSON.parse(JSON.stringify(src[key]))}
   oekoSet=k;toast(`Ökologie-Werte ${k} aktiv – voll wirksam ab „Neues Spiel“`)}
-const LAYERS=[['licht','Licht'],['kronen','Kronenhöhe'],['geruch','Geruch'],['reviere','Baue & Füchse'],['wege','Nachtwege'],['auftraege','Aufträge'],['kenntnis','Kenntnis']];
+const LAYERS=[['licht','Licht'],['kronen','Kronenhöhe'],['geruch','Geruch'],['reviere','Baue & Füchse'],['wege','Nachtwege'],['auftraege','Aufträge'],['kenntnis','Kenntnis'],['pfad','Trampelpfade']];
 const kenName=k=>k==='P'?'Verwalter':S(k).name;   // Kartenebene „Kenntnis“: Person wählbar (G.dbg.kenWho)
 function toggleDebug(){dbgOpen=!dbgOpen;dbgEl.style.display=dbgOpen?'block':'none';if(dbgOpen)buildDebug()}
 function cfgInputs(){
@@ -2814,7 +3203,8 @@ function drawDebugLayers(x0,y0,x1,y1){
     if(Ly.has('licht')){const l=light[i];ctx.fillStyle=`rgba(${Math.round(255*l)},${Math.round(210*l)},30,0.5)`;ctx.fillRect(sx,sy,TS,TS)}
     if(Ly.has('kronen')){let top=0;const c=covers[i];for(let k=0;k<c.length;k+=2)top=Math.max(top,c[k]);if(top){ctx.fillStyle=`hsla(${200-top*20},70%,50%,0.45)`;ctx.fillRect(sx,sy,TS,TS)}}
     if(Ly.has('geruch')&&scent[i]>0){ctx.fillStyle=`rgba(255,40,40,${Math.min(0.6,scent[i]/25)})`;ctx.fillRect(sx,sy,TS,TS)}
-    if(Ly.has('kenntnis')){const kv=kenn[G.dbg.kenWho||'P'][i];if(kv){ctx.fillStyle=`rgba(60,200,255,${(0.1+0.5*kv/KN_MAX).toFixed(2)})`;ctx.fillRect(sx,sy,TS,TS)}}}
+    if(Ly.has('kenntnis')){const kv=kenn[G.dbg.kenWho||'P'][i];if(kv){ctx.fillStyle=`rgba(60,200,255,${(0.1+0.5*kv/KN_MAX).toFixed(2)})`;ctx.fillRect(sx,sy,TS,TS)}}
+    if(Ly.has('pfad')){const pv=pfad[i],tv=tritt[i]+trittW[i];if(pv||tv){ctx.fillStyle=pv?(pv>1?'rgba(255,170,0,0.75)':'rgba(255,220,60,0.6)'):`rgba(255,255,255,${Math.min(0.35,0.08*tv).toFixed(2)})`;ctx.fillRect(sx,sy,TS,TS)}}}   // Pfadstufe 1/2 farbig, sonst nur der gleitende Trittwert (Debug: fillRect erlaubt)
   ctx.font=`bold ${5*SC}px monospace`;
   if(Ly.has('reviere')){for(const b of burrows){if(!b.alive)continue;const cx=(b.x+0.5)*TS-camX,cy=(b.y+0.5)*TS-camY;
       ctx.strokeStyle='#dad45e';ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx,cy,4.5*TS,0,7);ctx.stroke();ctx.fillStyle='#fff';ctx.fillText(`${b.n}`,cx-4,cy-8)}
