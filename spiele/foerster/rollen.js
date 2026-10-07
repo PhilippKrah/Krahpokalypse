@@ -9,17 +9,19 @@
 //            zahl = bei luecke: wie viele Dinge. gedaechtnis = wie viele Beobachtungen sie bis zum Erzählen behält (ältere verblassen).
 //            lieblings = Arten, die sie aus größerer Entfernung bemerkt (baumtot, baumliegt, hasenbau, fuchsbau, spur, beeren, loch).
 //            sonntag = wo sie am Sonntag steht: bach · kueche · holz · garten · zuhause.
+//            schreiben = Schreibtempo für das Beobachtungsbuch (Demo B2c): Einträge je Stunde, 0 = schreibt nicht (Rückfall ohne Angabe: Hannes 12, Jost 0, Grete 4, Liese 10). Der Verwalter schreibt nie.
 // aufgaben: je Person die Effektivität in Prozent (100 = normal, 50 = braucht doppelt so lange, Faktor ×2).
 //           Fehlt eine Person, darf sie die Aufgabe nicht.
 //           fest = feste Aufgabe (läuft als feste Zeitspanne mit eigenem Zeitpunkt, z. B. Füttern, Kochen, Einsperren, Markt; Effektivität ohne Wirkung).
 //           ueblich = wer eine feste Aufgabe macht, solange niemand anderes eingeteilt ist (null = niemand).
 //           nurJung = diese Personen fällen nur Jungbäume (Höhe bis 3).
+//           nachsehen = Auftragsart aus dem Beobachtungsbuch (Demo B2c): hingehen, kurz verweilen, umsehen, am Sonntag erzählen. Wer nachsehen darf, folgerichtig wählen (Rückfall ohne Eintrag: Hannes 100, Liese 80, Jost 70, Grete 60).
 window.ROLLEN = {
   "personen": {
-    "hannes": {"name": "Hannes", "rolle": "Knecht", "abWoche": 1, "tempo": 100, "mitteil": "alles", "gedaechtnis": 5, "lieblings": ["spur", "hasenbau", "fuchsbau"], "sonntag": "bach"},
-    "jost": {"name": "Jost", "rolle": "Holzfäller", "abWoche": 2, "tempo": 100, "mitteil": "laune", "gedaechtnis": 5, "lieblings": ["baumtot", "baumliegt"], "sonntag": "holz"},
-    "grete": {"name": "Grete", "rolle": "Bäuerin", "abWoche": 1, "tempo": 80, "mitteil": "nachfrage", "gedaechtnis": 5, "lieblings": ["spur", "loch"], "sonntag": "kueche"},
-    "liese": {"name": "Liese", "rolle": "Magd", "abWoche": 1, "tempo": 80, "mitteil": "luecke", "zahl": 3, "gedaechtnis": 5, "lieblings": ["beeren", "loch"], "sonntag": "garten"}
+    "hannes": {"name": "Hannes", "rolle": "Knecht", "abWoche": 1, "tempo": 100, "mitteil": "alles", "gedaechtnis": 5, "lieblings": ["spur", "hasenbau", "fuchsbau"], "sonntag": "bach", "schreiben": 12},
+    "jost": {"name": "Jost", "rolle": "Holzfäller", "abWoche": 2, "tempo": 100, "mitteil": "laune", "gedaechtnis": 5, "lieblings": ["baumtot", "baumliegt"], "sonntag": "holz", "schreiben": 0},
+    "grete": {"name": "Grete", "rolle": "Bäuerin", "abWoche": 1, "tempo": 80, "mitteil": "nachfrage", "gedaechtnis": 5, "lieblings": ["spur", "loch"], "sonntag": "kueche", "schreiben": 4},
+    "liese": {"name": "Liese", "rolle": "Magd", "abWoche": 1, "tempo": 80, "mitteil": "luecke", "zahl": 3, "gedaechtnis": 5, "lieblings": ["beeren", "loch"], "sonntag": "garten", "schreiben": 10}
   },
   "aufgaben": {
     "maehen": {"name": "Wiese mähen", "personen": {"hannes": 100, "grete": 77}},
@@ -34,6 +36,7 @@ window.ROLLEN = {
     "roden": {"name": "Stumpf roden", "personen": {"jost": 100, "hannes": 20}},
     "bau": {"name": "Bau zuschütten", "personen": {"hannes": 100, "jost": 63, "liese": 30}},
     "falle": {"name": "Falle stellen", "personen": {"hannes": 100}},
+    "nachsehen": {"name": "Nachsehen", "personen": {"hannes": 100, "liese": 80, "jost": 70, "grete": 60}},
     "fuettern": {"name": "Hühner füttern", "fest": true, "ueblich": "grete", "personen": {"grete": 100, "liese": 100}},
     "einsperren": {"name": "Hühner einsperren", "fest": true, "ueblich": "grete", "personen": {"grete": 100, "liese": 100}},
     "kochen": {"name": "Mittagessen kochen", "fest": true, "ueblich": "grete", "personen": {"grete": 100, "liese": 100}},

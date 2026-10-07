@@ -11,10 +11,10 @@
         er am Ort ein; der nächste Sonntag beginnt frühestens 8 Stunden nach dem Einschlafen. Am Sonntag arbeitet der Verwalter nicht selbst; Sonntagabend = nur der Planungsbildschirm. Die Tafel zeigt je Person einen proportionalen Zeitbalken (gemeinsame Stundenachse) über der Aufgabenliste. Alle Zeitwerte stehen in CFG.zeit (Spielstunde in Echtzeit, Wegzeiten, Normminuten je Arbeitspunkt, Mittag/Abend, Sonntag, Wochen).
   Ortskenntnis (Demo B2a): Jede Person (Verwalter, Personal) kennt jedes Feld des Waldes unterschiedlich gut (CFG.kenntnis); unbekanntes Gelände kostet Zeit (CFG.zeit.fremd, im Dunkeln mehr). Sie wächst durch Betreten, Arbeiten und (Verwalter) Sehen – je Feld höchstens einmal je Tag (Verwalter) bzw. je Woche (Personal), jeder weitere Besuchstag bringt weniger –, sinkt, wo sich der Wald verändert hat, und verblasst ohne Besuch (ab 3 Wochen, nie unter die Hälfte des Höchststands und nie unter das Startwissen). F2: Kartenebenen „Kenntnis“ (je Person umschaltbar) und „Trampelpfade“.
   Trampelpfade (Demo B2a, Paket 2): Wo oft gegangen wird (Verwalter und Personal, über Wochen), tritt sich in der Wochenhülle ein Pfad aus (kurzes Gras, schneller zu gehen, CFG.pfad); unbenutzt wächst er wieder zu. Aufgabe „Weg anlegen“ (Felder markieren wie Mähen, auf einem Pfad den ganzen Pfad ausbauen) macht Felder zum richtigen Weg.
-  Gutskarte (Demo B2a, Paket 3): Notizbuch-Reiter „Karte“ (6): Farbflächen nur für Felder, die der Verwalter kennt (eigene Sicht, im Gespräch ergänzte Beobachtungen des Personals, alte Karte des Vorgängers), verblassend nach Alter (CFG.karte); Pfeiltasten oder Antippen zeigen „zuletzt gesehen Woche n“. Die Tafel setzt „ca.“ bzw. „?“ vor Zeiten, deren Ziel oder Route über altes bzw. unbekanntes Kartenwissen führt; die Rechnung bleibt exakt.
+  Gutskarte (Demo B2a, Paket 3): Notizbuch-Reiter „Karte“ (8): Farbflächen nur für Felder, die der Verwalter kennt (eigene Sicht, im Gespräch ergänzte Beobachtungen des Personals, alte Karte des Vorgängers), verblassend nach Alter (CFG.karte); Pfeiltasten oder Antippen zeigen „zuletzt gesehen Woche n“. Die Tafel setzt „ca.“ bzw. „?“ vor Zeiten, deren Ziel oder Route über altes bzw. unbekanntes Kartenwissen führt; die Rechnung bleibt exakt.
   Gespräche und Beobachtungen (Demo B2b, Paket 2): Am Sonntag stehen die Leute an ihren Sonntagsorten (Hannes am Bach, Grete am Gesindehaus, Jost am Holzplatz, Liese im Garten; aus der Karte abgeleitet, nur Position). Was sie in der Werkwoche gesehen haben (Zeichen, Schäden, Beeren, Orte),
         merken sie sich (knWeek, höchstens 5 Dinge, je Ort das Neueste) und erzählen es nur im Gespräch dort, je nach Figur (rollen.js: Hannes alles von sich aus, Grete auf „Nachfragen“, Liese die neuesten Dinge mit dem Lieblingsthema zuerst, Jost nur bei guter Laune); erst dann ergänzt sich die Gutskarte.
-        Lieblingsbereich = größerer Wahrnehmungsumkreis für passende Arten. Die Morgenkarte meldet nur den Hof. Untersuchen meldet, was sich gegenüber der Gutskarte verändert hat („ist neu“). Das Wissen der Woche steht als Liste (knWiss: Art, Feld, Woche, Quelle) bereit.
+        Lieblingsbereich = größerer Wahrnehmungsumkreis für passende Arten. Die Morgenkarte meldet nur den Hof. Untersuchen meldet, was sich gegenüber der Gutskarte verändert hat („ist neu“). Das Wissen steht als Liste (knWiss: Art, Feld, Woche, Quelle) bereit und altert wie das Beobachtungsbuch (B2c P2a, s. u.).
   Zeichen und Frühwarnung (Demo B2b, Paket 3): Specht (toter/kranker Baum), Häher (Fuchs in der Nähe), Krähen (Riss, Federn) und Fuchsfährten ergeben sich aus dem Weltzustand (zeichenQuellen, ohne Zufall). Der Verwalter hört sie im Hörradius (CFG.zeichen.hoer, Regen/Sturm dämpfen),
         sieht Fährten im Sichtkreis; Meldung mit Himmelsrichtung, Ton, Wissensliste (gehört/gesehen) und Gutskarten-Notiz als Text/Farbe. Das Personal nimmt sie nur in der Wochenhülle wahr und erzählt sie am Sonntag. Fuchs-Vorstufe: der hungrige Fuchs zieht eine Woche lang zum Hof (Fährte, Häher), der Überfall folgt erst in der Woche danach.
   Gebietsauftrag (Demo B2b, Paket 4): „Beeren sammeln“ ist kein Flächenauftrag mehr, sondern ein Gebiet: im Menü (Leertaste) markierst du nur einen Fixpunkt (die Stelle, an der du stehst; gespeichert wird die Erwartung, wie viele reife Sträucher du dort siehst). Die Person geht hin, findet
@@ -27,12 +27,24 @@
   Wochenwetter (Demo B3, Paket 2): Jede Woche hat ein Wetter (trocken, Regen, Sturm, Frost; Nebel als Variante) aus einer Herbstkurve (CFG.wetter), einmal in newGame aus eigenem Seed-Strom gezogen (äußerer Auslöser, nicht R). Wirkung nur in der Werkwoche (Sonntag und Planung ohne):
         Regen macht Furt und Wasserrand teurer, Frost beendet die Beeren und erhöht den Heubedarf der Hennen, Sturm wird nur angekündigt, Nebel verkleinert den Sichtradius. Vorhersage am Sonntag (Morgenkarte, Hannes), HUD zeigt das Wetter in Worten. B7 P3: Wetter auch als Bild (stimmung: Regen/Sturm, Nebel, Reif, Schnee ab Woche 12; Lichtbahnen in Kronenlücken, Morgendunst am Bach), nur Darstellung.
   Laubfall (Demo B3, Paket 3): Ab Woche 9 fällt das Laub (CFG.laub: Birke früh, Buche mittel, Eiche spät): der Wald wird zum Gehen günstiger (darkAt, Baumartenanteile aus computeLight), der Sichtradius wächst (sichtLicht), der Bodenschatten wird schwächer; light[] (Ökologie) und Feldklassen bleiben unberührt. B7 P2/B7b: Kronen färben sich je Art, die Klumpen fallen einzeln und geben den kahlen Baum frei (kronenBild, kahlerBaum, nur Darstellung), darunter Laubteppich; Stammfuß unter der Krone sichtbar (CFG.kronHoch/kronSued).
+  Gültigkeit vor Ort (Demo B2c, P1a): Ein Einzelauftrag (fällen, zerlegen, roden, Bau zuschütten, Falle) verschwindet nicht still, wenn seine Grundlage fehlt: die Person geht hin (Hin- und Rückweg kosten Zeit, Arbeit 0), stellt es erst bei der Ankunft fest und meldet es am Sonntag in Worten;
+        der Auftrag fällt offen ins Auftragsbuch zurück (Titel = Momentaufnahme vom Markieren). Die Tafel rechnet es wie der Tag. Sammelposten (mähen, Weg, Löcher, Setzlinge) fallen leer weiter still weg.
+  Auftragsbuch und Einplanung (Demo B2c, P1b): Jeder Auftrag, den du markierst (auch vor Ort), landet im Auftragsbuch (Notizbuch-Reiter „Aufträge“ [2]; optionales Feld t.buch, fehlt = Plan; Routine steht immer im Plan). Erst „Umsetzen“ bringt ihn in den Plan der Tafel (dort zuteilen);
+        eingeplante Aufträge bleiben im Buch sichtbar, als „eingeplant“ markiert und unter die offenen gerutscht. „Zurücklegen“ [X] (auch auf der Tafel, ersetzt „Streichen“) nimmt ihn aus dem Plan (Zuteilung weg), „Löschen“ [Entf] entfernt ihn. Sonntag/Sonntagabend: alles; Umplanen einer Person: für sie umsetzen und zuteilen in einem Schritt,
+        zurücklegen nur, was ihr allein gehört; Werkwoche sonst nur lesen. Sammelposten: höchstens ein Buch-Posten je Art, nie wird in einen eingeplanten markiert; Umsetzen vereinigt. inPlan(t) ist die einzige Entscheidung Plan oder Buch. Tastatur und Touch (Zellen, Knöpfe Zurücklegen/Löschen) gleichwertig.
+  Beobachtungsbuch, Schreiber, Streit-Szene (Demo B2c, P2a): Am Sonntag der Woche 4 (CFG.buch.szeneWoche) streiten Hannes und Jost auf der Morgenkarte (genau einmal; setzt G.buchFrei): keiner will Buch führen, Jost schreibt nicht, Grete sehr langsam. Erst danach gibt es das Beobachtungsbuch
+        (Notizbuch-Reiter „Beobachtungen“ [3]) und den Schreiber: am Sonntagabend (Planung) wählst du ihn an der Tafel oder im Reiter (Taste B bei der Person der gewählten Spalte, am Handy Knopf „Schreiber“ oder Antippen); nicht Jost (rollen.js: schreiben 0), nicht du. Beim Wählen schreibt er sofort und endgültig
+        für die Woche auf, was du erfahren hast (knWiss: Gespräch, Untersuchen, Gehörtes; ohne „hier gearbeitet“-Orte); Schreibdauer = Einträge ÷ Schreibtempo (rollen.js: schreiben, Einträge je Stunde), höchstens ein halber Arbeitstag, gespeichert in G.schreib. Montag frei (P2b): der Schreiber hat am Montag ab Tagesbeginn so lange frei, wie das Schreiben dauerte (freiBis), sieht man auf der Tafel („hat bis 09:30 frei“); was dadurch ausfällt oder später beginnt (Füttern, Kochen, Markt), steht als Warnung dabei. Alter = buchStufe(e): grün (diese Woche), gelb,
+        rot (letzte Gelegenheit), dann weg; ohne Schreiber altert die Wissensliste genauso. Ein neuer Eintrag zur selben Stelle (Art, Spurart, Zelle) frischt auf; „Abhaken“ (Leertaste/X/Entf oder Knopf, nur Sonntag und Sonntagabend) streicht ihn sofort. Das Buch ist Weltzustand in G (G.buch, G.buchFrei, G.schreib).
+  Vom Buch zum Auftrag, Nachsehen (Demo B2c, P3): Im Reiter „Beobachtungen“ hat jeder Eintrag (grün, gelb, rot) zwei Handlungen, nur am Sonntag und Sonntagabend: „Auftrag“ [U] legt einen passenden Auftrag ins Auftragsbuch (nicht in den Plan), wo es eine Auftragsart gibt
+        (Baum tot/krank → Fällen, liegender Stamm → Zerlegen, Bau → Zuschütten, Beeren → Gebiet mit Erwartung aus dem Eintrag, Loch → Löcher-Sammelposten); er entsteht nur aus Art, Feld und Alter des Eintrags, nie aus der Live-Welt, doppelte werden abgewiesen, der Eintrag bleibt und altert weiter. „Nachsehen“ [V] legt die Auftragsart
+        „Nachsehen“ ins Auftragsbuch (rollen.js: aufgaben.nachsehen): die Person geht hin, verweilt kurz (CFG.cost.nachsehen), sieht sich im Umkreis um und merkt es sich (knMem, Vorrang wie eine Rückmeldung) – immer, auch „nichts mehr gesehen“; am Sonntag erzählt sie es nach ihrer Figur, mit Schreiber wird der Eintrag wieder grün. Tastatur und Touch (Zellen, Knöpfe) gleichwertig.
   Ortsgeräusche und Tierreaktionen (Demo B7, Paket 6, nur Darstellung): Kauz, Hirschröhren, Wind/Regen nach Wetter, knarrendes Totholz; Hasen ducken sich im hohen Gras, Stillstehen scheucht nicht, Singvögel flattern auf (CFG.ort).
   Gutskarten-Symbole und Zeichen-Tiere (Demo B7, Paket 4): Gebäude, Furt/Brücke, bekannte Baue und Zeichen-Notizen als Symbole (kartSymbole); Specht, Häher, Krähen an den Zeichenquellen (zeichenTiere, nur Darstellung).
   Grafik (Demo B7, Paket 1): 32-px-Stil mit eigener 64-Farben-Palette (_assets/assets/01-foerster.palette.json); der Atlas hat doppelte Auflösung (AF=2 Atlaspixel je Weltpixel), das Weltmaß bleibt T=16.
         Zoom: Bildschirmkachel 32 oder 64 px (SC=AF·1 oder AF·2), mindestens 20×12 Felder sichtbar; Kamera auf ganze Atlaspixel gerundet, Kronen-Zwischenspeicher in Atlasauflösung.
   Steuerung: WASD/Pfeile laufen · Leertaste/E: Aktionen (untersuchen, selbst anpacken, Auftrag erteilen)
-             M: Pflock-Modus (Mähfläche abstecken) · N: Notizbuch · T: heimgehen (in jeder Phase; vorher ein Fenster mit Dauer und Ankunft; in der Werkwoche wird der Rest des Tages ohne Zuschauen durchgerechnet; Abend: danach schlafen; Sonntagabend: Planung abschließen) · H: Hof-/Waldtag (Sonntag/Sonntagabend, an der Tafel) · F: Laterne (ab Woche 9 aus der Scheune) · L: Ton · F2: Debug/Balancing · Esc: schließen
+             M: Pflock-Modus (Mähfläche abstecken) · N: Notizbuch · T: heimgehen (in jeder Phase; vorher ein Fenster mit Dauer und Ankunft; in der Werkwoche wird der Rest des Tages ohne Zuschauen durchgerechnet; Abend: danach schlafen; Sonntagabend: Planung abschließen) · H: Hof-/Waldtag (Sonntag/Sonntagabend, an der Tafel) · B: Schreiber wählen (Sonntagabend, ab Woche 4) · U/V: im Beobachtungsbuch Auftrag/Nachsehen aus dem Eintrag (Sonntag, Sonntagabend) · F: Laterne (ab Woche 9 aus der Scheune) · L: Ton · F2: Debug/Balancing · Esc: schließen
   Touch (Handy/Tablet, nur Querformat, nur bei Fingerbedienung): Steuerkreuz + Knöpfe senden dieselben Tastencodes.
              REGEL: Jede neue Taste braucht eine Zeile in TOUCH_TASTEN (Abschnitt „Touch-Steuerung“) – sonst ist sie am Handy unerreichbar.
              Zum Testen am PC: index.html?touch
@@ -78,6 +90,10 @@
   .board.ro td.cell{cursor:default}.board td.cell.lock{cursor:default}
   .board.compact{font-size:12px;margin:2px 0}.board.compact th,.board.compact td{padding:1px 5px;vertical-align:middle}.board.compact td small{opacity:.7}
   .board th.lock,.board td.lock{opacity:.35}
+  .board td.act{cursor:pointer;white-space:nowrap;text-align:center}.board td.act.no{opacity:.35;cursor:default}
+  .board tr.sep td{font-weight:bold;opacity:.7;padding-top:8px}.board tr.eing td{opacity:.6}.board tr.eing td.act{opacity:1}.board tr.eing td.act.no{opacity:.35}.board tr.eing b{color:#4a7a28}
+  .bst{display:inline-block;width:10px;height:10px;border-radius:50%;border:1px solid #2a1a10;vertical-align:middle}.bst-gruen{background:#5a9e3a}.bst-gelb{background:#e0b020}.bst-rot{background:#c0392b}
+  .board td.act.cc{background:#e2c8b6}   /* Beobachtungsbuch: Altersmarke (grün, gelb, rot) und die gewählte Person für den Schreiber */
   /* Zeitleiste (Tafel und Appell): je Person eine Zeile, proportionaler Balken auf gemeinsamer Stundenachse; Farben wie das Notizbuch-Papier */
   .tl{background:#f3ead4;color:#2a1a10;border:2px solid #854c30;border-radius:3px;padding:4px 6px 6px;margin:4px 0;font:12px/1.3 monospace;text-align:left}
   .tl-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:3px}
@@ -220,7 +236,7 @@ const CFG={
   ambWind:0.05, ambBach:0.07, forestDim:0.88, shadeDark:0.8, turnHold:0.13,
   tempo:Object.fromEntries(Object.entries(RL.personen).map(([k,p])=>[k,p.tempo??p.pensum*10])),   // Arbeitstempo der Person in Prozent (100 = Normtempo, aus rollen.js; Rückfall: altes pensum × 10); mealBonus = Tempo-Zuschlag in Prozentpunkten bei guter Küche
   cost:{maehen:0.5, einholen:0.8, flicken:2, setzling:0.5, loch:0.6, rasen:0.25, jungbaum:2, baum:6, baumAlt:10, riese:30,
-        zerlegen:2, roden:3, hasenbau:4, fuchsbau:6, falle:1, beeren:0.6, weg:0.7},
+        zerlegen:2, roden:3, hasenbau:4, fuchsbau:6, falle:1, beeren:0.6, weg:0.7, nachsehen:0.5},   // nachsehen = Verweildauer vor Ort (0,5 Punkte ≈ 9 Min. bei Tempo 100 %, Effektivität 100 %)
   // Ortskenntnis (Demo B2a): je Person und Feld 0..1 (intern Byte 0..255); Wirkung auf die Wegzeit: CFG.zeit.fremd
   kenntnis:{
     sehenR:5, sehenMin:0.4,   // Verwalter: Sichtradius in FELDERN bei vollem Licht; im Schatten ×(sehenMin + (1−sehenMin) × Licht des eigenen Feldes), je Schritt gerechnet (nicht die gezeichnete Sicht)
@@ -316,9 +332,21 @@ const CFG={
     gedaechtnis:5,            // Rückfall (rollen.js: gedaechtnis): so viele Dinge bis zum Erzählen, Älteres verblasst
     erzaehlt:3,               // Rückfall für „luecke“ (rollen.js: zahl): so viele Dinge, die neuesten, Lieblingsthema zuerst
     launeMin:2,               // Jost: gut gelaunt, wenn mindestens so viele von drei Dingen stimmen (gut gegessen, nichts liegengeblieben, Holzarbeit gehabt)
-    wissenMax:60,             // Wissensliste des Verwalters je Woche
+    wissenMax:60,             // Wissensliste des Verwalters (bis zum Eintragen ins Buch; altert wie das Buch, buchStufe); ist sie voll, weicht der älteste Eintrag
     holzR:25,                 // Jost: der nächste alte Holzschlag (Stumpf, liegendes Holz) darf höchstens so weit vom Hof liegen, sonst steht er am Holzplatz (orte.holz)
     orte:{garten:[45,38],kueche:[54,47],holz:[43,40]}   // Sonntagsorte mit festem Zielpunkt (bach und holz leiten sich zusätzlich aus der Karte ab)
+  },
+  // Bücher & Planung (Demo B2c, P2a): Beobachtungsbuch und Schreiber; Schreibtempo je Person in rollen.js (schreiben)
+  buch:{
+    szeneWoche:4,             // Streit-Szene am Sonntag dieser Woche (Morgenkarte, genau einmal): schaltet Beobachtungsbuch und Schreiber frei (G.buchFrei)
+    stufen:['gruen','gelb','rot'],   // Alter in Wochen (0 = diese Woche): grün, gelb, rot (letzte Gelegenheit); älter fällt heraus (buchStufe 'weg')
+    max:40,                   // Beobachtungsbuch: so viele Einträge, der älteste weicht
+    freiAnteil:0.5,           // Schreibdauer höchstens dieser Anteil des Arbeitstags (Sonnenaufgang bis -untergang, dayTimes)
+    schreiben:{hannes:12,jost:0,grete:4,liese:10}   // Rückfall (rollen.js: schreiben): Einträge je Stunde, 0 = schreibt nicht
+  },
+  // Nachsehen (Demo B2c, P3): Auftragsart aus dem Beobachtungsbuch; Verweildauer = cost.nachsehen, Umkreis wie die Wahrnehmung des Personals (beob.radius, lieblingPlus, bei Zeichen zeichen.personalR)
+  nachsehen:{
+    personen:{hannes:100,jost:70,grete:60,liese:80}   // Rückfall (rollen.js: aufgaben.nachsehen): wer nachsehen darf, Effektivität in Prozent (Jost darf, ist aber nicht nötig)
   },
   // Zeichen und Frühwarnung (Demo B2b, Paket 3): Zeichen = reine Funktion des Weltzustands (zeichenQuellen: Specht, Häher, Krähen; Fährten sind `track`). Hörbares hört der Verwalter im Hörradius × Wetter (nicht sichtLicht), Fährten sieht er im Sichtkreis (sichtLicht)
   zeichen:{
@@ -400,7 +428,7 @@ const STAFF_DEF=[
   {id:'grete',spr:'01-grete',home:[54,37]},
   {id:'liese',spr:'01-liese',home:[45,37]}
 ].map(d=>{const p=RL.personen[d.id];return{...d,name:p.name,role:p.rolle,from:p.abWoche??p.abTag,
-  fig:{mitteil:p.mitteil||'alles',zahl:p.zahl??CFG.beob.erzaehlt,gedaechtnis:p.gedaechtnis??CFG.beob.gedaechtnis,lieblings:Array.isArray(p.lieblings)?p.lieblings:[],sonntag:p.sonntag||'zuhause'}}});   // fig = Figur (rollen.js, alle Felder mit Rückfall): alles | nachfrage | luecke | laune   // from = ab welcher Woche die Person auf dem Gut ist (abWoche, Rückfall abTag)
+  fig:{mitteil:p.mitteil||'alles',zahl:p.zahl??CFG.beob.erzaehlt,gedaechtnis:p.gedaechtnis??CFG.beob.gedaechtnis,lieblings:Array.isArray(p.lieblings)?p.lieblings:[],sonntag:p.sonntag||'zuhause',schreiben:p.schreiben??CFG.buch.schreiben[d.id]??0}}});   // fig = Figur (rollen.js, alle Felder mit Rückfall): alles | nachfrage | luecke | laune   // from = ab welcher Woche die Person auf dem Gut ist (abWoche, Rückfall abTag)
 
 let berry,berryT,ground,grass,gprog,light,feat,featN,featAge,track,trackAge,fence,fkind,bmap,trunkAt,lyingAt,stumpAt,stumpAge,deco,scent,covers,bridgeV,klSnap,kenn,knBuf,knV,pfad,tritt,trittW,kartWo,kartKl,nass,anteil,knMem,knWiss,knNeu;
 let trees,treeById,logs,logById,burrows,foxes,buildings,staff,P,G,scen,startStats,nextId=1,lightDirty=true,canopyDirty=true;
@@ -586,7 +614,7 @@ function newGame(seed){
      chickens:CFG.chickens,chickHunger:0,fed:true,coopClosed:true,hensInside:true,grazedOk:false,hensFoodOk:false,hutch:0,taler:CFG.startTaler,
      smokedLeft:0,food:{brot:CFG.startBrot*CFG.brotPortion,eier:CFG.startEier,fleisch:0,beeren:0},
      batches:{brot:[{n:CFG.startBrot*CFG.brotPortion,week:1}],eier:[{n:CFG.startEier,week:1}],fleisch:[],beeren:[]},tasks:[],insights:new Set(),letters:[],hist:[],guideDone:new Set(),
-     night:freshNight(),dbg:{paths:[],log:[],layers:new Set()},vis:{hares:[],foxes:[],chickens:[]},pendingDisperse:[],talked:new Set(),laune:{},kartZ:[],zSag:{},marken:[]};
+     night:freshNight(),dbg:{paths:[],log:[],layers:new Set()},vis:{hares:[],foxes:[],chickens:[]},pendingDisperse:[],talked:new Set(),laune:{},kartZ:[],zSag:{},marken:[],buch:[],buchFrei:0,schreib:null};
   G.wetter=CFG.wetter?wetterZiehen(sd):null;   // Wochenwetter: Tabelle aller Wochen, eigener Strom (nicht R)
   initKenntnis();initKarte();
   startStats=stats();
@@ -972,6 +1000,7 @@ const TASKS={
   roden:    {label:'Stumpf roden'},
   bau:      {label:'Bau zuschütten'},
   falle:    {label:'Falle stellen'},
+  nachsehen:{label:'Nachsehen'},   // B2c P3: hingehen, verweilen, umsehen, merken (nachsehenWirkt); ohne Grundlage-Prüfung, immer eine Rückmeldung
   beeren:   {label:'Beeren sammeln',gebiet:true},   // Gebietsauftrag (Paket 4): nur der Fixpunkt ist markiert
   fuettern: {label:'Hühner füttern',fixed:true,auto:true},
   einsperren:{label:'Hühner einsperren',fixed:true,auto:true},
@@ -979,7 +1008,7 @@ const TASKS={
   kochen:   {label:'Mittagessen kochen',fixed:true,auto:true}
 };
 // Wer was darf und wie schnell, aus rollen.js: who[id] = Zeitfaktor (Effektivität 100 % → 1, 50 % → 2)
-for(const [k,d] of Object.entries(TASKS)){const r=RL.aufgaben[k]||{personen:{}};d.who={};
+for(const [k,d] of Object.entries(TASKS)){const r=RL.aufgaben[k]||{personen:k==='nachsehen'?CFG.nachsehen.personen:{}};d.who={};
   for(const [id,e] of Object.entries(r.personen||{}))if(e>0&&RL.personen[id])d.who[id]=100/e;
   d.ueblich=d.fixed&&r.ueblich&&d.who[r.ueblich]?r.ueblich:null;d.nurJung=r.nurJung||[]}
 const isHen=t=>t.type==='fuettern'||t.type==='einsperren';
@@ -992,7 +1021,7 @@ function whoName(t){const w=effectiveWho(t);
 // Sammelposten dürfen mehrere bekommen (sie teilen sich die Arbeit), Einzelaufgaben höchstens eine.
 function crewOf(t){if(TASKS[t.type].fixed){const w=effectiveWho(t);return w&&w!=='none'?[w]:[]}return t.crew||(t.crew=[])}
 const assigned=(t,id)=>crewOf(t).includes(id);
-function toggleAssign(t,id){if(!t||!canDo(t.type,id,t))return;
+function toggleAssign(t,id){if(!t||!inPlan(t)||!canDo(t.type,id,t))return;
   if(TASKS[t.type].fixed){const own=routineOwner(t)===id;if(effectiveWho(t)===id)t.who=own?'none':null;else t.who=own?null:id}
   else if(TASKS[t.type].group)t.crew=assigned(t,id)?t.crew.filter(x=>x!==id):[...crewOf(t),id];
   else{const old=crewOf(t)[0];t.crew=old===id?[]:[id];if(old&&old!==id)toast(`${taskTitle(t)}: jetzt ${S(id).name} statt ${S(old).name}.`)}
@@ -1001,7 +1030,7 @@ const S=id=>staff.find(s=>s.id===id);
 const mult=(type,who)=>TASKS[type].who[who];
 function fellCost(tr){return tr.giant?CFG.cost.riese:tr.h>=6?CFG.cost.baumAlt:tr.h>=4?CFG.cost.baum:tr.h>=2?CFG.cost.jungbaum:CFG.cost.setzling}
 function canDo(type,who,t){if(mult(type,who)===undefined)return false;
-  if(type==='faellen'&&TASKS.faellen.nurJung.includes(who)){const tr=t&&treeById.get(t.ref);if(!tr||tr.h>3)return false}return true}
+  if(type==='faellen'&&TASKS.faellen.nurJung.includes(who)){const tr=t&&treeById.get(t.ref);if(tr&&tr.h>3)return false}return true}   // fehlt der Baum, scheitert es nicht: die Person geht hin und meldet es (B2c, grundFehlt)
 function walkable(x,y){
   if(!inb(x,y))return false;const i=idx(x,y),g=ground[i];
   if(g===G_BLOCK||g===G_WATER)return false;
@@ -1141,7 +1170,7 @@ function beobArt(j){
   if(berry[j])return 'beeren';
   return null}
 const beobZelle=(j,z)=>Math.floor((j%W)/z)+','+Math.floor(((j/W)|0)/z);
-const beobPrio=(e,lieb)=>e.art==='auftrag'?-1:lieb.includes(e.art)?0:e.art!=='ort'?1:e.w?2:3;   // wer behalten wird, wenn das Gedächtnis voll ist: Lieblingsarten, Zeichen und Schäden, Arbeitsorte, bloß begangene Orte
+const beobPrio=(e,lieb)=>e.art==='auftrag'||e.nach?-1:lieb.includes(e.art)?0:e.art!=='ort'?1:e.w?2:3;   // wer behalten wird, wenn das Gedächtnis voll ist: Lieblingsarten, Zeichen und Schäden, Arbeitsorte, bloß begangene Orte
 const beobKls=f=>{const r=CFG.karte.personalR,x=f%W,y=(f/W)|0,o=[];for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++)o.push(inb(x+dx,y+dy)?feldKlasse(idx(x+dx,y+dy)):0);return o};
 // Wochenhülle, eine Person: aus ihren Wegen und Arbeitsorten (marks = Feld, Bit, …) die neuen Beobachtungen, ins Gedächtnis mischen (je Schlüssel das Neueste), auf fig.gedaechtnis kürzen.
 // feats = alle auffälligen Felder der Welt (Feld, Art, …; einmal je Wochenhülle aus beobFelder); die Reichweite einer Person ist die Aufweitung ihrer Marken um den Umkreis (zwei Stempelfelder: normal, Lieblingsbereich).
@@ -1209,6 +1238,7 @@ function zeichenWahrnehmen(sp){
   if(sp)zeichenMelden('spur',sp.j,false,track[sp.j],'gesehen',0)}
 // Gutskarte: Zeichen-Notiz (Farbfläche und Symbol aus 01-karte, B7 P4); je Art und Zelle das Neueste, höchstens CFG.zeichen.kartMax
 function kartZeichen(e){
+  if(e.leer)return;   // „nichts mehr gesehen“ (Nachsehen) setzt kein Zeichen auf die Karte
   if(!(ZEICHEN_ARTEN.includes(e.art)||(e.art==='spur'&&zeichenFuchsSpur(e.tr))))return;
   const Z=CFG.zeichen,k=e.art+':'+beobZelle(e.feld,Z.zelle),L=G.kartZ,i=L.findIndex(z=>z.k===k);
   if(i>=0){if(L[i].woche>e.woche)return;L.splice(i,1)}
@@ -1227,7 +1257,14 @@ function ortWort(f){const x=f%W,y=(f/W)|0;
   const r=KOMPASS[(Math.round(Math.atan2(dy,dx)/(Math.PI/4))+8)%8];
   return d<28?`ein Stück ${r} vom Hof`:`weit ${r} vom Hof`}
 const mengeWort=(n,eins,paar,viele)=>n>=4?viele:n>=2?paar:eins;
+// Nachsehen (B2c P3): was die Person beim Hingehen gesehen hat – gefunden (der Satz der Art, davor „noch einmal nachgesehen“) oder nichts mehr; Worte statt Zahlen
+const NACH_LEER={baumtot:'Vom absterbenden Baum habe ich nichts mehr gesehen',baumliegt:'Vom umgestürzten Baum habe ich nichts mehr gesehen',hasenbau:'Vom Hasenbau habe ich nichts mehr gesehen',fuchsbau:'Vom Fuchsbau habe ich nichts mehr gesehen',spur:'Von der Fährte habe ich nichts mehr gesehen',
+  beeren:'Von den Beeren habe ich nichts mehr gesehen',loch:'Von den Löchern habe ich nichts mehr gesehen',specht:'Vom Specht habe ich nichts mehr gehört',haeher:'Vom Häher habe ich nichts mehr gehört',kraehen:'Von den Krähen habe ich nichts mehr gesehen'};
+function nachText(e){
+  if(e.leer){const o=ortWort(e.feld);return `${o[0].toUpperCase()+o.slice(1)} habe ich nachgesehen: ${NACH_LEER[e.art]||'Von dem Gesuchten habe ich nichts mehr gesehen'}.`}
+  return 'Ich habe noch einmal nachgesehen. '+beobText({...e,nach:0})}
 function beobText(e){
+  if(e.nach)return nachText(e);
   const o=ortWort(e.feld),O=o[0].toUpperCase()+o.slice(1);
   switch(e.art){
     case 'ort':return e.w?`${O} habe ich gearbeitet.`:`${O} bin ich langgekommen.`;
@@ -1243,8 +1280,10 @@ function beobText(e){
     case 'auftrag':return auftragText(e,o,O);
     case 'loch':return `${O} habe ich ${mengeWort(e.n,'ein frisches Loch','ein paar frische Löcher','viele frische Löcher')} gesehen.`;
     default:return `${O} ist mir etwas aufgefallen.`}}
-// Rückmeldung zu einem Gebietsauftrag (Beeren), mit Grund in Worten – o = Ort klein, O = Ort groß geschrieben
+const AUFTRAG_WEG={faellen:'der Baum nicht mehr, den ich fällen sollte',zerlegen:'der Stamm nicht mehr, den ich zerlegen sollte',roden:'der Stumpf nicht mehr, den ich roden sollte',bau:'der Bau nicht mehr, den ich zuschütten sollte',falle:'die Stelle nicht mehr frei, wo ich die Falle stellen sollte'};
+// Rückmeldung zu einem Gebietsauftrag (Beeren) oder einem Einzelauftrag ohne Grundlage (grund 'weg'), mit Grund in Worten – o = Ort klein, O = Ort groß geschrieben
 function auftragText(e,o,O){
+  if(e.grund==='weg')return `${O} war ${AUFTRAG_WEG[e.typ]||'nichts mehr zu tun: '+e.titel}.`;   // Einzelauftrag ohne Grundlage (B2c P1a)
   const m=mengeWort(e.n,'ein paar Beeren','eine Schürze voll Beeren','einen ganzen Korb Beeren'),fund=e.n?`nur ${m} gefunden`:'nichts gefunden',such=e.such?' Es hat gedauert, bis ich die Stelle gefunden habe.':'';
   switch(e.grund){
     case 'dunkel':return e.auf?`Das war mir zu dunkel: ${o} habe ich die Beeren nicht gefunden.`:`Das war mir zu dunkel: ${o} habe ich ${fund}, weiter draußen sah ich nichts mehr.${such}`;
@@ -1260,10 +1299,12 @@ function kartMelde(e){
   else if(e.woche>kartWo[e.feld]){kartWo[e.feld]=e.woche;kartKl[e.feld]=e.kl;n++}
   return n}
 // Wissensliste des Verwalters (diese Woche): typisiert, Quelle „Gespräch“ oder „Untersuchen“; B2c baut das Beobachtungsbuch darauf
-function wissen(e,quelle,von){
+function wissen(e,quelle,von,tr){
   kartZeichen(e);
-  if(knWiss.length>=CFG.beob.wissenMax||knWiss.some(w=>w.art===e.art&&w.feld===e.feld&&w.woche===e.woche&&w.quelle===quelle))return;
-  const w={art:e.art,feld:e.feld,woche:e.woche,quelle};if(von)w.von=von;if(e.tr)w.tr=e.tr;if(e.grund)w.grund=e.grund;if(e.n)w.n=e.n;if(e.w)w.w=e.w;if(e.neu)w.neu=true;
+  if(knWiss.some(w=>w.art===e.art&&w.feld===e.feld&&w.woche===e.woche&&w.quelle===quelle&&!w.nach===!e.nach))return;
+  if(knWiss.length>=CFG.beob.wissenMax){let o=0;for(let j=1;j<knWiss.length;j++)if(buchWo(knWiss[j])<buchWo(knWiss[o]))o=j;knWiss.splice(o,1)}   // voll: der älteste weicht (B2c P2a)
+  const w={art:e.art,feld:e.feld,woche:e.woche,quelle};if(von)w.von=von;if(e.tr||tr)w.tr=e.tr||tr;if(e.grund)w.grund=e.grund;if(e.n)w.n=e.n;if(e.w)w.w=e.w;if(e.neu)w.neu=true;
+  if(e.nach)w.nach=1;if(e.leer)w.leer=1;if(e.typ)w.typ=e.typ;if(e.titel)w.titel=e.titel;if(e.auf)w.auf=e.auf;if(e.such)w.such=e.such;   // Rückmeldungen (Art auftrag) brauchen ihren Text auch im Buch
   knWiss.push(w)}
 // Was die Person jetzt erzählt: {list} | {brummt} (Jost bei schlechter Laune) | null (nichts)
 function erzaehlWahl(s,nachfrage){
@@ -1290,9 +1331,138 @@ function nachfragen(s){
 // Eigenes Untersuchen (buildOptions → ex): meldet, was sich gegenüber der Gutskarte verändert hat („ist neu“, knNeu aus playerSeen), und merkt es in der Wissensliste
 function untersuche(i){
   const art=beobArt(i),vor=knNeu.get(i);
-  if(art||vor!==undefined)wissen({art:art||'neu',feld:i,woche:G.week,neu:vor!==undefined},'Untersuchen');
+  if(art||vor!==undefined)wissen({art:art||'neu',feld:i,woche:G.week,neu:vor!==undefined},'Untersuchen',undefined,art==='spur'?track[i]:0);   // Spurart nur für das Buch (Auflage 17), nicht für die Gutskarte (kartZeichen liest e.tr)
   knNeu.delete(i);
   return vor!==undefined?` Neu: Auf deiner Gutskarte stand hier noch „${KL_NAMEN[vor]}“.`:''}
+// ---------------------------------------------------------------- Beobachtungsbuch und Schreiber (Demo B2c, P2a)
+// Weltzustand in G (sim-test-Fingerabdruck): G.buch = Einträge {art, feld, woche, quelle, …} (Kopien aus knWiss), G.buchFrei = Woche der Streit-Szene (0 = noch nicht: dann gibt es weder Buch noch Schreiber; nur streitSzene setzt es),
+// G.schreib = {id, min, woche, n}: Schreiber der Woche (woche === G.week → diese Woche ist schon geschrieben; min = Schreibdauer, höchstens CFG.buch.freiAnteil des Arbeitstags; „Montag frei“ = freiBis(s), siehe unten).
+// Was der Verwalter erfährt (Gespräch, Untersuchen, Gehörtes), steht in knWiss. Beim Wählen des Schreibers am Sonntagabend (schreiberWaehlen → buchSchreiben, sofort und endgültig für die Woche) wandern die Einträge ins Buch, knWiss ist dann leer;
+// ohne Schreiber bleibt es in knWiss und altert dort wie das Buch (startWeek → knAltern). Alter = reine Funktion buchStufe(e): Werkwochen-Beobachtungen aus dem Gespräch gehören zum Sonntag, an dem sie erzählt werden (Woche n → So n+1 grün) → gelb → rot (letzte Gelegenheit) → weg.
+// Ein Eintrag je Art, Spurart und Zelle (buchId, wie beobZelle); ein neuer zur selben Stelle frischt auf (der neuere gewinnt). Texte kommen aus dem Eintrag selbst (Momentaufnahme, nichts liest die Live-Welt), Abhaken ändert nur das Buch. Ohne R.
+const BUCH_ARTEN=['baumtot','baumliegt','hasenbau','fuchsbau','spur','beeren','loch','auftrag',...ZEICHEN_ARTEN];   // ohne „ort“ (nur ein Weg) und „neu“ (steht schon auf der Gutskarte); mit Rückmeldungen (auftrag) und Zeichen
+const buchWo=e=>e.woche+(e.quelle==='Gespräch'?1:0);
+function buchStufe(e,wk=G.week){const a=wk-buchWo(e),S=CFG.buch.stufen;return a>=S.length?'weg':S[Math.max(0,a)]}   // 'gruen' | 'gelb' | 'rot' | 'weg'
+const buchId=e=>e.art+(e.tr||0)+':'+beobZelle(e.feld,CFG.beob.zelle);
+const buchNeuer=(a,b)=>buchWo(a)>buchWo(b)||(buchWo(a)===buchWo(b)&&!!a.nach>=!!b.nach);   // a ist mindestens so neu wie b; bei gleicher Woche gewinnt der Blick vor Ort (Nachsehen, B2c P3)
+// Was ein Schreiber jetzt eintragen würde: je Art, Spurart und Zelle der neueste Eintrag der Wissensliste (eine Funktion für Anzeige, Schreibdauer und Schreiben)
+function buchNeu(){const m=new Map();
+  for(const e of knWiss){if(!BUCH_ARTEN.includes(e.art)||buchStufe(e)==='weg')continue;const k=buchId(e),o=m.get(k);if(!o||buchNeuer(e,o))m.set(k,e)}
+  return[...m.values()]}
+function buchEintragen(e){
+  const k=buchId(e),i=G.buch.findIndex(x=>buchId(x)===k);
+  if(i>=0){if(buchNeuer(e,G.buch[i]))G.buch[i]={...e};return}   // Auffrischen: der neuere Eintrag (Woche, Feld, Menge) ersetzt den alten
+  G.buch.push({...e});
+  while(G.buch.length>CFG.buch.max){let o=0;for(let j=1;j<G.buch.length;j++)if(buchWo(G.buch[j])<buchWo(G.buch[o]))o=j;G.buch.splice(o,1)}}
+const buchAltern=()=>{G.buch=G.buch.filter(e=>buchStufe(e)!=='weg')};   // herausgefallen: älter als rot
+function knAltern(){for(let i=knWiss.length-1;i>=0;i--)if(buchStufe(knWiss[i])==='weg')knWiss.splice(i,1)}   // ohne Schreiber altert die Wissensliste mit derselben Funktion (Auflage 19)
+const schreibMax=()=>Math.round((G.times.ende-G.times.start)*CFG.buch.freiAnteil);
+const schreibMin=(s,n)=>n>0&&s.fig.schreiben>0?Math.min(schreibMax(),Math.ceil(n*60/s.fig.schreiben)):0;   // Einträge × Schreibtempo (rollen.js: Einträge je Stunde), höchstens der Anteil des Arbeitstags
+// Montag frei (P2b, Gate-Auflage 21): die eine Quelle für Tafel und Ausführung. Der Schreiber der Woche (G.schreib, woche === G.week) hat ab Tagesbeginn so lange frei, wie das Schreiben dauerte (höchstens schreibMax = CFG.buch.freiAnteil des Arbeitstags aus G.times/dayTimes), sonst 0 = kein Einfluss.
+// Wirkt in buildAgenda (Agenda ab max(from, freiBis): beginDay, lunchEnd, replanPerson, Trockenlauf) und decide (wartet in der Reihe am Hof, wo er nach dem Appell steht); der Trockenlauf „morgen früh“ zählt G.week hoch und liest damit keine Freizeit (der nächste Schreiber steht erst am nächsten Sonntagabend fest). Reine Funktion, kein R.
+const freiBis=s=>{const w=G.schreib;return w&&w.woche===G.week&&w.id===s.id&&w.min>0?G.times.start+Math.min(w.min,schreibMax()):0};
+function buchSchreiben(s){const l=buchNeu(),min=schreibMin(s,l.length);
+  for(const e of l)buchEintragen(e);
+  knWiss.length=0;buchAltern();
+  G.schreib={id:s.id,min,woche:G.week,n:l.length};return G.schreib}
+const dauerWort=m=>m<60?`${m} Min.`:`${Math.floor(m/60)} Std.${m%60?' '+m%60+' Min.':''}`;
+// Schreiber wählen (Sonntagabend, Phase 'plan'; Taste B bei der Person der Tafelspalte oder Zelle): schreibt sofort und endgültig für die Woche; nicht der Verwalter, nicht wer nicht schreibt (schreiben 0) oder nicht da ist
+function schreiberWaehlen(s){
+  if(!s)return false;
+  if(!G.buchFrei){toast('Noch führt niemand Buch.');return false}
+  if(G.phase!=='plan'){toast('Wer aufschreibt, bestimmst du am Sonntagabend bei der Planung.',3600);return false}
+  if(G.schreib&&G.schreib.woche===G.week){toast(`${S(G.schreib.id).name} hat diese Woche schon geschrieben.`,3200);return false}
+  if(!(s.fig.schreiben>0)){toast(`${s.name}: „Schreiben ist nichts für mich, Herr Verwalter.“`,3600);return false}
+  if(!s.available){toast(`${s.name} kann diese Woche nicht schreiben.`,3200);return false}
+  const n=buchNeu().length;if(!n){toast('Es gibt nichts einzutragen – du hast nichts Neues erfahren.',3600);return false}
+  const w=buchSchreiben(s);toast(`${s.name} schreibt auf, was du erfahren hast: ${w.n} ${w.n===1?'Eintrag':'Einträge'}, das dauert etwa ${dauerWort(w.min)}. So lange hat ${s.name} am Montag frei.`,4600);return true}
+function buchAbhaken(e){
+  if(!e)return false;
+  if(boardMode()!=='edit'){toast('Abhaken geht nur am Sonntag und am Sonntagabend.',3200);return false}
+  const i=G.buch.indexOf(e);if(i<0)return false;G.buch.splice(i,1);toast('Abgehakt – der Eintrag ist aus dem Buch.',2400);return true}
+const buchSicht=()=>G.buch.filter(e=>buchStufe(e)!=='weg').sort((a,b)=>buchWo(b)-buchWo(a)||a.feld-b.feld);   // neueste oben (Kopie, G.buch bleibt)
+const BUCH_ALTER={gruen:'diese Woche',gelb:'letzte Woche',rot:'vor 2 Wochen – letzte Gelegenheit'};
+function buchText(e){const t=beobText(e),p=e.von?S(e.von):null;return p?`${p.name}: „${t}“`:t}
+function schreiberHtml(){
+  if(!G.buchFrei)return '';
+  const n=buchNeu().length,sw=G.schreib&&G.schreib.woche===G.week?G.schreib:null;
+  if(sw)return `<div class="rep"><b>Beobachtungsbuch:</b> ${S(sw.id).name} hat aufgeschrieben, was du erfahren hast (${sw.n} ${sw.n===1?'Eintrag':'Einträge'}, etwa ${dauerWort(sw.min)} Schreibzeit). Am Montag hat ${S(sw.id).name} so lange frei und fehlt bei der Arbeit.</div>`;
+  if(G.phase!=='plan')return `<div class="rep"><small>Wer aufschreibt, bestimmst du am Sonntagabend.${n?` Bis dahin merkst du dir ${n} ${n===1?'Ding':'Dinge'} selbst.`:''}</small></div>`;
+  let h=`<div class="rep"><b>Beobachtungsbuch:</b> ${n?`${n} ${n===1?'Ding':'Dinge'} hast du erfahren, die noch nicht im Buch stehen. Wer schreibt sie auf? [B] bei der Person der gewählten Spalte oder antippen – es gilt sofort und für die ganze Woche. Wer schreibt, hat am Montag so lange frei, wie es dauert (höchstens einen halben Arbeitstag) – und fehlt dann bei der Arbeit.`:'Du hast nichts Neues erfahren, das einzutragen wäre.'}</div>`;
+  h+='<table class="board compact"><tr>'+staff.map((s,i)=>{const ok=s.fig.schreiben>0&&s.available&&n>0;
+    return `<td class="act${ok?'':' no'}${i===book.col?' cc':''}" data-sw="${i}">${s.name}: ${!(s.fig.schreiben>0)?'schreibt nicht':!s.available?'nicht da':'etwa '+dauerWort(schreibMin(s,n))}</td>`}).join('')+'</tr></table>';
+  return h}
+// Vom Buch zum Auftrag (Demo B2c, P3; Gate-Auflage 23): zwei Handlungen je Eintrag, nur im Modus 'edit' (Sonntag, Sonntagabend); Taste U/V, Zelle data-bu/data-bn (Knöpfe „Auftrag“/„Nachsehen“ am Handy).
+// Der Auftrag entsteht nur aus Art, Feld und Alter des Eintrags (nie hängt Knopf, Titel oder Anlegen vom Live-Zustand der Welt ab; die Referenz – Baum, Stamm – wird nur gesetzt, wo es sie gibt, sonst stellt die Person es vor Ort fest, P1a); die Beobachtung bleibt im Buch und altert weiter.
+// Landet im Auftragsbuch (buch=1), nie im Plan; doppelte (gleiche Art an derselben Stelle, auch eingeplant) werden über markedAt abgewiesen. Rückmeldungen (art auftrag) und leere Nachsehen-Einträge haben keinen Auftrag; Nachsehen gibt es für jeden Eintrag außer den Rückmeldungen.
+const BUCH_AUFTRAG={baumtot:'faellen',specht:'faellen',baumliegt:'zerlegen',hasenbau:'bau',fuchsbau:'bau',beeren:'beeren',loch:'loecher'};
+const BUCH_TITEL={baumtot:'Fällen: abgestorbener Baum',specht:'Fällen: kranker Baum',baumliegt:'Liegenden Stamm zerlegen',hasenbau:'Hasenbau zuschütten',fuchsbau:'Fuchsbau zuschütten',beeren:'Beeren sammeln (Gebiet)',loch:'Löcher zuschütten'};
+const NACH_TITEL={baumtot:'absterbender Baum',baumliegt:'umgestürzter Baum',hasenbau:'Hasenbau',fuchsbau:'Fuchsbau',spur:'Fährte',beeren:'Beeren',loch:'Löcher',specht:'Specht',haeher:'Häher',kraehen:'Krähen'};
+const buchAuftragArt=e=>e&&!e.leer&&buchStufe(e)!=='weg'?BUCH_AUFTRAG[e.art]||null:null;
+const buchNachArt=e=>!!e&&e.art!=='auftrag'&&BUCH_ARTEN.includes(e.art)&&buchStufe(e)!=='weg';
+function buchAuftragDa(typ,i){const x=i%W,y=(i/W)|0;
+  if(typ==='loecher')return markedAt(x,y).some(t=>t.type==='loecher');
+  if(typ==='beeren')return G.tasks.some(t=>t.type==='beeren'&&dist(t.x,t.y,x,y)<=CFG.gebiet.rMax);   // ein Gebiet um die Stelle genügt
+  return markedAt(x,y).some(t=>t.type===typ)||G.tasks.some(t=>t.type===typ&&t.x===x&&t.y===y)}   // ohne Referenz (Baum schon weg) findet markedAt nichts: dann zählt der Ort
+function buchAuftrag(e){
+  if(!e)return false;
+  if(boardMode()!=='edit'){toast('Einen Auftrag aus dem Buch machst du am Sonntag oder am Sonntagabend.',3200);return false}
+  const typ=buchAuftragArt(e);
+  if(!typ){toast(e.leer?'Dort ist nichts mehr zu tun – hake den Eintrag ab, wenn du ihn nicht mehr brauchst.':e.art==='auftrag'?'Das ist eine Rückmeldung zu einem Auftrag – dazu gibt es keinen neuen.':'Dazu gibt es keinen Auftrag – nur Nachsehen.',3600);return false}
+  const i=e.feld,x=i%W,y=(i/W)|0;
+  if(buchAuftragDa(typ,i)){toast('Dazu steht schon ein Auftrag im Auftragsbuch.',3200);return false}
+  const titel=BUCH_TITEL[e.art];
+  if(typ==='loecher')buchPosten('loecher').items.push(i);
+  else if(typ==='beeren')addTask('beeren',x,y,null,{buch:1,erw:e.n||0});   // Erwartung = die Menge im Eintrag (Momentaufnahme)
+  else{const tr=typ==='faellen'?treeAt(i):null,lg=typ==='zerlegen'?lyingAt[i]:-1,
+      ref=typ==='faellen'?(tr&&tr.h>=2&&(tr.dead||tr.stress>=CFG.zeichen.krankStress)?tr.id:null):typ==='zerlegen'?(lg>=0?lg:null):null;   // Referenz nur, wo es sie gibt
+    addTask(typ,x,y,ref,{buch:1,titel})}
+  SFX.peg();toast(`Im Auftragsbuch notiert: ${titel} – ${where(x,y)}. Der Eintrag bleibt im Buch. Einplanen: Notizbuch [N], Reiter „Aufträge“ (Umsetzen).`,4600);return true}
+function buchNachsehen(e){
+  if(!e)return false;
+  if(boardMode()!=='edit'){toast('Nachsehen legst du am Sonntag oder am Sonntagabend fest.',3200);return false}
+  if(!buchNachArt(e)){toast('Zu dieser Rückmeldung gibt es nichts nachzusehen.',3200);return false}
+  const x=e.feld%W,y=(e.feld/W)|0;
+  if(markedAt(x,y).some(t=>t.type==='nachsehen'&&t.suche===e.art&&(t.tr||0)===(e.tr||0))){toast('Dazu ist schon ein Nachsehen im Auftragsbuch.',3200);return false}
+  const t=addTask('nachsehen',x,y,null,{buch:1,suche:e.art,tr:e.tr||0,titel:'Nachsehen: '+NACH_TITEL[e.art]});
+  SFX.peg();toast(`Im Auftragsbuch notiert: ${t.titel} – ${where(x,y)}. Wer hingeht, erzählt es am Sonntag. Einplanen: Notizbuch [N], Reiter „Aufträge“ (Umsetzen).`,4600);return true}
+function buchHtml(){
+  if(!G.buchFrei)return '<div class="rep"><i>Noch führt niemand Buch. Was du erfährst, musst du dir selbst merken.</i></div>';
+  const l=buchSicht(),md=boardMode();book.bsel=clamp(book.bsel,0,Math.max(0,l.length-1));
+  let h=`<div class="rep"><small>Hier steht, was dein Schreiber aufgeschrieben hat. Grün ist diese Woche, gelb letzte Woche, rot vor zwei Wochen – das ist die letzte Gelegenheit, danach fällt der Eintrag heraus. Was du an derselben Stelle neu erfährst, wird wieder grün. „Abhaken“ streicht einen Eintrag sofort. „Auftrag“ legt, wo es eine Auftragsart gibt, einen Auftrag ins Auftragsbuch (der Eintrag bleibt und altert weiter); „Nachsehen“ schickt jemanden hin – wer zurück ist, erzählt es am Sonntag, und der Eintrag wird mit Schreiber wieder grün.</small></div>`+schreiberHtml();
+  if(!l.length)return h+'<div class="rep"><i>Das Buch ist leer.</i></div>';
+  h+='<table class="board compact">';
+  l.forEach((e,r)=>{const st=buchStufe(e);
+    h+=`<tr class="${r===book.bsel?'sel':''}"><td data-br="${r}"><i class="bst bst-${st}" title="${BUCH_ALTER[st]}"></i> ${buchText(e)}</td><td data-br="${r}"><small>${BUCH_ALTER[st]}</small></td><td class="act${md==='edit'&&buchAuftragArt(e)?'':' no'}" data-bu="${r}">→ Auftrag</td><td class="act${md==='edit'&&buchNachArt(e)?'':' no'}" data-bn="${r}">→ Nachsehen</td><td class="act${md==='edit'?'':' no'}" data-ba="${r}">✔ Abhaken</td></tr>`});
+  return h+'</table>'}
+function bindBuch(root){
+  root.querySelectorAll('[data-sw]').forEach(el=>el.onclick=e=>{e.stopPropagation();book.col=+el.dataset.sw;schreiberWaehlen(staff[book.col]);renderBook()});
+  root.querySelectorAll('[data-br]').forEach(el=>el.onclick=e=>{e.stopPropagation();book.bsel=+el.dataset.br;renderBook()});
+  root.querySelectorAll('[data-bu]').forEach(el=>el.onclick=e=>{e.stopPropagation();book.bsel=+el.dataset.bu;buchAuftrag(buchSicht()[book.bsel]);renderBook()});
+  root.querySelectorAll('[data-bn]').forEach(el=>el.onclick=e=>{e.stopPropagation();book.bsel=+el.dataset.bn;buchNachsehen(buchSicht()[book.bsel]);renderBook()});
+  root.querySelectorAll('[data-ba]').forEach(el=>el.onclick=e=>{e.stopPropagation();book.bsel=+el.dataset.ba;buchAbhaken(buchSicht()[book.bsel]);renderBook()})}
+function buchTaste(e){
+  const l=buchSicht(),d=KEYDIR[e.code];
+  if(d==='up'||d==='down')book.bsel=clamp(book.bsel+(d==='up'?-1:1),0,Math.max(0,l.length-1));
+  else if(d==='left'||d==='right')book.col=clamp(book.col+(d==='left'?-1:1),0,staff.length-1);
+  else if(e.code==='KeyU')buchAuftrag(l[book.bsel]);   // Auftrag aus dem Eintrag (P3)
+  else if(e.code==='KeyV')buchNachsehen(l[book.bsel]);   // Nachsehen (P3)
+  else if(e.code==='Space'||e.code==='KeyE'||e.code==='KeyX'||e.code==='Delete'||e.code==='Backspace'){if(l[book.bsel]){buchAbhaken(l[book.bsel]);book.bsel=clamp(book.bsel,0,Math.max(0,buchSicht().length-1))}}}
+// Streit-Szene (Sonntag Woche CFG.buch.szeneWoche, Morgenkarte, genau einmal): die einzige Stelle, die G.buchFrei setzt. Erzählt, kein Zufall.
+const szeneFaellig=()=>G.week>=CFG.buch.szeneWoche&&!G.buchFrei;
+function streitSzene(){
+  G.buchFrei=G.week;
+  const z=(id,t)=>`<div class="rep"><b>${S(id).name}:</b> „${t}“</div>`;
+  return '<h3>Streit auf dem Hof</h3>'
+    +z('hannes','Herr Verwalter, ich habe draußen im Wald etwas entdeckt, das müssen Sie wissen!')
+    +z('jost','Das weiß ich seit Wochen.')
+    +z('hannes','Und warum sagt mir das keiner?')
+    +z('jost','Fragt ja auch keiner. Ich bin im Wald, nicht beim Schwatzen.')
+    +z('grete','Hört auf, alle beide. Jeder sieht etwas anderes, und der Verwalter hat nichts davon, wenn es in euren Köpfen bleibt. Einer muss es aufschreiben.')
+    +z('jost','Ich nicht. Mit der Axt kann ich umgehen, nicht mit der Feder.')
+    +z('hannes','Ich hab genug am Hals, ich schreibe nicht auch noch für euch mit!')
+    +z('grete','Ich kann es ja. Aber ich brauche für jede Zeile so lang wie für ein Brot.')
+    +`<div class="rep"><i>Am Ende liegt es bei dir: Ab jetzt führst du ein Beobachtungsbuch (Notizbuch, Reiter „Beobachtungen“ [${TAB_BUCH+1}]). Am Sonntagabend bestimmst du, wer aufschreibt, was du erfahren hast – Jost schreibt nicht, Grete sehr langsam. Wer schreibt, hat am Montag so lange frei, wie es dauert – und fehlt dir dann bei der Arbeit. Was nicht aufgeschrieben wird, verblasst.</i></div>`}
 // Sonntagsorte (rollen.js: sonntag = bach | kueche | holz | garten | zuhause): wo die Person am Sonntag steht. Nur die Position in startWeek, aus der Karte abgeleitet, ohne R, begehbar und ansprechbar; Werkwoche, Appell und Trockenlauf bleiben bei LINE.
 function nearestWhere(cx,cy,ok){let best=-1,bd=Infinity;
   for(let i=0;i<N;i++){const x=i%W,y=(i/W)|0,d=(x-cx)*(x-cx)+(y-cy)*(y-cy);if(d<bd&&ok(i,x,y)){bd=d;best=i}}
@@ -1484,6 +1654,7 @@ function singleCost(t){
     case 'roden':return CFG.cost.roden;
     case 'bau':return feat[i]===F_DEN?CFG.cost.fuchsbau:CFG.cost.hasenbau;
     case 'falle':return CFG.cost.falle;
+    case 'nachsehen':return CFG.cost.nachsehen;   // Verweildauer
     case 'beeren':return CFG.cost.beeren;   // nur Nennwert (Gebiet: die Zeit ergibt sich aus Finden, Radius und Wegen)
   }return 1;
 }
@@ -1497,13 +1668,17 @@ function validTask(t){
     case 'roden':return stumpAt[i]>0;
     case 'bau':return feat[i]===F_BURROW||feat[i]===F_DEN;
     case 'falle':return !feat[i]&&trunkAt[i]<0&&lyingAt[i]<0&&walkable(t.x,t.y);
+    case 'nachsehen':return true;   // keine Grundlage nötig: fehlt etwas, ist genau das die Rückmeldung
     case 'beeren':return true;   // Gebiet: gilt, bis es einmal abgearbeitet (oder aufgegeben) ist
   }return false;
 }
+// Gültigkeit vor Ort (Demo B2c, P1a): Ein Einzelauftrag verschwindet nicht still, wenn seine Grundlage fehlt (Baum gefallen, Stumpf weg, Bau zu …) – er bleibt, die Person geht hin und stellt es erst bei der Ankunft fest (pickWork plant Hin- und Rückweg mit Arbeit 0, workTick → grundFehlt).
+// Ausnahme: Sammelposten (maehen, weg, loecher, setzlinge) behalten den stillen Feldfilter (taskItems) und fallen leer weg (KONZEPT-DEMO §5.0).
+const bleibtTask=t=>!TASKS[t.type].group||validTask(t);
 function visibleTask(t){const d=TASKS[t.type];
   if(d.fixed){if(t.doneWeek===G.week&&!(t.type==='markt'&&G.marketOut))return false;
     if(t.type==='fuettern')return G.hensInside&&G.chickens>0;if(t.type==='einsperren')return G.chickens>0;if(t.type==='kochen')return true;return Object.keys(d.who).some(id=>S(id).available)||G.marketOut}
-  return validTask(t)&&(!d.group||taskItems(t).length>0)}
+  return !d.group||(validTask(t)&&taskItems(t).length>0)}   // Einzelaufträge bleiben sichtbar, auch ohne Grundlage (B2c P1a); leere Sammelposten nicht
 function taskPos(t){if(t.type==='markt')return[ESTATE.gx,H-2];if(isHen(t))return COOP;if(t.type==='kochen')return HOF;if(!TASKS[t.type].group)return[t.x,t.y];const its=taskItems(t);if(!its.length)return HOF;
   let sx=0,sy=0;for(const it of its){const j=itemTile(t,it);sx+=j%W;sy+=(j/W)|0}return[Math.round(sx/its.length),Math.round(sy/its.length)]}
 function where(x,y){
@@ -1519,18 +1694,25 @@ function taskTitle(t){
   if(t.type==='einsperren'&&t.who==='none')return 'Hühner bleiben nachts draußen';
   if(TASKS[t.type].fixed)return TASKS[t.type].label;
   if(TASKS[t.type].group){const n=taskItems(t).length;return `${TASKS[t.type].label} (${n} ${TASKS[t.type].unit})`}
+  if(t.titel&&!validTask(t))return t.titel;   // ohne Grundlage: Momentaufnahme vom Markieren (B2c Auflage 2), nie der Live-Zustand
   switch(t.type){
     case 'faellen':return `Fällen: ${treeDesc(treeById.get(t.ref))}`;
     case 'zerlegen':return 'Liegenden Stamm zerlegen';
     case 'roden':return 'Baumstumpf roden';
     case 'bau':return feat[idx(t.x,t.y)]===F_DEN?'Fuchsbau zuschütten':'Hasenbau zuschütten';
     case 'falle':return 'Falle stellen';
+    case 'nachsehen':return t.titel||'Nachsehen';   // Momentaufnahme aus dem Eintrag
     case 'beeren':return 'Beeren sammeln (Gebiet)';
   }return t.type;
 }
 function addTask(type,x,y,ref,extra){const t={id:nextId++,type,x,y,ref,who:null,crew:[],done:0,items:[],...(extra||{})};G.tasks.push(t);return t}
 function removeTask(t){const k=G.tasks.indexOf(t);if(k>=0)G.tasks.splice(k,1)}
-function groupTask(type){return G.tasks.find(t=>t.type===type)||addTask(type,HOF[0],HOF[1],null)}
+// Auftragsbuch (Demo B2c, P1b): Jeder markierte Auftrag landet zuerst im Auftragsbuch (optionales Feld t.buch=1; fehlt = Plan; Routine fixed/auto immer Plan). In den Plan (Tafel, Zuteilung, Ausführung) kommt er erst mit „Umsetzen“.
+// inPlan ist die einzige Entscheidung „Plan oder Buch“ (staffTasks, freezePlans, bookTasks, moveOwn, toggleAssign). groupTask liefert den Plan-Posten einer Art (Routine, Tests), buchPosten den Buch-Posten (alle Markierwege: höchstens einer je Art,
+// nie wird in einen eingeplanten Posten markiert). Wissen: nichts hier liest die Live-Welt (Titel = Momentaufnahme beim Anlegen); die Sortierung offen/eingeplant ist nur abgeleitet (buchListe).
+const inPlan=t=>!t.buch||!!TASKS[t.type].fixed||!!TASKS[t.type].auto;
+function groupTask(type){return G.tasks.find(t=>t.type===type&&inPlan(t))||addTask(type,HOF[0],HOF[1],null)}
+function buchPosten(type){return G.tasks.find(t=>t.type===type&&!inPlan(t))||addTask(type,HOF[0],HOF[1],null,{buch:1})}
 function ensureAutoTasks(){for(const k of Object.keys(TASKS))if(TASKS[k].auto)groupTask(k)}
 function markedAt(x,y){const i=idx(x,y),tr=treeAt(i),lg=lyingAt[i];
   return G.tasks.filter(t=>{
@@ -1600,15 +1782,15 @@ function dayTimes(){const z=CFG.zeit,s=sunTimes(weekNow()),ende=Math.round(s.unt
 function stdLabel(s){return{hannes:'einholen am Hof',jost:'Stämme am Hof zerlegen',grete:'Hof & Hühner',liese:'Haus & Garten'}[s.id]}
 // Beim Appell (und nach der Mittagspause) wird der Plan festgelegt; Änderungen dazwischen gelten ab der nächsten Verteilung
 function staffTasks(s,live){const base=!live&&G.frozen?(G.frozen[s.id]||[]).map(id=>G.tasks.find(t=>t.id===id)).filter(Boolean):G.tasks.filter(t=>assigned(t,s.id));
-  return base.filter(t=>visibleTask(t)&&canDo(t.type,s.id,t))}
-function freezePlans(){G.frozen={};for(const s of staff)G.frozen[s.id]=G.tasks.filter(t=>assigned(t,s.id)).map(t=>t.id)}
+  return base.filter(t=>inPlan(t)&&visibleTask(t)&&canDo(t.type,s.id,t))}   // nur der Plan (das Auftragsbuch tut nichts), auch aus G.frozen
+function freezePlans(){G.frozen={};for(const s of staff)G.frozen[s.id]=G.tasks.filter(t=>inPlan(t)&&assigned(t,s.id)).map(t=>t.id)}
 // Umplanen (Paket 12): s bekommt ab jetzt (G.min) den neuen Plan – nur s. Die Zuteilung (G.tasks) ist schon geändert (eine Wahrheitsquelle); hier folgen G.frozen[s.id] und die Ausführung:
 // laufender Weg/Auftrag endet (Objekt: Fortschritt t.done bleibt; Sammelposten: Claim frei, das angefangene Feld verfällt), s.path leer, Agenda neu ab dem Ort von s.
 // Feste Spannen (Hinweg oder Durchführung von füttern/kochen/einsperren) sind nicht unterbrechbar: die Änderung greift danach. Läuft auch im Trockenlauf (dryRun, ab jetzt) auf der Kopie.
 const staffSig=s=>G.tasks.filter(t=>assigned(t,s.id)).map(t=>t.id).join();
 function replanPerson(s){
   s.folgt=false;   // Weg zeigen endet mit jedem Umplanen (Entlassen, [T], Hoftag-Mittag, Abend: folgeEnde)
-  if(G.frozen)G.frozen[s.id]=G.tasks.filter(t=>assigned(t,s.id)).map(t=>t.id);
+  if(G.frozen)G.frozen[s.id]=G.tasks.filter(t=>inPlan(t)&&assigned(t,s.id)).map(t=>t.id);
   const c=s.cur,fest=c&&c.ag;
   if(!fest){
     if(c&&c.kind==='item')G.claimed.delete(c.task.id+':'+c.item);
@@ -1618,7 +1800,8 @@ function replanPerson(s){
   s.agenda=fest?[c.ag,...ag.filter(a=>a.task!==c.task)].sort((a,b)=>a.go-b.go):ag}
 // Feste Spannen einer Person (Zeitpunkte, an denen sie an einem Ort sein muss): Markt (Vormittag, unterwegs), Füttern (zuerst), Kochen (Hoftag: bis zum Mittag; Waldtag: bis zum Abend),
 // Einsperren (abends). go = frühester Aufbruch, start = Arbeitsbeginn am Ort, end = start + dur. Hinweg zum Stall: Distanzfeld der Person zur Mittagsminute (Aufruf innerhalb withWayField), auf die Abendminute hochgerechnet (Kosten skalieren mit dayFactor).
-function buildAgenda(s,live,from){
+function buildAgenda(s,live,from,roh){
+  if(!roh)from=Math.max(from,freiBis(s));   // Montag frei (Schreiber): die Agenda beginnt erst nach der freien Zeit; roh = ohne (nur der Vergleich der Tafelwarnungen im Trockenlauf)
   const T=G.times,z=CFG.zeit,hof=G.dayType!=='wald',ag=[];
   const list=staffTasks(s,live).filter(t=>TASKS[t.type].fixed&&t.doneWeek!==G.week);
   const mk=list.find(t=>t.type==='markt'),fu=list.find(t=>t.type==='fuettern'),ko=list.find(t=>t.type==='kochen'),ei=list.find(t=>t.type==='einsperren');
@@ -1664,7 +1847,7 @@ function pickWork(s,b){
     const d=TASKS[t.type];if(d.fixed)continue;
     const rate=rateOf(s,t.type);
     if(d.gebiet){   // Gebietsauftrag: Hinweg zum Fixpunkt; Finden, Radius und Sammeln entscheidet erst gebietTick bei der Ankunft (Licht zur Ankunftsminute)
-      if(!validTask(t)||s.skip.has(key(t,'*'))||(dry&&dry.done.has(key(t,'*'))))continue;
+      if(s.skip.has(key(t,'*'))||(dry&&dry.done.has(key(t,'*'))))continue;
       const r=route(t.x,t.y);if(!r){fail(t,key(t,'*'));continue}
       if(now+r.min+CFG.gebiet.minArbeit+back(t.x,t.y)<=b)return{kind:'gebiet',task:t,x:t.x,y:t.y,fx:t.x,fy:t.y,path:r.path,left:0,rate,b};
       continue}
@@ -1676,8 +1859,10 @@ function pickWork(s,b){
         const norm=normOf(itemCost(t,it));
         if(now+r.min+norm/rate+back(x,y)<=b)return{kind:'item',task:t,item:it,x,y,path:r.path,left:norm,rate}}
     } else {
-      if(!validTask(t)||s.skip.has(key(t,'*')))continue;
+      if(s.skip.has(key(t,'*'))||(dry&&dry.done.has(key(t,'*'))))continue;
       const r=route(t.x,t.y);if(!r){fail(t,key(t,'*'));continue}
+      if(!validTask(t)){const stop=b-back(t.x,t.y);   // Grundlage fehlt: nur Hin- und Rückweg, Arbeit 0 – festgestellt wird es erst bei der Ankunft (workTick → grundFehlt)
+        if(now+r.min<=stop)return{kind:'single',task:t,x:t.x,y:t.y,path:r.path,left:0,rate,stop};continue}
       const left=normOf(singleCost(t))-t.done,stop=b-back(t.x,t.y);
       if(left>0&&stop-(now+r.min)>=Math.min(CFG.zeit.minArbeit,left/rate))return{kind:'single',task:t,x:t.x,y:t.y,path:r.path,left,rate,stop}
     }
@@ -1746,6 +1931,29 @@ function gebietMelde(s,t,res){
   const f=idx(t.x,t.y),e={k:'auftrag:'+t.id,art:'auftrag',feld:f,woche:G.week,grund:res.grund,n:res.n,kl:feldKlasse(f)};
   if(res.auf)e.auf=1;if(res.such)e.such=1;
   knMem[s.id]=knMem[s.id].filter(x=>x.k!==e.k);knMem[s.id].push(e)}
+// Einzelauftrag ohne Grundlage, vor Ort festgestellt (Demo B2c, P1a; Zielmarke 2): nichts verschwindet still. Trockenlauf: nur dry.done (Tafel = Ausführung). Echt: der Auftrag fällt offen zurück ins Auftragsbuch (leere Zuteilung, t.buch=1; P1b),
+// die Person merkt es sich wie bei gebietMelde (Art „auftrag“, Vorrang, grund 'weg', Auftragsart und Titel-Momentaufnahme; das Gespräch liest die Welt nie) und erzählt es am Sonntag; s.skip hält sie in diesem Tag davon ab, ihn noch einmal zu wählen.
+function grundFehlt(s,t){
+  s.skip.add(t.id+':*');
+  if(dry){dry.done.add(t.id+':*');return}
+  t.crew=[];t.buch=1;
+  const f=idx(t.x,t.y),e={k:'auftrag:'+t.id,art:'auftrag',feld:f,woche:G.week,grund:'weg',typ:t.type,titel:taskTitle(t),kl:feldKlasse(f)};
+  knMem[s.id]=knMem[s.id].filter(x=>x.k!==e.k);knMem[s.id].push(e)}
+// Nachsehen (Demo B2c, P3; Gate-Auflage 24): Auftragsart aus dem Beobachtungsbuch (buchNachsehen). Die Person geht hin, verweilt kurz (CFG.cost.nachsehen wie eine Einzelarbeit: Hinweg, Verweildauer, Rückweg – der Trockenlauf rechnet genau das, die Tafel ist die Ausführung),
+// sieht sich im Umkreis um (Wahrnehmungsradius der Wochenhülle, Lieblingsbereich, bei Zeichen personalR) und merkt sich, was sie jetzt sieht – immer, auch „nichts mehr gesehen“ (leer). Nur echt (applyJob), nie im Trockenlauf; reine Funktion des Weltzustands, ohne R.
+// Die Rückmeldung ist ein knMem-Eintrag der gesuchten Art mit nach=1 und eigenem Schlüssel „nachsehen:<Auftrag>“ (beobachte ersetzt per all.set nur gleiche Schlüssel, die nächtliche Wochenhülle lässt ihn also stehen) mit Vorrang wie „auftrag“ (beobPrio);
+// am Sonntag erzählt ihn die Person nach ihrer Figur, mit Schreiber frischt er den Buch-Eintrag derselben Stelle wieder auf (buchId; bei gleicher Woche gewinnt er, buchNeuer).
+function nachsehenSuche(s,art,x,y,tr){
+  const B=CFG.beob,z=ZEICHEN_ARTEN.includes(art),r=z?CFG.zeichen.personalR:B.radius+(s.fig.lieblings.includes(art)?B.lieblingPlus:0),o=[];
+  if(z)zeichenQuellen((j,a)=>{if(a===art&&dist(x,y,j%W,(j/W)|0)<=r)o.push(j)},x,y,r);
+  else for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){if(dx*dx+dy*dy>r*r||!inb(x+dx,y+dy))continue;const j=idx(x+dx,y+dy);if(beobArt(j)===art&&(art!=='spur'||track[j]===tr))o.push(j)}
+  return o}
+function nachsehenWirkt(s,t){
+  const art=t.suche,tr=t.tr||0,l=nachsehenSuche(s,art,t.x,t.y,tr),k='nachsehen:'+t.id;let e;
+  if(l.length){let b=l[0],bd=Infinity;for(const j of l){const d=dist(t.x,t.y,j%W,(j/W)|0);if(d<bd||(d===bd&&j<b)){bd=d;b=j}}   // das Nächste zum Auftragsort (Feldnummer als Gleichstand)
+    e={k,art,feld:b,woche:G.week,n:Math.min(99,l.length),nach:1,kl:feldKlasse(b)};if(art==='spur')e.tr=track[b]}
+  else{const f=idx(t.x,t.y);e={k,art,feld:f,woche:G.week,nach:1,leer:1,kl:feldKlasse(f)};if(tr)e.tr=tr}   // nichts mehr gesehen: derselbe Ort und dieselbe Art, damit der Eintrag im Buch ersetzt wird
+  knMem[s.id]=knMem[s.id].filter(x=>x.k!==k);knMem[s.id].push(e)}
 // ---------------------------------------------------------------- Wirkung
 function applyJob(s,j){
   if(dry){dryApply(s,j);return}
@@ -1757,7 +1965,8 @@ function applyJob(s,j){
     case 'item':if(G.tasks.includes(j.task))applyItem(j.task,j.item);break;
     case 'beere':{const i=j.item;if(berry[i]){berry[i]=0;berryT[i]=0;addFood('beeren',CFG.berryPortion)}break}
     case 'gebiet':if(G.tasks.includes(j.task)){removeTask(j.task);gebietMelde(s,j.task,j.res)}break;   // einmalig: erledigt, auch nach Aufgeben
-    case 'single':{const t=j.task;if(!G.tasks.includes(t))break;if(!validTask(t)){removeTask(t);break}
+    case 'single':{const t=j.task;if(!G.tasks.includes(t))break;if(!validTask(t)){grundFehlt(s,t);break}
+      if(t.type==='nachsehen'){nachsehenWirkt(s,t);removeTask(t);break}   // nur echt (applyJob im Trockenlauf = dryApply): Rückmeldung ins Gedächtnis, der Auftrag ist erledigt
       if(applySingle(t))removeTask(t);else{if(!s.failed.includes(t))s.failed.push(t);s.skip.add(t.id+':*');t.done=normOf(singleCost(t))-0.01}
       break}
     case 'routine':{const i=idx(j.x,j.y);
@@ -1822,6 +2031,7 @@ function startCommit(s,c){
 function decide(s){
   const T=G.times,now=G.min;
   if(G.phase==='mittag'){if(atHome(s))s.wait=T.wiederAb;else goHome(s);return}
+  const fr=freiBis(s);if(now<fr){s.wait=fr;return}   // Montag frei (Schreiber): bis dahin bleibt er, wo er steht (nach dem Appell in der Reihe am Hof); danach neu schauen
   const c=s.agenda.find(a=>!a.done);
   if(c&&now>=c.go){startCommit(s,c);return}
   const hof=G.dayType!=='wald'&&now<T.mittag;
@@ -1836,7 +2046,8 @@ function workTick(s){
   const c=s.cur;if(!c){s.state='rest';return}
   const t=c.task;
   if(c.kind==='single'){
-    if(!G.tasks.includes(t)||!validTask(t)){if(!dry&&G.tasks.includes(t))removeTask(t);endLeg(s);return}
+    if(!G.tasks.includes(t)){endLeg(s);return}
+    if(!validTask(t)){grundFehlt(s,t);endLeg(s);return}   // angekommen: nichts mehr da
     t.done+=c.rate;
     if(t.done>=normOf(singleCost(t))-1e-6){applyJob(s,c);endLeg(s)}
     else if(G.min+1>=c.stop)endLeg(s);   // Zeit um, Rückweg: der Fortschritt bleibt am Objekt
@@ -1885,8 +2096,8 @@ function startWeek(first,quiet){
   G.state='play';G.phase='sonntag';G.times=dayTimes();G.min=sundayStart(G.times.start,sl);G.frozen=null;G.claimed=new Set();
   G.kraft=CFG.kraft;G.enjoyed=false;G.coopClosed=false;
   G.hensFoodOk=!G.hensInside&&G.grazedOk;G.hayShort=false;G.marketOut=false;G.goodMeal=false;G.ateWithStaff=false;G.cooked=false;
-  G.tasks=G.tasks.filter(validTask);ensureAutoTasks();
-  knWiss.length=0;knNeu.clear();G.zSag={};   // Wissensliste und „ist neu“ gelten für die Woche; Zeichen dürfen wieder gemeldet werden
+  G.tasks=G.tasks.filter(bleibtTask);ensureAutoTasks();
+  knAltern();buchAltern();knNeu.clear();G.zSag={};   // Wissensliste und Buch altern (buchStufe), was weg ist, fällt heraus; „ist neu“ gilt für die Woche; Zeichen dürfen wieder gemeldet werden
   staff.forEach(s=>{s.weak=!!s.weakNext;s.weakNext=false;s.away=false;s.available=staffAvail(s,G.week,s.weak);s.cur=null;s.path=[];s.state='rest';s.failed=[];s.agenda=[];s.wait=0;s.acc=0;s.skip=new Set();s.folgt=false;
     s.x=s.home[0];s.y=s.home[1];s.px=s.x;s.py=s.y;s.dir='down'});
   spawnCritters();computeLight();tickAcc=0;
@@ -1925,7 +2136,7 @@ function startWorkday(quiet){
   if(G.phase!=='plan')return;
   G.phase='appell';G.state='play';G.kraft=G.exhausted?0:G.kraft;G.exhausted=false;G.enjoyed=false;G.min=G.times.start;G.frozen=null;G.claimed=new Set();
   G.goodMeal=!!G.bonusNext;G.bonusNext=false;   // gute Küche vom Waldtag-Abend wirkt bis zum Mittag (noonOutside)
-  G.tasks=G.tasks.filter(validTask);ensureAutoTasks();
+  G.tasks=G.tasks.filter(bleibtTask);ensureAutoTasks();
   staff.forEach((s,k)=>{s.x=LINE[k][0];s.y=LINE[k][1];s.px=s.x;s.py=s.y;s.dir='down';s.cur=null;s.path=[];s.state='rest';s.agenda=[];s.wait=0;s.acc=0;s.skip=new Set();s.failed=[];s.folgt=false});
   tickAcc=0;
   if(quiet){beginDay();return}
@@ -2020,7 +2231,8 @@ function fallAsleepOutside(quiet){
 // Sonntagabend: das Notizbuch ist der Planungsbildschirm; Schließen (Esc/N) oder T fragt, ob die Planung abgeschlossen ist (Esc = nein: zurück zum Bildschirm)
 function planFinishAsk(){
   closeBook();
-  confirmCard('Die Planung abschließen? Die Werkwoche beginnt: Montag früh, Appell auf dem Hof.',()=>{closeBook();guide('sleep');startWorkday()});   // hideCard hat über afterCard das Notizbuch schon wieder geöffnet (gedacht für „nein“) – hier schließen
+  const offen=G.buchFrei&&!(G.schreib&&G.schreib.woche===G.week)&&buchNeu().length>0;   // Wissen ohne Schreiber: es bleibt in der Wissensliste und verblasst
+  confirmCard('Die Planung abschließen? Die Werkwoche beginnt: Montag früh, Appell auf dem Hof.'+(offen?' Du hast noch niemanden bestimmt, der aufschreibt, was du erfahren hast – es bleibt ungeschrieben und verblasst.':''),()=>{closeBook();guide('sleep');startWorkday()});   // hideCard hat über afterCard das Notizbuch schon wieder geöffnet (gedacht für „nein“) – hier schließen
   G.afterCard=()=>{if(G.phase==='plan')openBook()};
 }
 // Schlafen führt zum jeweils nächsten Abschnitt: Sonntag → Sonntagabend → Werkwoche (Appell); in der Werkwoche zur Nacht (Wochenschritt) und zum nächsten Sonntag
@@ -2066,9 +2278,9 @@ const mealGood=()=>cooksToday(true)&&defaultMeal().filter(k=>G.food[k]>0).length
 // Der Kartenstand (kartWo/kartKl) gehört bewusst NICHT in den Schlüssel: „ca.“/„?“ liest ihn beim Rendern (segUnsure) aus Route und Ziel im Ergebnis, das Ergebnis selbst bleibt vom Kartenwissen unabhängig.
 function planKey(from,jetzt){
   const rp=jetzt&&book.replan?book.replan+':'+book.replanSig+':'+staffSig(S(book.replan)):'';
-  return [from,jetzt,rp,JSON.stringify(G.frozen),G.week,G.phase,G.min,G.dayType,G.times.start,G.marketOut,G.cooked,G.goodMeal,G.bonusNext,JSON.stringify(G.food),
+  return [from,jetzt,rp,JSON.stringify(G.frozen),G.week,G.phase,G.min,G.dayType,G.times.start,G.marketOut,G.cooked,G.goodMeal,G.bonusNext,JSON.stringify(G.food),JSON.stringify(G.schreib),
     staff.map(s=>s.available+':'+s.weakNext+':'+!!s.folgt).join(),staff.some(s=>s.folgt)?P.x+','+P.y:'',   // Weg zeigen: wer folgt und wohin (der Verwalter steht im Trockenlauf still)
-    G.tasks.map(t=>[t.id,t.type,(t.crew||[]).join('+'),t.who,t.done,t.items?t.items.length:'',t.doneWeek].join('/')).join(';'),
+    G.tasks.map(t=>[t.id,t.type,(t.crew||[]).join('+'),t.who,t.done,t.items?t.items.length:'',t.doneWeek,t.buch||''].join('/')).join(';'),
     G.marken.join(),G.tasks.filter(t=>TASKS[t.type].gebiet).map(beerenSig).join()].join('|')}   // Wegmarken und je Gebiet die Beeren im Radius (Auflage 17): beides ändert Finden und Ertrag
 // jetzt (nur Werkwoche tagsüber): „ab jetzt“ vom Ist-Zustand aller Personen (Tafel in der Werkwoche, Umplanen), sonst Tagesbeginn bzw. Nachmittag wie bisher
 function planAll(from,live,fresh,jetzt){
@@ -2096,7 +2308,7 @@ function dryRun(from,jetzt){
   const keep={min:G.min,phase:G.phase,claimed:G.claimed,frozen:G.frozen,week:G.week,times:G.times,goodMeal:G.goodMeal,hasBacklog:'gardenBacklog' in G,backlog:G.gardenBacklog,done:G.tasks.map(t=>t.done),doneWeek:G.tasks.map(t=>t.doneWeek)};
   const tomorrow=!jetzt&&from===G.times.start&&(G.phase==='abend'||G.phase==='mittag'||(G.phase==='tag'&&G.min>G.times.start));   // Tafel nach dem Appell: gilt ab morgen früh
   if(tomorrow){G.week++;G.times=dayTimes();from=G.times.start}   // Sonnenstand und diese Woche Erledigtes (doneWeek) wie in der nächsten Werkwoche
-  const T=G.times,hof=G.dayType!=='wald',plans={},finish=new Map(),home={},warn=[],lastWork=new Map(),failed=new Set();
+  const T=G.times,hof=G.dayType!=='wald',plans={},finish=new Map(),home={},warn=[],lastWork=new Map(),failed=new Set(),fw=[];
   const saved=staff.map(s=>DRY_FIELDS.map(f=>[f,Object.prototype.hasOwnProperty.call(s,f),s[f]]));
   if(tomorrow)for(const s of staff){s.weak=!!s.weakNext;s.available=staffAvail(s,G.week,s.weak)}   // „morgen früh“ = nächste Woche: wer dann dazukommt (Jost) oder zu schwach ist, wie es startWeek setzt (wird unten zurückgesetzt)
   const live=staff.filter(s=>s.available),rec=new Map(live.map(s=>[s.id,{segs:[],act:null,seg:null}]));
@@ -2131,6 +2343,10 @@ function dryRun(from,jetzt){
       G.frozen=null;G.claimed=new Set();G.phase='tag';G.min=from;
       G.goodMeal=from>T.start?(G.cooked?keep.goodMeal:mealGood()):(tomorrow||keep.phase==='sonntag'||keep.phase==='plan'?!!G.bonusNext:keep.goodMeal);   // Tagesbeginn: gute Küche vom Waldtag-Abend (bonusNext)
       for(const s of live){const [x,y]=lineSpot(s);s.x=x;s.y=y;s.dir='down';s.state='rest';s.cur=null;s.path=[];s.acc=0;s.wait=0;s.away=false;s.folgt=false;s.skip=new Set();s.failed=[];s.agenda=buildAgenda(s,false,from)}
+      for(const s of live){const fr=freiBis(s);if(fr<=from)continue;   // Montag frei: was fällt dadurch aus oder beginnt später (Vergleich mit der Agenda ohne die freie Zeit)
+        for(const r of buildAgenda(s,false,from,true)){const a=s.agenda.find(x=>x.task===r.task),t=taskTitle(r.task);
+          if(!a)fw.push(`${t}: ${s.name} hat bis ${hm(fr)} frei (hat geschrieben) – das fällt aus.`);
+          else if(a.start>r.start)fw.push(`${t}: ${s.name} hat bis ${hm(fr)} frei (hat geschrieben) – das beginnt erst um ${hm(hof&&a.start>=T.mittag&&a.start<T.wiederAb?T.wiederAb:a.start)}.`)}}
     }
     for(let n=0;n<2500;n++){
       if(G.phase==='abend'&&(G.min>=T.dunkel||live.every(s=>s.away||s.state==='rest')))break;
@@ -2152,16 +2368,19 @@ function dryRun(from,jetzt){
     const endMin=G.min;
     for(const s of live){const r=rec.get(s.id);close(r,endMin);r.act=null}
     for(const s of live)if(!s.away&&s.state==='walk')warn.push(`${s.name} kommt voraussichtlich erst nach Einbruch der Dunkelheit heim – die Abendarbeit fällt aus.`);
+    warn.push(...fw);
     for(const k of failed){const [id,who]=k.split('|'),t=G.tasks.find(t=>t.id==id);if(t)warn.push(`${taskTitle(t)}: ${who} schafft das heute nicht rechtzeitig.`)}
     for(const t of G.tasks){const d=TASKS[t.type];if(d.fixed||!lastWork.has(t.id))continue;
       let left=0;
       if(d.group){for(const it of taskItems(t))if(!dry.done.has(t.id+':'+it))left+=normOf(itemCost(t,it))}
       else if(d.gebiet)left=dry.done.has(t.id+':*')?0:normOf(singleCost(t));
-      else left=Math.max(0,normOf(singleCost(t))-t.done);
+      else left=validTask(t)?Math.max(0,normOf(singleCost(t))-t.done):0;   // ohne Grundlage: nur Hin- und Rückweg (die Tafel verrät nicht, dass nichts mehr da ist)
       finish.set(t.id,{end:lastWork.get(t.id),left})}
     for(const s of staff){
       if(!s.available){plans[s.id]=[{from,to:T.ende,kind:'frei',task:null,label:s.weak?'zu schwach – hat nichts gegessen':`ab Woche ${s.from}`}];continue}
       const segs=rec.get(s.id).segs.slice();
+      const fr=freiBis(s),frLabel=`hat bis ${hm(fr)} frei (hat geschrieben)`;   // Montag frei: sichtbar als Segment (am Hoftag um die Mittagspause herum)
+      if(fr>from){const a=hof&&from<T.mittag?Math.min(fr,T.mittag):fr;segs.push({from,to:a,kind:'frei',task:null,label:frLabel,walk:0});if(hof&&fr>T.wiederAb)segs.push({from:T.wiederAb,to:fr,kind:'frei',task:null,label:frLabel,walk:0})}
       if(hof&&from<=T.mittag)segs.push({from:T.mittag,to:T.wiederAb,kind:'pause',task:null,label:'Mittagspause',walk:0});
       segs.sort((a,b)=>a.from-b.from);plans[s.id]=segs;home[s.id]=segs.length?segs[segs.length-1].to:null}
     return{plans,finish,home,warn,ende:T.ende,week:G.week,avail:Object.fromEntries(staff.map(s=>[s.id,s.available])),weak:Object.fromEntries(staff.map(s=>[s.id,s.weak]))}
@@ -2229,14 +2448,14 @@ function selfAct(cost,fn,msg){
   G.kraft-=cost;fn();if(msg)toast(msg);
 }
 // Markieren (Zuteilung geschieht separat: am Sonntag im Notizbuch, in der Werkwoche durch Umplanen einer Person)
-function markGroupOpt(type,item){return{min:CFG.zeit.sonntag.markieren,label:`Markieren: ${TASKS[type].label}`,fn(){const t=groupTask(type);if(!t.items.includes(item))t.items.push(item);
-  SFX.peg();toast(`Notiert unter „${TASKS[type].label}“ (${taskItems(t).length} ${TASKS[type].unit}).`);if(type==='maehen')guide('mow')}}}
+function markGroupOpt(type,item){return{min:CFG.zeit.sonntag.markieren,label:`Markieren: ${TASKS[type].label}`,fn(){const t=buchPosten(type);if(!t.items.includes(item))t.items.push(item);
+  SFX.peg();toast(`Im Auftragsbuch notiert unter „${TASKS[type].label}“ (${taskItems(t).length} ${TASKS[type].unit}). Einplanen: Notizbuch [N], Reiter „Aufträge“.`);if(type==='maehen')guide('mow')}}}
 function markSingleOpt(type,x,y,ref){return{min:CFG.zeit.sonntag.markieren,label:`Markieren: ${type==='bau'?(feat[idx(x,y)]===F_DEN?'Fuchsbau zuschütten':'Hasenbau zuschütten'):TASKS[type].label}`,fn(){
-  const t=addTask(type,x,y,ref);SFX.peg();toast(`Notiert: ${taskTitle(t)} – ${where(x,y)}. Zuteilen am Sonntag im Notizbuch [N] – in der Werkwoche: Person ansprechen, „Umplanen“.`,4000);if(type==='faellen')guide('mark_tree')}}}
+  const t=addTask(type,x,y,ref,{buch:1});t.titel=taskTitle(t);SFX.peg();toast(`Im Auftragsbuch notiert: ${taskTitle(t)} – ${where(x,y)}. Einplanen im Notizbuch [N], Reiter „Aufträge“ (Umsetzen), danach zuteilen – in der Werkwoche: Person ansprechen, „Umplanen“.`,4600);if(type==='faellen')guide('mark_tree')}}}
 // Gebietsauftrag markieren: nur der Fixpunkt (die Stelle, vor der der Verwalter steht); das Gebiet selbst ist nicht markiert
 function gebietOpt(type,x,y){return{min:CFG.zeit.sonntag.markieren,label:`Markieren: ${TASKS[type].label} (Gebiet um diese Stelle)`,fn(){
-  const n=gebietVorrat(x,y),t=markGebiet(type,x,y);SFX.peg();
-  toast(`Notiert: ${taskTitle(t)} – ${where(x,y)}. ${n?`In der Nähe siehst du ${mengeWort(n,'einen Strauch','ein paar Sträucher','viele Sträucher')} mit reifen Beeren.`:'In der Nähe siehst du keine reifen Beeren.'} Zuteilen am Sonntag im Notizbuch [N].`,4600)}}}
+  const n=gebietVorrat(x,y),t=markGebiet(type,x,y);t.buch=1;SFX.peg();
+  toast(`Notiert: ${taskTitle(t)} – ${where(x,y)}. ${n?`In der Nähe siehst du ${mengeWort(n,'einen Strauch','ein paar Sträucher','viele Sträucher')} mit reifen Beeren.`:'In der Nähe siehst du keine reifen Beeren.'} Im Auftragsbuch: Notizbuch [N], Reiter „Aufträge“ (Umsetzen).`,4600)}}}
 // Wegmarke (Sonntag, Menü; kostet CFG.zeit.sonntag.wegmarke Minuten): ein Pflock am Feld, an dem das Personal einen Gebietsauftrag leichter findet
 function wegmarkeOpt(x,y){const i=idx(x,y);
   if(G.marken.includes(i))return{min:CFG.zeit.sonntag.markieren,label:'Wegmarke entfernen',fn(){G.marken=G.marken.filter(m=>m!==i);toast('Die Wegmarke ist abgebaut.')}};
@@ -2245,8 +2464,8 @@ function wegmarkeOpt(x,y){const i=idx(x,y);
     G.marken.push(i);SFX.peg();toast('Wegmarke gesetzt: Wer hierher soll, findet die Stelle leichter.')}}}
 // „Weg anlegen“ (Flächenaufgabe, Menü für Tastatur und Touch): ein Feld markieren, auf einem Trampelpfad den zusammenhängenden Pfad zum Weg ausbauen
 function wegOpts(O,marked,x,y){const i=idx(x,y);if(marked.some(t=>t.type==='weg'))return;
-  if(pfad[i]>0){const area=pfadArea(x,y,40);O.push({min:CFG.zeit.sonntag.markieren,label:`Markieren: Pfad zum Weg ausbauen (${area.length} Felder)`,fn(){const t=groupTask('weg');for(const j of area)if(!t.items.includes(j))t.items.push(j);SFX.peg();
-    toast(`Notiert unter „Weg anlegen“ (${taskItems(t).length} Felder).`)}})}
+  if(pfad[i]>0){const area=pfadArea(x,y,40);O.push({min:CFG.zeit.sonntag.markieren,label:`Markieren: Pfad zum Weg ausbauen (${area.length} Felder)`,fn(){const t=buchPosten('weg');for(const j of area)if(!t.items.includes(j))t.items.push(j);SFX.peg();
+    toast(`Im Auftragsbuch notiert unter „Weg anlegen“ (${taskItems(t).length} Felder).`)}})}
   else if(wegOk(i))O.push(markGroupOpt('weg',i))}
 function enjoyOpt(label){return{label:G.enjoyed?`${label} (heute schon genossen)`:`${label} (+${CFG.enjoyBonus} Kraft)`,fn:enjoy}}
 function buildOptions(sub,x,y){
@@ -2312,8 +2531,8 @@ function buildOptions(sub,x,y){
       ex(txt[0],txt[1]);break}
     case 'wasser':title='Bach';ex(ground[i]===G_FORD?'Eine Furt. Über die Steine kommt man trockenen Fußes – und die Tiere auch.':ground[i]===G_BRIDGE?'Der Steg der Kutschenstraße.':'Der Bach plätschert. Kalt und klar.','bach');O.push(enjoyOpt('Am Bach sitzen und genießen'));break;
     case 'gras':{title=grass[i]===2?'Hohes Gras':'Wiese';ex(grass[i]===2?'Hohes, saftiges Gras. Hier kommt man nur mühsam voran.':'Eine helle Wiese.','gras');
-      if(!marked.length){const area=mowArea(x,y,40);O.push({min:CFG.zeit.sonntag.markieren,label:`Markieren: Wiese hier mähen (${area.length} Felder)`,fn(){const t=groupTask('maehen');for(const j of area)if(!t.items.includes(j))t.items.push(j);SFX.peg();guide('mow');
-        toast(`Notiert unter „Wiese mähen“ (${taskItems(t).length} Felder).`)}})}
+      if(!marked.length){const area=mowArea(x,y,40);O.push({min:CFG.zeit.sonntag.markieren,label:`Markieren: Wiese hier mähen (${area.length} Felder)`,fn(){const t=buchPosten('maehen');for(const j of area)if(!t.items.includes(j))t.items.push(j);SFX.peg();guide('mow');
+        toast(`Im Auftragsbuch notiert unter „Wiese mähen“ (${taskItems(t).length} Felder).`)}})}
       O.push({label:'Mähfläche selbst abstecken [M]',min:0,fn(){toggleMow()}});wegOpts(O,marked,x,y);break}
     case 'deko':{const d=sub.d;
       if(d===D_BUSCH){title='Brombeerbusch';ex(berry[i]?'Ein Brombeerbusch voller reifer Beeren.':'Ein Brombeerbusch – abgeerntet, nächste Woche trägt er wieder.',null);
@@ -2331,7 +2550,7 @@ function buildOptions(sub,x,y){
   if(['boden','gras','deko','spur'].includes(sub.kind)&&walkable(x,y)&&!inGut(x,y)){   // Gebietsauftrag und Wegmarke: Menü (Tastatur und Touch)
     if(!marked.some(t=>t.type==='beeren'))O.push(gebietOpt('beeren',x,y));
     if(G.phase==='sonntag')O.push(wegmarkeOpt(x,y))}
-  for(const t of marked)O.push({min:CFG.zeit.sonntag.markieren,label:`Markierung entfernen: ${TASKS[t.type].label}`,fn(){unmark(t,x,y);toast('Markierung entfernt.')}});
+  if(boardMode()==='edit')for(const t of marked)O.push({min:CFG.zeit.sonntag.markieren,label:`Markierung entfernen: ${TASKS[t.type].label}`,fn(){unmark(t,x,y);toast('Markierung entfernt.')}});
   return{title,opts:O};
 }
 function mowArea(x,y,max){const out=[],seen=new Set([idx(x,y)]),q=[[x,y]];
@@ -2339,11 +2558,11 @@ function mowArea(x,y,max){const out=[],seen=new Set([idx(x,y)]),q=[[x,y]];
     for(const [dx,dy] of DIRS){const nx=cx+dx,ny=cy+dy;if(inb(nx,ny)&&!seen.has(idx(nx,ny))){seen.add(idx(nx,ny));q.push([nx,ny])}}}}
   return out}
 function toggleMow(){
-  if(P.mowTask){P.mowTask=null;const t=G.tasks.find(t=>t.type==='maehen');toast(t?`Mähfläche abgesteckt – „Wiese mähen“ umfasst jetzt ${taskItems(t).length} Felder.`:'Keine Fläche abgesteckt.');guide('mow');return}
+  if(P.mowTask){P.mowTask=null;const t=G.tasks.find(t=>t.type==='maehen'&&!inPlan(t));toast(t?`Mähfläche im Auftragsbuch abgesteckt – „Wiese mähen“ umfasst jetzt ${taskItems(t).length} Felder.`:'Keine Fläche abgesteckt.');guide('mow');return}
   P.mowTask=true;addMowTile(idx(P.x,P.y));
   toast('Pflock-Modus: Lauf über das Gras, das gemäht werden soll. [M] beendet.');
 }
-function addMowTile(i){if(!P.mowTask||grass[i]<1||ground[i]===G_PATH||fkind[i])return;const t=groupTask('maehen');if(t.items.includes(i))return;t.items.push(i);SFX.peg()}
+function addMowTile(i){if(!P.mowTask||grass[i]<1||ground[i]===G_PATH||fkind[i])return;const t=buchPosten('maehen');if(t.items.includes(i))return;t.items.push(i);SFX.peg()}
 function help(s){
   const c=s.cur;if(!c||s.state!=='work')return;
   const n=normOf(2);   // wie bisher 2 Arbeitspunkte
@@ -2394,8 +2613,8 @@ function talk(s){
 
 // ================================================================ Leitfaden (erste Tage)
 const GUIDE={   // je Woche
-  1:[['talk_hannes','Sprich mit Hannes (Sonntag am Bach, südlich vom Hof)'],['examine','Untersuche etwas (Leertaste → Untersuchen)'],['mow','Markiere die Wiese vor dem Hoftor zum Mähen'],['assign','Teile Hannes im Notizbuch [N] das Mähen zu'],['sleep','Schließe am Sonntagabend die Planung ab (Notizbuch schließen)'],['watch','Sieh Hannes in der Werkwoche bei der Arbeit zu']],
-  2:[['talk_jost','Begrüße Jost, den Holzfäller'],['mark_tree','Markiere einen Baum zum Fällen und teile ihn Jost zu'],['fence_self','Flicke die Zaunlücke im Süden selbst'],['examine_burrow','Untersuche einen Hasenbau auf einer Waldwiese']],
+  1:[['talk_hannes','Sprich mit Hannes (Sonntag am Bach, südlich vom Hof)'],['examine','Untersuche etwas (Leertaste → Untersuchen)'],['mow','Markiere die Wiese vor dem Hoftor zum Mähen'],['assign','Setze das Mähen im Notizbuch [N] (Reiter „Aufträge“) um und teile es Hannes zu'],['sleep','Schließe am Sonntagabend die Planung ab (Notizbuch schließen)'],['watch','Sieh Hannes in der Werkwoche bei der Arbeit zu']],
+  2:[['talk_jost','Begrüße Jost, den Holzfäller'],['mark_tree','Markiere einen Baum zum Fällen, setze ihn im Notizbuch um und teile ihn Jost zu'],['fence_self','Flicke die Zaunlücke im Süden selbst'],['examine_burrow','Untersuche einen Hasenbau auf einer Waldwiese']],
   3:[['examine_moss','Untersuche Moos im dunklen Wald']]
 };
 function guide(id){if(!G||!GUIDE[G.week])return;if(GUIDE[G.week].some(g=>g[0]===id))G.guideDone.add(G.week+':'+id)}
@@ -2464,7 +2683,7 @@ function showMorning(first){
       Halten Sie mir das Gut in Ordnung: keine Löcher im Rasen, kein Getier im Garten – und meine Hennen sind mir lieb und teuer! Was ich mir sonst wünsche, schreibe ich Ihnen.“</div>
       <div class="rep">Er drückt dir die Schlüssel in die Hand. Die Kutsche wendet, und fort ist er.</div>
       <div class="keys">WASD/Pfeile laufen · [Leertaste] vor einem Ding: untersuchen, selbst anpacken, Auftrag erteilen<br>
-      Sonntag: Die Uhr rückt nur durch dein Tun vor (Gehen, Untersuchen, Reden) – bei Dämmerung ist er vorbei · Sonntagabend: im Notizbuch [N] planen, [H] Hof-/Waldtag · Werkwoche: Plan nur lesen, Person ansprechen → Umplanen oder Weg zeigen (sie geht mit dir, bis du sie entlässt)<br>
+      Sonntag: Die Uhr rückt nur durch dein Tun vor (Gehen, Untersuchen, Reden) – bei Dämmerung ist er vorbei · Sonntagabend: im Notizbuch [N] Aufträge umsetzen, zuteilen, [H] Hof-/Waldtag · Werkwoche: Plan nur lesen, Person ansprechen → Umplanen oder Weg zeigen (sie geht mit dir, bis du sie entlässt)<br>
       [M] Mähfläche abstecken · [T] heimgehen (vorher siehst du Dauer und Ankunft; in der Werkwoche rechnet der Rest des Tages ohne Zuschauen, am Abend gehst du danach schlafen) · Am Sonntag arbeitest du nicht selbst · Kraft (●) brauchst du nur in der Werkwoche für eigene Arbeit</div>`;
   } else {
     const L=LETTERS[G.week];
@@ -2474,6 +2693,7 @@ function showMorning(first){
     html+=`<div class="rep"><i>${r.obs}</i></div>`;
     if(G.week===2)html+='<div class="rep"><i>Jost, der Holzfäller, ist aus dem Dorf zurück.</i></div>';
     if(G.wetter&&CFG.wetter)html+=`<div class="rep"><b>Hannes:</b> „${wetterKnie(G.week)}“</div>`;   // Vorhersage für die kommende Werkwoche (der Sonntag selbst bleibt ohne Wetterwirkung)
+    if(szeneFaellig())html+=streitSzene();   // Streit-Szene (B2c P2a): schaltet Beobachtungsbuch und Schreiber frei
   }
   if(!first&&G.min>G.times.start)html+=`<div class="rep"><i>Du hast ausgeschlafen: Der Sonntag beginnt erst um ${hm(G.min)} Uhr.</i></div>`;
   showCard(html,first?'[Leertaste] Sonntag beginnen':'[Leertaste] Der Sonntag beginnt');
@@ -2548,8 +2768,8 @@ function chooseMenu(k){const o=menu.opts[k];closeMenu();runOpt(o)}
 function toast(t,ms){const box=document.getElementById('toasts');const d=document.createElement('div');d.className='toast';d.textContent=t;box.appendChild(d);
   while(box.children.length>4)box.firstChild.remove();setTimeout(()=>{d.style.opacity=0;setTimeout(()=>d.remove(),700)},ms||2800)}
 
-const book={tab:0,sel:0,col:0};
-const TABS=['Tafel','Personal','Erkenntnisse','Briefe','Vorräte','Karte'];   // Tafel = Zeitleiste je Person + Aufgabenliste (Paket 13: Aufträge und Tagesplan zusammengelegt)
+const book={tab:0,sel:0,col:0,asel:0,bsel:0};
+const TABS=['Tafel','Aufträge','Beobachtungen','Personal','Erkenntnisse','Briefe','Vorräte','Karte'];const TAB_AUFTR=TABS.indexOf('Aufträge'),TAB_BUCH=TABS.indexOf('Beobachtungen'),TAB_KARTE=TABS.indexOf('Karte');   // Tafel = Zeitleiste je Person + Aufgabenliste (Paket 13: Aufträge und Tagesplan zusammengelegt)
 const STAFF_TXT={
   hannes:'Üblich: holt ein, was am Hof liegt.',
   jost:'Üblich: zerlegt Stämme am Hof. Für Kleinkram ist er zu teuer.',
@@ -2557,7 +2777,7 @@ const STAFF_TXT={
   liese:'Üblich: hält Haus und Garten in Ordnung – Löcher, Unkraut, Rasen –, so weit ihre Kraft reicht. Geht zum Markt, wenn man sie schickt.'
 };
 const canList=s=>Object.values(TASKS).filter(d=>d.who[s.id]).map(d=>`${d.label.replace(/ \(.*$/,'')}${d.fixed?'':' '+Math.round(100/d.who[s.id])+' %'}${d.nurJung.includes(s.id)?' (nur Jungbäume)':''}`).join(', ');
-const bookTasks=()=>G.tasks.filter(visibleTask);
+const bookTasks=()=>G.tasks.filter(t=>inPlan(t)&&visibleTask(t));   // die Tafel zeigt nur den Plan (Routine + Umgesetztes)
 const spoilNote=k=>{const n=spoilsWeek(k);return n?` <small style="color:#a0501e">(${n} verderben diese Woche)</small>`:''}
 function moveTask(t,d){const list=bookTasks(),k=list.indexOf(t),o=list[k+d];if(!o)return;const a=G.tasks.indexOf(t),b=G.tasks.indexOf(o);[G.tasks[a],G.tasks[b]]=[G.tasks[b],G.tasks[a]]}
 const dayTypeHtml=()=>{const w=G.dayType==='wald';return `<div class="rep"><b>${w?'Waldtag':'Hoftag'}</b> – ${w?'warmes Essen abends, keine Heimkehr zu Mittag: weite Wege nur einmal':'warmes Essen mittags, alle kommen zu Mittag heim: weite Wege doppelt'} <small>${boardMode()==='edit'?'[H] umschalten':'am Sonntag gewählt'}</small></div>`};
@@ -2577,10 +2797,72 @@ function denyEdit(t,s){
   if(m==='read')toast('In der Werkwoche änderst du den Plan nicht. Sprich eine Person an: „Umplanen“ – oder plane am Sonntag neu.',4200);
   else if(s&&s.id!==book.replan)toast(`Du planst gerade nur ${S(book.replan).name} um.`);
   else if(t)toast(`${taskTitle(t)}: ${whoName(t)} ist schon dafür eingeteilt – das ändert sich nur, wenn du ihn oder sie umplanst.`,4200)}
-function assignCell(t,s){if(!t||!s||!canDo(t.type,s.id,t))return false;if(!canEdit(t,s)){denyEdit(t,s);return false}toggleAssign(t,s.id);return true}
+function assignCell(t,s){if(!t||!s||!canDo(t.type,s.id,t))return false;
+  if(!inPlan(t)){if(boardMode()==='person'&&s.id===book.replan)return buchUmsetzen(t);toast(`${taskTitle(t)} liegt im Auftragsbuch – erst umsetzen (Notizbuch, Reiter „Aufträge“).`,3600);return false}   // Buch-Auftrag: nur Umsetzen (beim Umplanen mit Zuteilen in einem Schritt)
+  if(!canEdit(t,s)){denyEdit(t,s);return false}toggleAssign(t,s.id);return true}
+// Auftragsbuch: Umsetzen / Zurücklegen / Löschen (Rechte wie die Tafel: Sonntag/Sonntagabend 'edit' alles; Umplanen 'person': für die Person umsetzen+zuteilen in einem Schritt, nur ihr allein Zugeteiltes zurücklegen, kein Löschen; Werkwoche 'read' nichts;
+// Routine weder zurücklegen noch löschen). Taste und Zelle rufen dieselben Funktionen (auftragAktion). Sammelposten: Umsetzen vereinigt mit dem Plan-Posten der Art (beim Umplanen nie mit einem, der anderen gehört), Zurücklegen mit dem Buch-Posten.
+const buchLesen=()=>toast('In der Werkwoche liest du das Auftragsbuch nur. Sprich eine Person an: „Umplanen“ – oder plane am Sonntag.',4200);
+function buchUmsetzen(t){
+  if(!t)return false;
+  if(inPlan(t)){toast(`${taskTitle(t)}: ist schon eingeplant.`);return false}
+  const m=boardMode();if(m==='read'){buchLesen();return false}
+  const s=m==='person'?S(book.replan):null;
+  if(s&&!canDo(t.type,s.id,t)){toast(`${s.name} kann „${taskTitle(t)}“ nicht – beim Umplanen setzt du nur für ${s.name} um.`,4200);return false}
+  delete t.buch;let z=t;
+  if(TASKS[t.type].group){const o=G.tasks.find(x=>x!==t&&x.type===t.type&&inPlan(x)&&(!s||crewOf(x).every(id=>id===s.id)));
+    if(o){for(const it of t.items)if(!o.items.includes(it))o.items.push(it);removeTask(t);z=o}}
+  if(z===t){removeTask(t);G.tasks.push(t)}   // neu im Plan: ans Ende der Tafel
+  if(s&&!assigned(z,s.id))toggleAssign(z,s.id);
+  toast(`${taskTitle(z)}: eingeplant${s?` und ${s.name} zugeteilt`:' – an der Tafel zuteilen'}.`,3000);return true}
+function buchZuruecklegen(t){
+  if(!t)return false;const d=TASKS[t.type];
+  if(d.fixed||d.auto){toast('Routine steht fest im Plan – sie lässt sich nicht zurücklegen.',3600);return false}
+  if(!inPlan(t)){toast(`${taskTitle(t)}: liegt schon im Auftragsbuch.`);return false}
+  const m=boardMode();if(m==='read'){buchLesen();return false}
+  if(m==='person'){const c=crewOf(t);if(!(c.length===1&&c[0]===book.replan)){toast(`${taskTitle(t)}: gehört nicht allein ${S(book.replan).name} – das ändert sich am Sonntag.`,4200);return false}}
+  t.crew=[];t.buch=1;
+  if(d.group){const o=G.tasks.find(x=>x!==t&&x.type===t.type&&!inPlan(x));if(o){for(const it of t.items)if(!o.items.includes(it))o.items.push(it);removeTask(t)}}
+  toast(`${taskTitle(t)}: zurück im Auftragsbuch.`,2600);return true}
+function buchLoeschen(t){
+  if(!t)return false;const d=TASKS[t.type];
+  if(d.fixed||d.auto){toast('Routine lässt sich nicht löschen.',3200);return false}
+  const m=boardMode();if(m==='read'){buchLesen();return false}
+  if(m==='person'){toast('Löschen geht nur am Sonntag – beim Umplanen kannst du Aufträge nur umsetzen oder zurücklegen.',4200);return false}
+  toast(`${taskTitle(t)}: gelöscht.`,2600);removeTask(t);return true}
+const buchDarf=(a,t)=>{const m=boardMode();if(m==='read')return false;
+  if(a==='loeschen')return m==='edit';
+  if(m==='edit')return true;const c=crewOf(t);
+  return a==='umsetzen'?canDo(t.type,book.replan,t):c.length===1&&c[0]===book.replan};
+// Reiter „Aufträge“: offene oben, eingeplante darunter (Sortierung nur abgeleitet); Routine steht nur im Plan
+const buchListe=()=>{const l=G.tasks.filter(t=>!TASKS[t.type].fixed&&!TASKS[t.type].auto&&visibleTask(t));return[...l.filter(t=>!inPlan(t)),...l.filter(inPlan)]};
+function auftragAktion(a,t){
+  const ok=a==='umsetzen'?buchUmsetzen(t):a==='zurueck'?buchZuruecklegen(t):a==='loeschen'?buchLoeschen(t):false;
+  const l=buchListe(),k=l.indexOf(t);book.asel=clamp(k>=0?k:book.asel,0,Math.max(0,l.length-1));return ok}
+function tafelZurueck(t){const ok=buchZuruecklegen(t);book.sel=clamp(book.sel,0,Math.max(0,bookTasks().length-1));return ok}
+function auftraegeHtml(){
+  const list=buchListe(),md=boardMode(),rp=md==='person'?S(book.replan):null;book.asel=clamp(book.asel,0,Math.max(0,list.length-1));
+  const note=md==='edit'?'Alles, was du markierst, landet hier. „Umsetzen“ bringt einen Auftrag in den Plan der Tafel (dort teilst du ihn zu), „Zurücklegen“ nimmt ihn wieder aus dem Plan, „Löschen“ entfernt ihn. Routine (füttern, kochen, einsperren, Markt, Einholen, Zaun) steht immer im Plan.'
+    :md==='person'?`Beim Umplanen setzt du Aufträge für ${rp.name} um (sofort zugeteilt) oder legst zurück, was nur ${rp.name} gehört.`:'In der Werkwoche liest du das Auftragsbuch nur. Sprich eine Person an („Umplanen“) oder plane am Sonntag.';
+  let h=`<div class="rep"><small>${note}</small></div>`;
+  if(!list.length)return h+'<div class="rep"><i>Das Auftragsbuch ist leer. Stell dich vor etwas und drück [Leertaste] → Markieren.</i></div>';
+  h+='<table class="board compact">';
+  list.forEach((t,r)=>{const plan=inPlan(t),c=crewOf(t),a1=plan?['zurueck','↩ Zurücklegen']:['umsetzen','▶ Umsetzen'];
+    if(r===0||plan&&!inPlan(list[r-1]))h+=`<tr class="sep"><td colspan="4">${plan?'Eingeplant – steht im Plan der Tafel':'Offen – noch nicht im Plan'}</td></tr>`;
+    h+=`<tr class="${r===book.asel?'sel ':''}${plan?'eing':'offen'}"><td data-ar="${r}">${taskTitle(t)} <small>${where(...taskPos(t))}</small></td><td data-ar="${r}">${plan?`<b>eingeplant</b> <small>${c.length?c.map(id=>S(id).name).join(', '):'noch niemand zugeteilt'}</small>`:'offen'}</td>`+
+      `<td class="act${buchDarf(a1[0],t)?'':' no'}" data-a="${a1[0]}" data-ar="${r}">${a1[1]}</td><td class="act${buchDarf('loeschen',t)?'':' no'}" data-a="loeschen" data-ar="${r}">✕ Löschen</td></tr>`});
+  return h+'</table>'}
+function bindAuftraege(root){
+  root.querySelectorAll('[data-ar]').forEach(el=>el.onclick=e=>{e.stopPropagation();book.asel=+el.dataset.ar;if(el.dataset.a)auftragAktion(el.dataset.a,buchListe()[book.asel]);renderBook()})}
+function auftragKey(e){
+  const list=buchListe(),t=list[book.asel],d=KEYDIR[e.code];if(!t)return;
+  if(d==='up'||d==='down')book.asel=clamp(book.asel+(d==='up'?-1:1),0,list.length-1);
+  else if(e.code==='Space'||e.code==='KeyE'){if(inPlan(t))toast(`${taskTitle(t)}: ist schon eingeplant – zurücklegen mit [X].`);else auftragAktion('umsetzen',t)}
+  else if(e.code==='KeyX')auftragAktion('zurueck',t);
+  else if(e.code==='Delete'||e.code==='Backspace')auftragAktion('loeschen',t)}
 // Reihenfolge ändern: Sonntag global (moveTask); Umplanen nur innerhalb der Liste der Person und nur zwischen Aufgaben ohne andere Zugeteilte (andere Listen bleiben so unberührt)
 function moveOwn(t,s,d){
-  const mine=G.tasks.filter(x=>visibleTask(x)&&assigned(x,s.id)),k=mine.indexOf(t),o=mine[k+d];
+  const mine=G.tasks.filter(x=>inPlan(x)&&visibleTask(x)&&assigned(x,s.id)),k=mine.indexOf(t),o=mine[k+d];
   if(k<0||!o||crewOf(t).length>1||crewOf(o).length>1)return false;
   const a=G.tasks.indexOf(t),b=G.tasks.indexOf(o);[G.tasks[a],G.tasks[b]]=[G.tasks[b],G.tasks[a]];return true}
 function reorder(t,s,d){
@@ -2655,17 +2937,18 @@ function boardHtml(sel,col,from,compact){
   const list=bookTasks(),pa=planAll(from,true,false,boardLive()),md=boardMode(),rp=md==='person'?book.replan:null;
   let h=timelineHtml(pa,list,sel,col,from,compact);
   if(compact)return h;
-  h+=`<table class="board compact${md==='read'?' ro':''}"><tr><th>Aufgabe</th>${staff.map((s,c)=>`<th class="${c===col&&md!=='person'?'cc':''}${s.available?'':' off'}${s.id===rp?' rp':md==='person'?' lock':''}">${s.name}</th>`).join('')}<th>Stand</th></tr>`;
+  h+=`<table class="board compact${md==='read'?' ro':''}"><tr><th>Aufgabe</th>${staff.map((s,c)=>`<th class="${c===col&&md!=='person'?'cc':''}${s.available?'':' off'}${s.id===rp?' rp':md==='person'?' lock':''}">${s.name}</th>`).join('')}<th>Stand</th><th></th></tr>`;
   h+=list.map((t,r)=>`<tr class="${r===sel?'sel':''}"><td data-row="${r}">${taskTitle(t)} <small>${where(...taskPos(t))}</small></td>${staff.map((s,c)=>{
     const ok=canDo(t.type,s.id,t),on=ok&&assigned(t,s.id),n=ok&&TASKS[t.type].group?perStunde(t,s):null,rt=on&&TASKS[t.type].fixed&&t.who===null;
-    return `<td class="cell${on?' on':''}${ok?'':' no'}${rt?' rt':''}${r===sel&&c===col?' cur':''}${s.id===rp?' rp':md==='person'?' lock':''}" data-r="${r}" data-c="${c}"${rt?' title="üblich"':''}>${ok?(on?'☑':'☐'):'–'}${n!==null?` <small>${n}/h</small>`:''}</td>`}).join('')}<td class="fin">${finishText(t,pa.finish,from,taskUnsure(pa,t))}</td></tr>`).join('');
-  if(!list.length)h+=`<tr><td colspan="${staff.length+2}"><i>Noch nichts notiert. Stell dich vor etwas und drück [Leertaste] → Markieren.</i></td></tr>`;
+    return `<td class="cell${on?' on':''}${ok?'':' no'}${rt?' rt':''}${r===sel&&c===col?' cur':''}${s.id===rp?' rp':md==='person'?' lock':''}" data-r="${r}" data-c="${c}"${rt?' title="üblich"':''}>${ok?(on?'☑':'☐'):'–'}${n!==null?` <small>${n}/h</small>`:''}</td>`}).join('')}<td class="fin">${finishText(t,pa.finish,from,taskUnsure(pa,t))}</td>${md==='read'||TASKS[t.type].fixed||TASKS[t.type].auto?'<td></td>':`<td class="act" data-zl="${r}" title="zurück ins Auftragsbuch">↩ zurück</td>`}</tr>`).join('');
+  if(!list.length)h+=`<tr><td colspan="${staff.length+3}"><i>Noch nichts eingeplant. Markiertes setzt du im Reiter „Aufträge“ [${TAB_AUFTR+1}] um.</i></td></tr>`;
   h+=`</table><div class="legend">☑ eingeteilt · ☐ möglich · – kann er/sie nicht · Zahl: schafft je Arbeitsstunde · Sammelposten teilen sich mehrere, Einzelaufgaben macht eine Person</div>`;
   return h;
 }
 function bindBoard(root,onCell,onRow,onPick){   // onPick(Aufgabenzeile oder -1, Person): Balken und Namen der Zeitleiste
   root.querySelectorAll('td.cell').forEach(el=>el.onclick=e=>{e.stopPropagation();onCell(+el.dataset.r,+el.dataset.c)});
   root.querySelectorAll('td[data-row]').forEach(el=>el.onclick=e=>{e.stopPropagation();onRow(+el.dataset.row)});
+  root.querySelectorAll('td[data-zl]').forEach(el=>el.onclick=e=>{e.stopPropagation();book.sel=+el.dataset.zl;tafelZurueck(bookTasks()[book.sel]);renderBook()});
   if(onPick)root.querySelectorAll('[data-sc],[data-pc]').forEach(el=>el.onclick=e=>{e.stopPropagation();onPick(el.dataset.sr!==undefined?+el.dataset.sr:-1,+(el.dataset.sc!==undefined?el.dataset.sc:el.dataset.pc))});
 }
 function openBook(replan){book.replan=replan||null;book.sel=clamp(book.sel,0,Math.max(0,bookTasks().length-1));G.state='book';renderBook()}
@@ -2678,18 +2961,24 @@ function renderBookDraw(){
     const fr=boardFrom(),md=boardMode(),rp=md==='person'?S(book.replan):null;
     if(rp)h+=`<div class="rep"><b>Umplanen: ${rp.name}</b> – nur ${rp.name} ist änderbar, die anderen sind gesperrt. Die Änderung gilt ab jetzt (${hm(G.min)}) und im Plan auch für die nächsten Wochen. [Esc] = fertig.</div>`;
     const note=rp?'':boardLive()?`Die Tafel zeigt den Rest des Tages ab ${hm(fr)}. In der Werkwoche änderst du den Plan nicht – sprich eine Person an und wähle „Umplanen“.`:G.phase==='abend'?'Die Tafel zeigt die nächste Werkwoche. Geplant wird am Sonntag.':G.phase==='appell'?'':'Die Tafel zeigt die kommende Werkwoche – umstellen kannst du, bis du die Planung abschließt.';
-    h+=`<div class="rep"><small>${note}</small></div>${dayTypeHtml()}`;
+    h+=`<div class="rep"><small>${note}</small></div>${dayTypeHtml()}${G.phase==='plan'?schreiberHtml():''}`;
     h+=boardHtml(book.sel,book.col,fr);
     const bw=boardLive()?planAll(fr,true,false,true).warn:planWarnings(true);if(bw.length)h+=`<div class="rep bad">⚠ ${bw.join(' ⚠ ')}</div>`;
-    h+='<div class="cont">'+(md==='edit'?'↑↓ Aufgabe · ←→ Person · Leertaste zuteilen/abnehmen · Shift+↑↓ Reihenfolge (oben = zuerst) · Entf streichen · H Hof-/Waldtag · 1–'+TABS.length+' Reiter · Esc '+(G.phase==='plan'?'Planung abschließen':'schließen'):md==='person'?'↑↓ Aufgabe · Leertaste zuteilen/abnehmen · Shift+↑↓ Reihenfolge · Esc fertig':'↑↓ Aufgabe · ←→ Person · 1–'+TABS.length+' Reiter · Esc schließen')+'</div>';
-  } else if(book.tab===1){
+    h+='<div class="cont">'+(md==='edit'?'↑↓ Aufgabe · ←→ Person · Leertaste zuteilen/abnehmen · Shift+↑↓ Reihenfolge (oben = zuerst) · X zurücklegen (ins Auftragsbuch) · H Hof-/Waldtag'+(G.phase==='plan'&&G.buchFrei?' · B Schreiber wählen':'')+' · 1–'+TABS.length+' Reiter · Esc '+(G.phase==='plan'?'Planung abschließen':'schließen'):md==='person'?'↑↓ Aufgabe · Leertaste zuteilen/abnehmen · Shift+↑↓ Reihenfolge · X zurücklegen · Esc fertig':'↑↓ Aufgabe · ←→ Person · 1–'+TABS.length+' Reiter · Esc schließen')+'</div>';
+  } else if(book.tab===TAB_AUFTR){
+    h+=auftraegeHtml();
+    h+='<div class="cont">'+(boardMode()==='edit'?'↑↓ Auftrag · Leertaste umsetzen · X zurücklegen · Entf löschen · 1–'+TABS.length+' Reiter · Esc '+(G.phase==='plan'?'Planung abschließen':'schließen'):boardMode()==='person'?'↑↓ Auftrag · Leertaste umsetzen und zuteilen · X zurücklegen · Esc fertig':'↑↓ Auftrag · 1–'+TABS.length+' Reiter · Esc schließen')+'</div>';
+  } else if(book.tab===TAB_BUCH){
+    h+=buchHtml();
+    h+='<div class="cont">'+(boardMode()==='edit'?'↑↓ Eintrag · Leertaste abhaken · U Auftrag · V Nachsehen · ←→ Person · B Schreiber wählen (Sonntagabend) · 1–'+TABS.length+' Reiter · Esc '+(G.phase==='plan'?'Planung abschließen':'schließen'):'↑↓ Eintrag · 1–'+TABS.length+' Reiter · Esc schließen')+'</div>';
+  } else if(TABS[book.tab]==='Personal'){
     h+=staff.map(s=>`<div class="rep"><b>${s.name}</b>, ${s.role} – Tempo ${Math.round(CFG.tempo[s.id])} %${G.week<s.from?` · <i>zurück ab Woche ${s.from}</i>`:''}${s.weak?' · <i class="bad">heute zu schwach (hat nichts gegessen)</i>':''}<br><small>Kann: ${canList(s)}.<br>${STAFF_TXT[s.id]}</small></div>`).join('');
     h+=`<div class="rep"><b>Du selbst</b> – ${G.kraft} Kraft heute. Kleinkram kannst du selbst erledigen; neben jemandem, der arbeitet, kannst du mit anpacken. Einmal am Sonntag und einmal in der Werkwoche gibt eine Rast auf einer Bank, am Bach oder an einer Riesen-Eiche neue Kraft.</div>`;
-  } else if(book.tab===2){
+  } else if(TABS[book.tab]==='Erkenntnisse'){
     h+=`<div class="rep">${G.insights.size} von ${Object.keys(INSIGHTS).length} Erkenntnissen</div><ul>`+Object.keys(INSIGHTS).map(k=>G.insights.has(k)?`<li>${INSIGHTS[k]}</li>`:'<li style="color:#a89a80">· · ·</li>').join('')+'</ul>';
-  } else if(book.tab===3){
+  } else if(TABS[book.tab]==='Briefe'){
     h+=G.letters.length?G.letters.map(l=>`<div class="letter"><small>Woche ${l.week}</small><br>${l.txt}</div>`).join(''):'<div class="rep"><i>Noch keine Briefe vom Baron.</i></div>';
-  } else if(book.tab===4){
+  } else if(TABS[book.tab]==='Vorräte'){
     h+=`<div class="rep"><b>Speisekammer</b>: ${G.food.brot} Portionen Brot${spoilNote('brot')} · ${G.food.eier} Eier${spoilNote('eier')} · ${G.food.fleisch} Portionen Fleisch${spoilNote('fleisch')} · ${G.food.beeren} Portionen Beeren${spoilNote('beeren')}<br><small>${eaters().length} Leute und du essen je ${CFG.ration} Portionen in der Woche (warmes Essen: Hoftag mittags, Waldtag abends) · haltbar: Brot ${CFG.spoil.brot}, Eier ${CFG.spoil.eier}, Fleisch ${CFG.spoil.fleisch}, Beeren ${CFG.spoil.beeren} Wochen · räuchern macht Hasen haltbar (für den Baron)</small></div>
     <div class="rep"><b>Kasse</b>: ${G.taler} Taler <small>(Ei ${CFG.eggPrice} Taler · Laib Brot ${CFG.brotPreis} Taler, ${CFG.brotPortion} Portionen)</small></div>
     <div class="rep"><b>Scheune</b>: ${G.barnWood} Holz · ${G.barnHay} Heu · ${G.barnHares} Hasen im Rauch (für den Baron) · ${G.traps} Fallen<br><b>Hasenstall</b>: ${G.hutch} von ${CFG.hutchCap}</div>
@@ -2697,7 +2986,9 @@ function renderBookDraw(){
   } else h+=karteHtml();
   overlay.innerHTML=`<div class="paper wide"><h2>Notizbuch</h2>${h}</div>`;overlay.style.display='flex';
   overlay.querySelectorAll('[data-t]').forEach(el=>el.onclick=e=>{e.stopPropagation();book.tab=+el.dataset.t;renderBook()});
-  if(book.tab===5)karteBind();
+  if(book.tab===TAB_KARTE)karteBind();
+  if(book.tab===TAB_AUFTR)bindAuftraege(overlay);
+  if(book.tab===0||book.tab===TAB_BUCH)bindBuch(overlay);
   if(book.tab===0)bindBoard(overlay,(r,c)=>{book.sel=r;if(!book.replan)book.col=c;assignCell(bookTasks()[r],staff[c]);renderBook()},r=>{book.sel=r;renderBook()},(r,c)=>{if(r>=0)book.sel=r;if(!book.replan)book.col=c;renderBook()});
 }
 function bookKey(e){
@@ -2706,7 +2997,10 @@ function bookKey(e){
   if(/^Digit[1-9]$/.test(e.code)&&+e.code.slice(5)<=TABS.length){book.tab=+e.code.slice(5)-1;renderBook();return}
   if(e.code==='Tab'){book.tab=(book.tab+1)%TABS.length;renderBook();return}
   if(e.code==='KeyH'){if(toggleDayType())renderBook();return}
-  if(book.tab===5){   // Gutskarte: Pfeile bewegen den Cursor (Umschalt = 5 Felder)
+  if(e.code==='KeyB'&&(book.tab===0||book.tab===TAB_BUCH)){schreiberWaehlen(staff[book.col]);renderBook();return}   // Schreiber: die Person der gewählten Spalte (nur Sonntagabend, ab der Streit-Szene)
+  if(book.tab===TAB_BUCH){buchTaste(e);renderBook();return}   // Beobachtungsbuch: Abhaken (Leertaste, X, Entf), ←→ wählt die Person für B
+  if(book.tab===TAB_AUFTR){auftragKey(e);renderBook();return}   // Auftragsbuch: Umsetzen (Leertaste), Zurücklegen (X), Löschen (Entf)
+  if(book.tab===TAB_KARTE){   // Gutskarte: Pfeile bewegen den Cursor (Umschalt = 5 Felder)
     const d=KEYDIR[e.code],k=e.shiftKey?5:1;
     if(d)karteWahl(book.kx+(d==='right'?k:d==='left'?-k:0),book.ky+(d==='down'?k:d==='up'?-k:0));
     return}
@@ -2716,9 +3010,8 @@ function bookKey(e){
   if(d==='up'||d==='down'){const k=d==='up'?-1:1;if(e.shiftKey){if(reorder(t,sp,k))book.sel=Math.max(0,bookTasks().indexOf(t))}else book.sel=clamp(book.sel+k,0,n-1)}
   else if(d==='left'||d==='right'){if(!book.replan)book.col=clamp(book.col+(d==='left'?-1:1),0,staff.length-1)}
   else if(e.code==='Space'||e.code==='KeyE')assignCell(t,sp);
-  else if(e.code==='Delete'||e.code==='Backspace'||e.code==='KeyX'){
-    if(boardMode()!=='edit')denyEdit(t,sp);
-    else if(!TASKS[t.type].auto){removeTask(t);book.sel=clamp(book.sel,0,bookTasks().length-1)}}
+  else if(e.code==='KeyX')tafelZurueck(t);   // „Streichen“ ist jetzt Zurücklegen: der Auftrag geht ins Auftragsbuch, die Zuteilung ist weg
+  else if(e.code==='Delete'||e.code==='Backspace'){if(boardMode()!=='edit')denyEdit(t,sp);else toast(`Löschen geht im Reiter „Aufträge“ [${TAB_AUFTR+1}] (Entf) – hier legst du mit [X] zurück.`,3600)}
   renderBook();
 }
 
@@ -2771,7 +3064,7 @@ function karteDraw(cv,sc){
 function kartSymbole(){const K=CFG.karte,wk=weekNow(),al=w=>w<0?K.alteAlpha:Math.max(K.alphaMin,1-(1-K.alphaMin)*Math.min(1,(wk-w)/K.verblassen)),o=[];
   for(const b of buildings){const n=b.id==='haus'?'hof':b.id==='gesinde'?'gesinde':/^bank/.test(b.id)?'bank':null;if(!n)continue;const i=idx(b.x+(b.w>>1),b.y+(b.h>>1));if(kartWo[i])o.push([n,i,al(kartWo[i])])}
   const fu=[];for(let i=0;i<N;i++){if(!kartWo[i]||kartKl[i]!==KL_FURT)continue;const x=i%W,y=(i/W)|0;if(fu.some(j=>Math.max(Math.abs(j%W-x),Math.abs(((j/W)|0)-y))<6))continue;fu.push(i);o.push([ground[i]===G_BRIDGE?'bruecke':'furt',i,al(kartWo[i])])}
-  const bau=new Set();for(const e of knWiss)if((e.art==='hasenbau'||e.art==='fuchsbau')&&!bau.has(e.feld)){bau.add(e.feld);o.push([e.art,e.feld,al(e.woche)])}
+  const bau=new Set();for(const e of [...knWiss,...G.buch])if(!e.leer&&buchStufe(e)!=='weg'&&(e.art==='hasenbau'||e.art==='fuchsbau')&&!bau.has(e.feld)){bau.add(e.feld);o.push([e.art,e.feld,al(e.woche)])}
   for(const z of G.kartZ)o.push([z.art,z.feld,al(z.woche)]);
   return o}
 function karteRefresh(){
@@ -2856,7 +3149,7 @@ function startAppell(){
 }
 function appellSentence(s,pa){
   const p=(pa||planAll(G.times.start,true)).plans[s.id],parts=[];
-  for(const e of p){const l=e.kind==='work'||e.kind==='fest'?e.label:null;if(l&&parts[parts.length-1]!==l)parts.push(l)}
+  for(const e of p){const l=e.kind==='work'||e.kind==='fest'||e.kind==='frei'?e.label:null;if(l&&parts[parts.length-1]!==l)parts.push(l)}
   if(!parts.length)return `${s.name}, heute das Übliche.`;
   return `${s.name}, heute: ${parts.join(', danach ')}${p.some(e=>e.kind==='std')?'. Danach das Übliche':''}.`;
 }
@@ -3041,7 +3334,7 @@ const cc=document.createElement('canvas'),cctx=cc.getContext('2d');
 const AF=2;                                    // Atlaspixel je Weltpixel (B7: 32-px-Grafik bei T=16 als Weltmaß)
 let SC=3,camX=0,camY=0;                        // SC = Bildschirmpixel je Weltpixel; ein Atlaspixel = SC/AF Bildschirmpixel (1 oder 2)
 function resize(){cv.width=innerWidth;cv.height=innerHeight;cc.width=cv.width;cc.height=cv.height;SC=AF*clamp(Math.floor(Math.min(innerWidth/(20*T*AF),innerHeight/(12*T*AF))),1,2);   // Bildschirmkachel 32 oder 64 px, mindestens 20×12 Felder sichtbar
-  if(typeof G!=='undefined'&&G&&G.state==='book'&&book.tab===5)karteBind()}   // Gutskarte misst ihren Maßstab neu (Fenster/Drehung)
+  if(typeof G!=='undefined'&&G&&G.state==='book'&&book.tab===TAB_KARTE)karteBind()}   // Gutskarte misst ihren Maßstab neu (Fenster/Drehung)
 addEventListener('resize',resize);resize();
 function spr(c,name,wx,wy,flip){const f=FR[name];if(!f)return;const sx=Math.round(wx*SC-camX),sy=Math.round(wy*SC-camY);
   const dw=f[2]*SC/AF,dh=f[3]*SC/AF;            // Atlasmaße sind gerade (embed-atlas prüft) → ganzzahlige Zielgröße
@@ -3116,7 +3409,7 @@ function kahlerBaum(t,kb){if(!kb||t.dead||t.h<2||!(kb[LAUB_IDX[t.sp]][1]>0))retu
   const n=t.giant?'01-baumkahl-riese':r<=0?'01-baumkahl-jung_'+KAHL_I[t.sp]:r===1||t.sp==='birke'?'01-baumkahl-mittel_'+KAHL_I[t.sp]:'01-baumkahl-alt_'+(t.sp==='eiche'?0:1),f=FR[n];if(!f)return null;
   const bx=t.giant?t.x*T+16:t.x*T+8,by=t.giant?(t.y+2)*T:(t.y+1)*T;return [n,bx-f[2]/AF/2,by-f[3]/AF+1]}
 const TRACKF=[0,0,1,2,3,4];
-const FLAGTYPES=new Set(['bau','falle','roden','zerlegen','beeren']);
+const FLAGTYPES=new Set(['bau','falle','roden','zerlegen','beeren','nachsehen']);
 function draw(now){
   const TS=T*SC,cw=cv.width,ch=cv.height;
   ctx.imageSmoothingEnabled=false;ctx.fillStyle='#0b0f12';ctx.fillRect(0,0,cw,ch);
@@ -3236,7 +3529,7 @@ function hud(){
   const k='●'.repeat(Math.max(0,G.kraft))+'○'.repeat(Math.max(0,CFG.kraft-G.kraft));
   const sun=G.phase==='sonntag',pl=G.phase==='plan',vor=G.wetter&&CFG.wetter?' · Vorhersage Werkwoche: '+wetterWort(G.week):'';   // Sonntag/Planung: nur die Vorhersage, die Werkwoche zeigt das Wetter
   const s=`Woche ${Math.min(G.week,CFG.zeit.wochen)} · ${WEEK_PHASE[G.phase]||''} · ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}${sun?'':' · '+(G.dayType==='wald'?'Waldtag':'Hoftag')}${wetterWirkt()?' · '+wetterWort(G.week):''}<br>${sun?`Tageslicht bis ${hm(G.times.ende)}${vor}`:pl?'Planen im Notizbuch [N]'+vor:'Kraft '+k}`+
-    (P.mowTask?`<br><span style="color:#dad45e">Pflock-Modus: ${taskItems(groupTask('maehen')).length} Felder · [M] beenden</span>`:'')+
+    (P.mowTask?`<br><span style="color:#dad45e">Pflock-Modus: ${taskItems(buchPosten('maehen')).length} Felder · [M] beenden</span>`:'')+
     `<br><small style="color:#8595a1">[Leertaste] Aktion · [N] Notizbuch · [M] Pflöcke · [T] ${pl?'Planung abschließen':G.phase==='abend'?'Heimgehen und schlafen':'Heimgehen'} · [L] Ton${G.laterne!==undefined?' · [F] Laterne':''}</small>`;
   if(s!==lastHud){hudEl.innerHTML=s;lastHud=s}
   let ht='';
@@ -3355,18 +3648,22 @@ const TOUCH_TASTEN=[
   {label:'Buch',code:'KeyN',in:['play']},
   {label:'Heimgehen',code:'KeyT',in:['play']},
   {label:'Hof/Wald',code:'KeyH',in:['book']},
+  {label:'Schreiber',code:'KeyB',in:['book']},
+  {label:'Auftrag',code:'KeyU',in:['book']},
+  {label:'Nachsehen',code:'KeyV',in:['book']},
   {label:'Ton',code:'KeyL',in:['play']},
   {label:'Laterne',code:'KeyF',in:['play']},
   {label:'Reiter',code:'Tab',in:['book']},
-  {label:'Streichen',code:'KeyX',in:['book']},
+  {label:'Zurücklegen',code:'KeyX',in:['book']},
+  {label:'Löschen',code:'Delete',in:['book']},
   {label:'Fertig',code:'Enter',in:['appell']},
   {label:'⇧ Reihenfolge',mod:'shift',in:['book']},
 ];
 const TOUCH_STEUERKREUZ_IN=['play','menu','book','appell'];
 // Tastennamen in Spieltexten durch die Knopfnamen ersetzen (nur Touch; Reihenfolge zählt, Spezielles zuerst)
 const TOUCH_TEXT=[
-  [/\[Leertaste\]/g,'[Aktion]'],[/Leertaste/g,'Aktion'],[/\[N\]/g,'[Buch]'],[/\[T\]/g,'[Heimgehen]'],[/\[H\]/g,'[Hof/Wald]'],[/H Hof-\/Waldtag/g,'Hof/Wald-Knopf'],[/\[M\]/g,'[Pflock]'],[/\[L\]/g,'[Ton]'],[/\[F\]/g,'[Laterne]'],[/\[Esc\]/g,'[✕]'],
-  [/Esc schließen/g,'✕ schließen'],[/Esc fertig/g,'✕ fertig'],[/Shift\+↑↓/g,'⇧ + ↑↓'],[/Entf streichen/g,'Streichen'],[/1–\d Reiter/g,'Reiter-Knopf'],[/Enter:/g,'Fertig:'],
+  [/\[Leertaste\]/g,'[Aktion]'],[/Leertaste/g,'Aktion'],[/\[N\]/g,'[Buch]'],[/\[T\]/g,'[Heimgehen]'],[/\[H\]/g,'[Hof/Wald]'],[/H Hof-\/Waldtag/g,'Hof/Wald-Knopf'],[/\[M\]/g,'[Pflock]'],[/\[L\]/g,'[Ton]'],[/\[B\]/g,'[Schreiber]'],[/\[F\]/g,'[Laterne]'],[/\[Esc\]/g,'[✕]'],
+  [/Esc schließen/g,'✕ schließen'],[/Esc fertig/g,'✕ fertig'],[/Shift\+↑↓/g,'⇧ + ↑↓'],[/X zurücklegen/g,'Zurücklegen'],[/Entf löschen/g,'Löschen'],[/1–\d Reiter/g,'Reiter-Knopf'],[/Enter:/g,'Fertig:'],
   [/WASD\/Pfeile laufen/g,'Steuerkreuz links: laufen'],
 ];
 const TOUCH=matchMedia('(pointer:coarse)').matches||/[?&]touch\b/.test(location.search);
