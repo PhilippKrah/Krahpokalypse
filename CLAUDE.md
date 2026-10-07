@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Neu hier? Zuerst [docs/handover.md](docs/handover.md) lesen** — dort steht,
+> wo das Projekt steht, was offen ist und was als Nächstes ansteht.
+
 ## Projekt
 
 Privates Familienprojekt: eine Familien-To-Do-Liste, die über eine Web-URL erreichbar ist. Später sollen ggf. weitere kleine Familien-Projekte dazukommen. Stack (alles bereits eingerichtet, nichts neu anzulegen):
@@ -11,6 +14,14 @@ Privates Familienprojekt: eine Familien-To-Do-Liste, die über eine Web-URL erre
 - **GitHub** — `PhilippKrah/Krahpokalypse`, Branch `main`.
 
 Deploy-Weg: Commit auf `main` → Push → Vercel deployt automatisch. Es gibt keinen Build-Schritt.
+
+### Was im Repo liegt
+
+- `index.html` — die To-Do-App. Hauptentwicklungspfad, hier spielt die Musik.
+- `apps/` — Startmenü über alle Anwendungen. Neue App = ein Eintrag mehr im Array `APPS`.
+- `spiele/foerster/` — Spiel „Der Gutsverwalter". **Nicht hier entwickeln:** die Dateien entstehen im separaten Repo `Games` und werden per Skript hierher veröffentlicht (die Commit-Beschreibungen nennen den Quell-Commit). Direkte Änderungen gehen beim nächsten Veröffentlichen verloren.
+- `supabase/` — SQL-Skripte, die der Nutzer im Dashboard ausführt.
+- `docs/` — [handover.md](docs/handover.md) (Stand und nächste Schritte), [backlog.md](docs/backlog.md).
 
 ## Architektur
 
@@ -38,7 +49,9 @@ Die App konkurriert mit einer Notizen-App, in der die Aufgaben als Freitext unte
 Zwei Hälften, die zusammengehören — eine allein schützt nichts:
 
 - **Im Frontend:** `db.auth.onAuthStateChange(...)` ist der einzige Einstiegspunkt der App. Ohne Session zeigt `showView()` nur `#authView` (Login per `signInWithPassword`), mit Session `#appView`; `loadTodos()` läuft ausschließlich mit Session. Kein Registrieren-Formular — Accounts der Familienmitglieder legt der Nutzer im Supabase-Dashboard unter Authentication > Users an. Diese Sichtbarkeits-Logik nur anfassen, wenn klar ist, dass `#appView` ohne Session verborgen bleibt.
-- **In Supabase:** [supabase/rls-todos.sql](supabase/rls-todos.sql) schaltet RLS auf `todos` ein. Regel: eigene Aufgaben immer, fremde nur mit `visibility = 'geteilt'`; Anlegen nur im eigenen Namen (`with check (user_id = auth.uid())`); Ändern und Löschen auch für geteilte Aufgaben des Partners — das ist bei einer gemeinsamen Liste gewollt. Die Rolle `anon` hat bewusst keine Policy. [supabase/schema-0.2.sql](supabase/schema-0.2.sql) legt die Spalten dafür an. Beide Skripte sind wiederholbar und müssen vom Nutzer im SQL Editor ausgeführt werden — Schema zuerst.
+- **In Supabase:** [supabase/rls-todos.sql](supabase/rls-todos.sql) schaltet RLS auf `todos` ein. Regel: eigene Aufgaben immer, fremde nur mit `visibility = 'geteilt'`; Anlegen nur im eigenen Namen (`with check (user_id = auth.uid())`); Ändern und Löschen auch für geteilte Aufgaben des Partners — das ist bei einer gemeinsamen Liste gewollt. Die Rolle `anon` hat bewusst keine Policy. Die Spalten dafür legen [supabase/schema-0.2.sql](supabase/schema-0.2.sql) (`user_id`, `visibility`, `due_date`) und [supabase/schema-0.3.sql](supabase/schema-0.3.sql) (`deferred`) an. Alle Skripte sind wiederholbar und müssen vom Nutzer im SQL Editor ausgeführt werden — Schema zuerst, RLS zuletzt. Stand 9.8.2026 sind alle drei gelaufen.
+
+**Nicht verifiziert:** dass private Aufgaben zwischen zwei echten Accounts getrennt bleiben. Geprüft ist nur der Zugriff ohne Login. Siehe [handover.md](docs/handover.md).
 
 Wichtig bei Schema-Änderungen: Das Frontend geht live, sobald auf `main` gepusht wird. Ein Push, bevor das passende SQL in Supabase gelaufen ist, macht die Seite für die Familie kaputt. Erst Skript, dann Push.
 
@@ -55,15 +68,17 @@ Solange RLS nicht aktiv ist, ist das Frontend-Gate reine Kosmetik: der `anon`-Ke
 
 ## Repo-Eigenheit
 
-Es gab einen versehentlichen zweiten Klon desselben Repos unter `Krahpokalypse/`; sein Inhalt ist in die äußere `index.html` übernommen und der Ordner geleert. Falls dort noch ein leeres Verzeichnis liegt, kann es gelöscht werden — es gehört nicht zum Projekt. Das äußere Repo hat zwei Remotes auf dasselbe GitHub-Projekt (`Krahpokalypse` und `PhilippKrah`); beim Pushen den richtigen wählen.
+Das Repo hat zwei Remotes auf dasselbe GitHub-Projekt: `Krahpokalypse` (vollständige URL, das ist der richtige) und `PhilippKrah` (unbrauchbar). `main` folgt `Krahpokalypse/main` — beim Pushen entsprechend `git push Krahpokalypse main`.
 
 ## Lokal ansehen
 
 Datei direkt im Browser öffnen genügt für Layout-Änderungen. Für Supabase-Zugriffe besser über einen lokalen Server (`file://`-Origins können an CORS scheitern):
 
 ```bash
-python -m http.server 8000
+python -m http.server 8765
 ```
+
+Danach `http://localhost:8765/index.html` aufrufen.
 
 Es gibt keine Tests, keinen Linter und keine Build-Konfiguration im Repo.
 
