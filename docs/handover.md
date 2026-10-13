@@ -116,3 +116,9 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   hierher veröffentlicht; die Commit-Beschreibungen nennen den Quell-Commit.
   Änderungen an diesen Dateien direkt im Krahpokalypse-Repo gehen beim nächsten
   Veröffentlichen verloren.
+- `spiele/waldwacht/` — Spiel „Waldwacht" (Arbeitstitel), Top-Down-Action im Stil
+  von „A Link to the Past". Stand Entwurf 2 (Oktober 2026): ein Raum, Schwert,
+  Füchse in endlosen Wellen (mehr, schneller, ab Welle 3/5 neue Arten mit
+  Sprungangriff), Herzen als Beute, Rekord im Browser, Touch-Steuerung. Wird
+  hier entwickelt. Grafik aus dem Gutsverwalter-Atlas, eingebettet per
+  `atlas_bauen.py`. Stellschrauben im Objekt `CFG`.

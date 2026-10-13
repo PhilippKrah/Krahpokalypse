@@ -20,6 +20,7 @@ Deploy-Weg: Commit auf `main` → Push → Vercel deployt automatisch. Es gibt k
 - `index.html` — die To-Do-App. Hauptentwicklungspfad, hier spielt die Musik.
 - `apps/` — Startmenü über alle Anwendungen. Neue App = ein Eintrag mehr im Array `APPS`.
 - `spiele/foerster/` — Spiel „Der Gutsverwalter". **Nicht hier entwickeln:** die Dateien entstehen im separaten Repo `Games` und werden per Skript hierher veröffentlicht (die Commit-Beschreibungen nennen den Quell-Commit). Direkte Änderungen gehen beim nächsten Veröffentlichen verloren.
+- `spiele/waldwacht/` — Spiel „Waldwacht" (Arbeitstitel), Action-Adventure im Stil von „A Link to the Past". Wird **hier** entwickelt: eine Datei `index.html`, die Grafiken stammen aus dem Gutsverwalter-Atlas und werden mit `atlas_bauen.py` eingebettet (nur nötig, wenn sich die Auswahl ändert).
 - `supabase/` — SQL-Skripte, die der Nutzer im Dashboard ausführt.
 - `docs/` — [handover.md](docs/handover.md) (Stand und nächste Schritte), [backlog.md](docs/backlog.md).
 
