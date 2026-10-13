@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <!--
-  Waldwacht (Arbeitstitel) – Entwurf 1: Top-Down-Action-Adventure im Stil von „A Link to the Past“.
-  Ein geschlossener Raum (Waldlichtung hinter einer alten Steinmauer), der Verwalter mit Schwert, drei Füchse.
+  Waldwacht (Arbeitstitel) – Entwurf 2: Top-Down-Action-Adventure im Stil von „A Link to the Past“.
+  Ein geschlossener Raum (Waldlichtung hinter einer alten Steinmauer), der Verwalter mit Schwert, Füchse in Wellen:
+  je Welle mehr und schneller; ab Welle 3 Silberfüchse (springen nach kurzer Warnung), ab Welle 5 Glutfüchse
+  (zäher, ein ganzes Herz Schaden). Füchse lassen manchmal ein Herz fallen. Rekord (höchste Welle) im localStorage.
+  Alle Stellschrauben in CFG (arten, welle, herz).
 
   Grafik: Held, Füchse, Gras und Hindernisse sind aus dem Atlas des Gutsverwalters (spiele/foerster) geschnitten
   (atlas_bauen.py, Ergebnis steht unten in FR/ATLAS_SRC). Mauer, Schwert, Herzen, Schrift und Effekte werden beim Start
@@ -11,12 +14,16 @@
   Spiellogik in Bildschirmpixeln, feste Schrittweite 1/60 s. Kollision: achsengetrennte AABB-Prüfung gegen die Liste
   HINDERNISSE (Mauern + Hindernisse mit Rechtecken passend zur Grafik, nicht zum ganzen Feld).
 
-  Steuerung: WASD/Pfeile laufen (8 Richtungen) · Leertaste Schwert · R Neustart (nach Game Over oder Sieg)
+  Steuerung: WASD/Pfeile laufen (8 Richtungen) · Leertaste Schwert · R Neustart (nach Game Over)
+  Touch (erscheint beim ersten Fingertipp): linke Hälfte Steuerstick, rechte Hälfte Schwert, nach Game Over Tippen = Neustart.
+             Touch schreibt dieselben Befehle wie die Tastatur. Zum Testen am PC: index.html?touch
 -->
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Waldwacht</title>
 <style>
   html,body{margin:0;height:100%;background:#120d14;color:#a9b2b0;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
@@ -24,11 +31,27 @@
   canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;background:#000}
   .hilfe{margin:0;text-align:center}
   kbd{display:inline-block;padding:0 5px;border:1px solid #454a55;border-radius:4px;background:#1c1e26;color:#ece8d6;font:inherit}
+  /* Touch: nur sichtbar, sobald ein Finger das Spiel bedient hat */
+  html,body{touch-action:none}   /* muss vor dem ersten Finger feststehen, sonst bricht der Browser die Geste ab */
+  body.touch{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  body.touch .hilfe{display:none}
+  body.hochkant{justify-content:flex-start;padding-top:max(8px,env(safe-area-inset-top))}
+  .tb{display:none;position:fixed;pointer-events:none;border-radius:50%;box-sizing:border-box}
+  body.touch .tb{display:block}
+  #stick{left:28px;bottom:28px;width:120px;height:120px;border:3px solid rgba(236,232,214,.35);background:rgba(18,13,20,.35);opacity:.5}
+  #stick.an{opacity:1;bottom:auto;transform:translate(-50%,-50%)}
+  #stick:not(.an){bottom:max(28px,env(safe-area-inset-bottom))}
+  #knauf{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(236,232,214,.75);border:3px solid #120d14}
+  #schlagknopf{right:max(28px,env(safe-area-inset-right));bottom:max(40px,env(safe-area-inset-bottom));width:96px;height:96px;
+    border:3px solid #120d14;background:rgba(208,87,74,.75);color:#fffbec;font:bold 15px/90px sans-serif;text-align:center}
+  #schlagknopf.an{background:rgba(244,205,94,.9);transform:scale(.92)}
 </style>
 </head>
 <body>
 <canvas id="c" width="640" height="480"></canvas>
 <p class="hilfe"><kbd>WASD</kbd>/<kbd>Pfeile</kbd> laufen · <kbd>Leertaste</kbd> Schwert · <kbd>R</kbd> Neustart</p>
+<div id="stick" class="tb"><div id="knauf"></div></div>
+<div id="schlagknopf" class="tb">Schwert</div>
 
 <script>
 'use strict';
@@ -52,7 +75,17 @@ const PAL = {
 const CFG = {
   held: { tempo: 150, lp: 6, unverwundbar: 1.0, rueckTempo: 300, rueckDauer: 0.18 },
   schlag: { dauer: 0.28, neuAb: 0.20, aktivBis: 0.22, phasen: [0.05, 0.10, 0.20] },   // Phasenwechsel der vier Schwertstellungen
-  fuchs: { tempo: 55, lp: 2, schaden: 1, rueckTempo: 320, rueckDauer: 0.18, blitz: 0.25, wachAb: 0.8 },
+  fuchs: { rueckTempo: 320, rueckDauer: 0.18, blitz: 0.25, wachAb: 0.7 },   // gilt für alle Arten
+  // Fuchsarten; sprung: ab Reichweite (px) zielen (Warnung, s), dann springen (Dauer, Tempo), danach Pause [von, bis]
+  arten: {
+    fuchs:  { lp: 2, tempo: 55, schaden: 1, sprung: null },
+    silber: { lp: 3, tempo: 62, schaden: 1, sprung: { reichweite: 150, zielen: 0.5, dauer: 0.32, tempo: 300, pause: [2.0, 3.2] } },
+    glut:   { lp: 4, tempo: 58, schaden: 2, sprung: { reichweite: 190, zielen: 0.4, dauer: 0.36, tempo: 340, pause: [1.4, 2.4] } },
+  },
+  // Wellen: Tempo aller Füchse +tempoPlus je Welle (bis tempoMax), Abstand der Auftritte (s), Pause zwischen Wellen (s),
+  // Banner (s, Füchse kommen ab bannerVorlauf), Mindestabstand eines neuen Fuchses zum Helden (px)
+  welle: { anzahlMax: 10, tempoPlus: 0.07, tempoMax: 1.7, abstand: 0.7, pause: 1.2, banner: 1.6, bannerVorlauf: 0.8, mindestAbstand: 170 },
+  herz: { chance: 0.2, dauer: 9 },   // Herz fallen lassen: Wahrscheinlichkeit je Fuchs, Liegedauer (s)
   trefferStopp: 4,   // Bilder Standbild beim Treffer
 };
 
@@ -77,7 +110,6 @@ const KARTE = [
 ];
 const SPALTEN = 20, ZEILEN = 15;
 const START_HELD = { x: 9.5 * T, y: 8.5 * T };
-const START_FUECHSE = [[16.5, 2.8], [3.5, 12.5], [16.5, 12.5]];
 
 // Kollisionsrechteck je Hindernis, relativ zur Feldecke (passend zur Grafik)
 const FORM = {
@@ -240,20 +272,37 @@ function schreibe(text, x, y, s, farbe, mitte = true) {
 
 // ---------- Atlas ----------
 const atlas = new Image();
-const BLITZ = {};   // weiße Umrisse der Fuchsbilder für den Treffer-Effekt
+// Fuchsbilder je Art (Farbtausch wie auf dem SNES) plus weiße Umrisse für den Treffer-Effekt: FUCHSBILD[art][bild]
+const FUCHSBILD = {};
+const FUCHSFARBEN = {   // Fell, Beine/Ohren, Bauch/Schwanzspitze des Atlas-Fuchses → je Art
+  silber: { '#b88250': PAL.fels4, '#4a2a2a': PAL.fels1, '#ece8d6': PAL.weiss },
+  glut: { '#b88250': PAL.rot1, '#4a2a2a': PAL.rot0, '#ece8d6': PAL.gold2 },
+};
 function zeichneBild(g, name, x, y, spiegeln = false) {
   const f = FR[name]; if (!f) return;
   x = Math.round(x); y = Math.round(y);
   if (!spiegeln) { g.drawImage(atlas, f[0], f[1], f[2], f[3], x, y, f[2], f[3]); return; }
   g.save(); g.translate(x + f[2], y); g.scale(-1, 1); g.drawImage(atlas, f[0], f[1], f[2], f[3], 0, 0, f[2], f[3]); g.restore();
 }
-function baueBlitz() {
-  for (const name of ['fuchs_0', 'fuchs_1']) {
-    const f = FR[name], [c, g] = leinwand(f[2], f[3]);
-    g.drawImage(atlas, f[0], f[1], f[2], f[3], 0, 0, f[2], f[3]);
-    g.globalCompositeOperation = 'source-in'; g.fillStyle = PAL.weiss; g.fillRect(0, 0, f[2], f[3]);
-    BLITZ[name] = c;
-  }
+function zeichneLeinwand(bild, x, y, spiegeln) {
+  if (!spiegeln) { ctx.drawImage(bild, x, y); return; }
+  ctx.save(); ctx.translate(x + bild.width, y); ctx.scale(-1, 1); ctx.drawImage(bild, 0, 0); ctx.restore();
+}
+function baueFuchsbilder() {
+  const hex = (d, i) => '#' + [d[i], d[i + 1], d[i + 2]].map(v => v.toString(16).padStart(2, '0')).join('');
+  const kopie = name => { const f = FR[name], [c, g] = leinwand(f[2], f[3]); g.drawImage(atlas, f[0], f[1], f[2], f[3], 0, 0, f[2], f[3]); return [c, g]; };
+  FUCHSBILD.fuchs = ['fuchs_0', 'fuchs_1'].map(n => kopie(n)[0]);
+  FUCHSBILD.blitz = ['fuchs_0', 'fuchs_1'].map(n => {
+    const [c, g] = kopie(n); g.globalCompositeOperation = 'source-in'; g.fillStyle = PAL.weiss; g.fillRect(0, 0, c.width, c.height); return c;
+  });
+  for (const [art, tausch] of Object.entries(FUCHSFARBEN)) FUCHSBILD[art] = ['fuchs_0', 'fuchs_1'].map(n => {
+    const [c, g] = kopie(n), bild = g.getImageData(0, 0, c.width, c.height), d = bild.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const neu = d[i + 3] && tausch[hex(d, i)];
+      if (neu) for (let k = 0; k < 3; k++) d[i + k] = parseInt(neu.slice(1 + 2 * k, 3 + 2 * k), 16);
+    }
+    g.putImageData(bild, 0, 0); return c;
+  });
 }
 
 // ---------- Hintergrund (einmal gezeichnet) ----------
@@ -288,9 +337,9 @@ function mauerWand(g, x, y, zz) {   // senkrechte Wandfläche der oberen Mauer: 
 }
 function baueHintergrund() {
   const g = hgCtx, zz = zufall(7);
-  // Boden überall, Deko nur auf freien Feldern abseits der Startplätze
+  // Boden überall, Deko nur auf freien Feldern abseits des Startplatzes
   const frei = (c, r) => KARTE[r] && KARTE[r][c] === '.';
-  const startfeld = (c, r) => [[START_HELD.x / T, START_HELD.y / T], ...START_FUECHSE].some(([x, y]) => Math.abs(x - 0.5 - c) < 1.5 && Math.abs(y - 0.5 - r) < 1.5);
+  const startfeld = (c, r) => Math.abs(START_HELD.x / T - 0.5 - c) < 1.5 && Math.abs(START_HELD.y / T - 0.5 - r) < 1.5;
   for (let r = 0; r < ZEILEN; r++) for (let c = 0; c < SPALTEN; c++) {
     const w = zz(); zeichneBild(g, w < 0.6 ? 'gras_0' : w < 0.85 ? 'gras_1' : w < 0.95 ? 'gras_2' : 'gras_3', c * T, r * T);
   }
@@ -328,29 +377,127 @@ function baueHintergrund() {
   }
 }
 
-// ---------- Eingabe ----------
+// ---------- Eingabe: Tastatur ----------
 const TASTEN = { ArrowUp: 'hoch', KeyW: 'hoch', ArrowDown: 'runter', KeyS: 'runter', ArrowLeft: 'links', KeyA: 'links',
   ArrowRight: 'rechts', KeyD: 'rechts', Space: 'schlag', KeyR: 'neustart' };
 const gehalten = new Set(), gedrueckt = new Set();   // gedrueckt: seit dem letzten Spielschritt neu gedrückt
 addEventListener('keydown', e => { const t = TASTEN[e.code]; if (!t) return; e.preventDefault(); if (!e.repeat) gedrueckt.add(t); gehalten.add(t); });
 addEventListener('keyup', e => { const t = TASTEN[e.code]; if (t) gehalten.delete(t); });
-addEventListener('blur', () => gehalten.clear());
+addEventListener('blur', () => { gehalten.clear(); TOUCH.richtung.clear(); });
+
+// ---------- Eingabe: Touch ----------
+// Linke Bildschirmhälfte: Steuerstick, der dort entsteht, wo der Daumen aufsetzt (8 Richtungen).
+// Rechte Hälfte: jeder Tipp ein Schwerthieb. Nach dem Ende startet ein Tipp neu.
+// Touch schreibt dieselben Befehle wie die Tastatur (TOUCH.richtung neben gehalten, gedrueckt gemeinsam).
+// Am PC testen: index.html?touch (dann zählt auch die Maus).
+const TOUCH = { aktiv: false, stick: null, schlagId: null, richtung: new Set() };
+const elStick = document.getElementById('stick'), elKnauf = document.getElementById('knauf'), elSchlag = document.getElementById('schlagknopf');
+const STICK = { tot: 14, weg: 44 };   // Totzone und größter Ausschlag in CSS-Pixeln
+const halt = t => gehalten.has(t) || TOUCH.richtung.has(t);
+function touchAn() {
+  if (TOUCH.aktiv) return;
+  TOUCH.aktiv = true; document.body.classList.add('touch'); skaliere();
+}
+function stickZeigen(x, y, dx = 0, dy = 0) {
+  elStick.style.left = x + 'px'; elStick.style.top = y + 'px'; elStick.classList.add('an');
+  elKnauf.style.transform = `translate(${dx}px,${dy}px)`;
+}
+function stickLos() {
+  TOUCH.stick = null; TOUCH.richtung.clear();
+  elStick.classList.remove('an'); elStick.style.left = elStick.style.top = ''; elKnauf.style.transform = '';
+}
+addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' && !TOUCH.aktiv) return;
+  touchAn(); e.preventDefault();
+  if (S && S.zustand !== 'spiel') { gedrueckt.add('neustart'); return; }
+  if (e.clientX < innerWidth / 2) {
+    if (!TOUCH.stick) { TOUCH.stick = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; stickZeigen(e.clientX, e.clientY); }
+  } else { gedrueckt.add('schlag'); TOUCH.schlagId = e.pointerId; elSchlag.classList.add('an'); }
+}, { passive: false });
+addEventListener('pointermove', e => {
+  const s = TOUCH.stick; if (!s || e.pointerId !== s.id) return;
+  let dx = e.clientX - s.x0, dy = e.clientY - s.y0; const l = Math.hypot(dx, dy);
+  TOUCH.richtung.clear();
+  if (l > STICK.tot) {   // Sektoren zu je 45°: eine Achse zählt, wenn sie mehr als cos(67,5°) des Ausschlags trägt
+    if (dx > l * 0.38) TOUCH.richtung.add('rechts'); else if (dx < -l * 0.38) TOUCH.richtung.add('links');
+    if (dy > l * 0.38) TOUCH.richtung.add('runter'); else if (dy < -l * 0.38) TOUCH.richtung.add('hoch');
+  }
+  if (l > STICK.weg) { dx *= STICK.weg / l; dy *= STICK.weg / l; }
+  stickZeigen(s.x0, s.y0, dx, dy);
+});
+function touchEnde(e) {
+  if (TOUCH.stick && e.pointerId === TOUCH.stick.id) stickLos();
+  if (e.pointerId === TOUCH.schlagId) { TOUCH.schlagId = null; elSchlag.classList.remove('an'); }
+}
+addEventListener('pointerup', touchEnde); addEventListener('pointercancel', touchEnde);
+addEventListener('contextmenu', e => { if (TOUCH.aktiv) e.preventDefault(); });
+if (new URLSearchParams(location.search).has('touch')) touchAn();
 
 // ---------- Spielzustand ----------
 const WINKEL = { rechts: 0, runter: 90, links: 180, hoch: 270 };
 let S;   // alles, was ein Neustart zurücksetzt
+let beste = 0;
+try { beste = +localStorage.getItem('waldwacht.beste') || 0; } catch (e) { /* ohne Speicher eben ohne Rekord */ }
 function neuesSpiel() {
   S = {
-    zustand: 'spiel',   // spiel | gameover | sieg
+    zustand: 'spiel',   // spiel | gameover
     zeit: 0, endeZeit: 0, stopp: 0,
+    welle: 0, banner: 0, ruhe: 0.4, warteschlange: [], spawnUhr: 0, neuerRekord: false,
     held: { x: START_HELD.x, y: START_HELD.y, hw: 9, hh: 6, blick: 'runter', lp: CFG.held.lp, modus: 'normal', t: 0, vx: 0, vy: 0,
       unverwundbar: 0, anim: 0, schlagNr: 0 },
-    fuechse: START_FUECHSE.map(([c, r]) => ({ x: c * T, y: r * T, hw: 11, hh: 6, lp: CFG.fuchs.lp, rueck: 0, vx: 0, vy: 0,
-      blitz: 0, anim: 0, spiegeln: c > SPALTEN / 2, getroffen: -1, warten: CFG.fuchs.wachAb, sterbend: false })),
-    effekte: [],
+    fuechse: [], beute: [], effekte: [],
   };
 }
 
+// ---------- Wellen ----------
+// Welle n: 2+n Füchse (höchstens anzahlMax), ab Welle 3 Silberfüchse, ab Welle 5 Glutfüchse; alle laufen je Welle schneller.
+function welleInhalt(n) {
+  const anzahl = Math.min(CFG.welle.anzahlMax, 2 + n);
+  const glut = n >= 5 ? Math.min(4, Math.floor((n - 3) / 2)) : 0;
+  const silber = n >= 3 ? Math.min(anzahl - glut, 5, n - 2) : 0;
+  const liste = [...Array(glut).fill('glut'), ...Array(silber).fill('silber'), ...Array(anzahl - glut - silber).fill('fuchs')];
+  for (let i = liste.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [liste[i], liste[j]] = [liste[j], liste[i]]; }
+  return liste;
+}
+const welleTempo = n => Math.min(CFG.welle.tempoMax, 1 + CFG.welle.tempoPlus * (n - 1));
+function starteWelle(n) {
+  S.welle = n; S.banner = CFG.welle.banner; S.warteschlange = welleInhalt(n); S.spawnUhr = CFG.welle.bannerVorlauf;
+}
+function freierPlatz(hw, hh) {   // zufällige Stelle im Raum: frei von Hindernissen, nicht zu nah am Helden
+  const h = S.held;
+  let bester = null, besterAbstand = -1;
+  for (let i = 0; i < 40; i++) {
+    const p = { x: T + hw + 4 + Math.random() * (BREITE - 2 * T - 2 * hw - 8), y: 2 * T + hh + 8 + Math.random() * (HOEHE - 3 * T - 2 * hh - 16), hw, hh };
+    if (HINDERNISSE.some(r => ueberlappt(fuss({ ...p, hw: hw + 4, hh: hh + 4 }), r))) continue;
+    if (S.fuechse.some(f => Math.hypot(f.x - p.x, f.y - p.y) < 30)) continue;
+    const d = Math.hypot(p.x - h.x, p.y - h.y);
+    if (d >= CFG.welle.mindestAbstand) return p;
+    if (d > besterAbstand) { bester = p; besterAbstand = d; }
+  }
+  return bester || { x: BREITE - 2 * T, y: HOEHE - 2 * T };
+}
+function setzeFuchs(art) {
+  const a = CFG.arten[art], p = freierPlatz(11, 6);
+  S.fuechse.push({ art, x: p.x, y: p.y, hw: 11, hh: 6, lp: a.lp, tempo: a.tempo * welleTempo(S.welle), schaden: a.schaden,
+    rueck: 0, vx: 0, vy: 0, blitz: 0, anim: 0, spiegeln: p.x > S.held.x, getroffen: -1, warten: CFG.fuchs.wachAb, sterbend: false,
+    modus: 'jagen', mt: 0, sprungPause: a.sprung ? zufallIn(a.sprung.pause) : 0 });
+  S.effekte.push({ art: 'puff', x: p.x, y: p.y - 8, t: 0 });
+}
+const zufallIn = ([a, b]) => a + Math.random() * (b - a);
+function steuereWellen() {
+  if (S.zustand !== 'spiel') return;
+  if (S.banner > 0) S.banner -= DT;
+  if (S.warteschlange.length) {
+    S.spawnUhr -= DT;
+    if (S.spawnUhr <= 0) { setzeFuchs(S.warteschlange.shift()); S.spawnUhr = CFG.welle.abstand; }
+    return;
+  }
+  if (S.fuechse.length) return;
+  S.ruhe -= DT;   // kurze Verschnaufpause, dann die nächste Welle
+  if (S.ruhe <= 0) { S.ruhe = CFG.welle.pause; starteWelle(S.welle + 1); }
+}
+
+// ---------- Schwert ----------
 // Schwertstellung: vier Winkel je Blickrichtung, von der Seite her über die Front geschwungen (links gespiegelt)
 function schwertWinkel(h) {
   const p = CFG.schlag.phasen, stufe = h.t < p[0] ? 0 : h.t < p[1] ? 1 : h.t < p[2] ? 2 : 3;
@@ -386,7 +533,7 @@ function updateHeld(h) {
     return;
   }
   if (gedrueckt.has('schlag')) { starteSchlag(h); pruefeSchwert(h); return; }
-  const dx = gehalten.has('rechts') - gehalten.has('links'), dy = gehalten.has('runter') - gehalten.has('hoch');
+  const dx = halt('rechts') - halt('links'), dy = halt('runter') - halt('hoch');
   if (!dx && !dy) { h.anim = 0; return; }
   const n = dx && dy ? Math.SQRT1_2 : 1;
   bewege(h, dx * n * CFG.held.tempo * DT, dy * n * CFG.held.tempo * DT);
@@ -403,6 +550,7 @@ function pruefeSchwert(h) {
     const koerper = fuchsKoerper(f), feld = felder.find(t => ueberlappt(t, koerper));
     if (!feld) continue;
     f.getroffen = h.schlagNr; f.lp--; f.blitz = CFG.fuchs.blitz; f.rueck = CFG.fuchs.rueckDauer; f.warten = 0;
+    if (f.modus !== 'jagen') { f.modus = 'jagen'; f.sprungPause = CFG.arten[f.art].sprung.pause[0]; }   // Treffer unterbricht den Sprung
     let rx = f.x - h.x, ry = f.y - h.y; const l = Math.hypot(rx, ry) || 1; rx /= l; ry /= l;
     f.vx = rx * CFG.fuchs.rueckTempo; f.vy = ry * CFG.fuchs.rueckTempo;
     if (f.lp <= 0) f.sterbend = true;
@@ -411,24 +559,46 @@ function pruefeSchwert(h) {
   }
 }
 
+// ---------- Füchse ----------
+// jagen: langsam auf den Helden zu. Mit Sprung (Silber, Glut): in Reichweite kurz anhalten und zittern (zielen,
+// das ist die Warnung), dann geradeaus dorthin springen, wo der Held beim Absprung stand.
 function updateFuchs(f, h) {
   f.blitz = Math.max(0, f.blitz - DT);
   if (f.rueck > 0) {
     f.rueck -= DT; bewege(f, f.vx * DT, f.vy * DT); f.vx *= 0.88; f.vy *= 0.88;
-    if (f.rueck <= 0 && f.sterbend) { f.weg = true; S.effekte.push({ art: 'puff', x: f.x, y: f.y - 8, t: 0 }); }
+    if (f.rueck <= 0 && f.sterbend) {
+      f.weg = true; S.effekte.push({ art: 'puff', x: f.x, y: f.y - 8, t: 0 });
+      if (Math.random() < CFG.herz.chance) S.beute.push({ x: f.x, y: f.y, t: 0 });
+    }
     return;
   }
   if (f.warten > 0) { f.warten -= DT; return; }
   if (S.zustand !== 'spiel') return;
-  const dx = h.x - f.x, dy = h.y - f.y, l = Math.hypot(dx, dy);
+  const sp = CFG.arten[f.art].sprung, dx = h.x - f.x, dy = h.y - f.y, l = Math.hypot(dx, dy) || 1;
+  if (f.modus === 'zielen') {
+    f.mt -= DT;
+    if (f.mt <= 0) { f.modus = 'sprung'; f.mt = sp.dauer; f.vx = dx / l * sp.tempo; f.vy = dy / l * sp.tempo; f.spiegeln = dx < 0; }
+    return;
+  }
+  if (f.modus === 'sprung') {
+    f.mt -= DT;
+    const x0 = f.x, y0 = f.y; bewege(f, f.vx * DT, f.vy * DT);
+    const gestoppt = Math.hypot(f.x - x0, f.y - y0) < sp.tempo * DT * 0.3;   // gegen Wand oder Hindernis
+    if (f.mt <= 0 || gestoppt) { f.modus = 'jagen'; f.sprungPause = zufallIn(sp.pause); }
+    return;
+  }
+  if (sp) {
+    f.sprungPause -= DT;
+    if (f.sprungPause <= 0 && l < sp.reichweite) { f.modus = 'zielen'; f.mt = sp.zielen; f.spiegeln = dx < 0; return; }
+  }
   if (l < 2) return;
-  bewege(f, dx / l * CFG.fuchs.tempo * DT, dy / l * CFG.fuchs.tempo * DT);
+  bewege(f, dx / l * f.tempo * DT, dy / l * f.tempo * DT);
   if (Math.abs(dx) > 2) f.spiegeln = dx < 0;
   f.anim += DT;
 }
 
 function trenneFuechse() {   // Füchse sollen nicht ineinander laufen
-  const lebend = S.fuechse.filter(f => !f.sterbend);
+  const lebend = S.fuechse.filter(f => !f.sterbend && f.modus !== 'sprung');
   for (let i = 0; i < lebend.length; i++) for (let j = i + 1; j < lebend.length; j++) {
     const a = lebend[i], b = lebend[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01, min = 24;
     if (d >= min) continue;
@@ -440,13 +610,25 @@ function trenneFuechse() {   // Füchse sollen nicht ineinander laufen
 function pruefeBeruehrung(h) {
   if (h.unverwundbar > 0 || S.zustand !== 'spiel') return;
   const k = heldKoerper(h);
-  const f = S.fuechse.find(f => !f.sterbend && ueberlappt(k, fuchsKoerper(f)));
+  const f = S.fuechse.find(f => !f.sterbend && f.warten <= 0 && ueberlappt(k, fuchsKoerper(f)));
   if (!f) return;
-  h.lp = Math.max(0, h.lp - CFG.fuchs.schaden);
+  h.lp = Math.max(0, h.lp - f.schaden);
   let rx = h.x - f.x, ry = h.y - f.y; const l = Math.hypot(rx, ry) || 1; rx /= l; ry /= l;
   h.modus = 'rueckstoss'; h.t = CFG.held.rueckDauer; h.vx = rx * CFG.held.rueckTempo; h.vy = ry * CFG.held.rueckTempo;
   h.unverwundbar = CFG.held.unverwundbar;
-  if (h.lp === 0) { S.zustand = 'gameover'; S.endeZeit = S.zeit; }
+  if (h.lp === 0) {
+    S.zustand = 'gameover'; S.endeZeit = S.zeit;
+    if (S.welle > beste) { beste = S.welle; S.neuerRekord = true; try { localStorage.setItem('waldwacht.beste', beste); } catch (e) { /* egal */ } }
+  }
+}
+
+function pruefeBeute(h) {   // Herzen: einsammeln heilt ein ganzes Herz, nach einer Weile verschwinden sie
+  const k = heldKoerper(h);
+  S.beute = S.beute.filter(b => {
+    b.t += DT;
+    if (S.zustand === 'spiel' && ueberlappt(k, { x: b.x - 9, y: b.y - 12, w: 18, h: 16 })) { h.lp = Math.min(CFG.held.lp, h.lp + 2); return false; }
+    return b.t < CFG.herz.dauer;
+  });
 }
 
 function schritt() {
@@ -455,14 +637,15 @@ function schritt() {
   const h = S.held;
   if (S.zustand === 'spiel') updateHeld(h);
   else if (h.modus === 'rueckstoss') updateHeld(h);
+  steuereWellen();
   for (const f of S.fuechse) updateFuchs(f, h);
   S.fuechse = S.fuechse.filter(f => !f.weg);
   trenneFuechse();
   pruefeBeruehrung(h);
+  pruefeBeute(h);
   for (const e of S.effekte) e.t += DT;
   S.effekte = S.effekte.filter(e => e.t < (e.art === 'puff' ? 0.4 : 0.12));
-  if (S.zustand === 'spiel' && S.fuechse.length === 0) { S.zustand = 'sieg'; S.endeZeit = S.zeit; }
-  if (S.zustand !== 'spiel' && gedrueckt.has('neustart') && S.zeit - S.endeZeit > 0.5) neuesSpiel();
+  if (S.zustand !== 'spiel' && gedrueckt.has('neustart') && S.zeit - S.endeZeit > 0.8) neuesSpiel();
   gedrueckt.clear();
 }
 
@@ -487,11 +670,18 @@ function zeichneHeld(h) {
   if (schlag && !hinten) zeichneSchwert(h);
 }
 function zeichneFuchs(f) {
-  const name = f.rueck > 0 || f.anim === 0 ? 'fuchs_0' : 'fuchs_' + (Math.floor(f.anim * 6) % 2);
-  const x = Math.round(f.x - 16), y = Math.round(f.y + 8 - 32);
-  if (f.blitz > 0 && Math.floor(f.blitz * 30) % 2 === 0) {
-    ctx.save(); if (f.spiegeln) { ctx.translate(x + 32, y); ctx.scale(-1, 1); ctx.drawImage(BLITZ[name], 0, 0); } else ctx.drawImage(BLITZ[name], x, y); ctx.restore();
-  } else zeichneBild(ctx, name, x, y, f.spiegeln);
+  const bild = f.modus === 'sprung' ? 1 : f.rueck > 0 || f.anim === 0 || f.modus === 'zielen' ? 0 : Math.floor(f.anim * 6) % 2;
+  const zittern = f.modus === 'zielen' ? (Math.floor(S.zeit * 30) % 2 ? 1 : -1) : 0;
+  const x = Math.round(f.x - 16) + zittern, y = Math.round(f.y + 8 - 32) - (f.modus === 'sprung' ? 3 : 0);
+  if (f.warten > 0 && Math.floor(f.warten * 16) % 2) return;   // Erscheinen: kurz flackern
+  const blitz = f.blitz > 0 && Math.floor(f.blitz * 30) % 2 === 0;
+  zeichneLeinwand(blitz ? FUCHSBILD.blitz[bild] : FUCHSBILD[f.art][bild], x, y, f.spiegeln);
+  if (f.modus === 'zielen') schreibe('!', f.x, y - 14, 2, PAL.gold2);
+}
+function zeichneBeute(b) {
+  const rest = CFG.herz.dauer - b.t;
+  if (rest < 2 && Math.floor(rest * 10) % 2) return;   // kurz vor dem Verschwinden blinken
+  ctx.drawImage(HERZ.voll, Math.round(b.x - 9), Math.round(b.y - 14 - Math.abs(Math.sin(b.t * 4)) * 3));
 }
 function zeichneHud(h) {
   const anzahl = CFG.held.lp / 2, mitte = BREITE - 84, x0 = Math.round(mitte - anzahl * 10 + 1);   // oben rechts wie im Vorbild
@@ -500,38 +690,56 @@ function zeichneHud(h) {
     const rest = h.lp - i * 2;
     ctx.drawImage(rest >= 2 ? HERZ.voll : rest === 1 ? HERZ.halb : HERZ.leer, x0 + i * 20, 24);
   }
+  if (S.welle) {
+    schreibe('WELLE ' + S.welle, 40, 6, 2, PAL.creme, false);
+    schreibe('FÜCHSE ' + (S.fuechse.filter(f => !f.sterbend).length + S.warteschlange.length), 40, 26, 2, PAL.fels4, false);
+  }
+}
+function zeichneBanner() {
+  if (S.banner <= 0 || S.zustand !== 'spiel') return;
+  const vergangen = CFG.welle.banner - S.banner;
+  if (vergangen < 0.12 && Math.floor(vergangen * 30) % 2) return;
+  schreibe('WELLE ' + S.welle, BREITE / 2, 190, 5, PAL.gold2);
+  const neu = S.welle === 3 ? 'SILBERFÜCHSE SPRINGEN!' : S.welle === 5 ? 'GLUTFÜCHSE BEISSEN DOPPELT!' : '';
+  if (neu) schreibe(neu, BREITE / 2, 240, 2, PAL.creme);
 }
 function zeichneEnde() {
   const a = Math.min(1, (S.zeit - S.endeZeit) / 0.6), blinkt = Math.floor(S.zeit * 2) % 2 === 0;
   ctx.fillStyle = `rgba(18,13,20,${0.65 * a})`; ctx.fillRect(0, 0, BREITE, HOEHE);
   if (a < 1) return;
-  if (S.zustand === 'gameover') {
-    schreibe('GAME OVER', BREITE / 2, 190, 6, PAL.rot2);
-    if (blinkt) schreibe('TASTE R: NEUSTART', BREITE / 2, 270, 2, PAL.creme);
-  } else {
-    schreibe('ALLE FÜCHSE VERTRIEBEN!', BREITE / 2, 200, 3, PAL.gold2);
-    if (blinkt) schreibe('TASTE R: NOCH EINMAL', BREITE / 2, 260, 2, PAL.creme);
-  }
+  schreibe('GAME OVER', BREITE / 2, 150, 6, PAL.rot2);
+  schreibe('WELLE ' + S.welle + ' ERREICHT', BREITE / 2, 230, 3, PAL.gold2);
+  schreibe(S.neuerRekord ? 'NEUER REKORD!' : 'REKORD: WELLE ' + beste, BREITE / 2, 270, 2, S.neuerRekord ? PAL.gold2 : PAL.fels4);
+  if (blinkt) schreibe(TOUCH.aktiv ? 'TIPPEN: NEUSTART' : 'TASTE R: NEUSTART', BREITE / 2, 320, 2, PAL.creme);
 }
 function zeichne() {
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(hg, 0, 0);
-  const h = S.held, figuren = [...S.fuechse.map(f => ({ y: f.y, mal: () => zeichneFuchs(f) })), { y: h.y, mal: () => zeichneHeld(h) }];
-  for (const f of S.fuechse) schatten(f.x, f.y + 6, 22);
+  const h = S.held;
+  for (const b of S.beute) zeichneBeute(b);
+  for (const f of S.fuechse) if (f.warten <= 0) schatten(f.x, f.y + 6, 22);
   schatten(h.x, h.y + 6, 18);
+  const figuren = [...S.fuechse.map(f => ({ y: f.y, mal: () => zeichneFuchs(f) })), { y: h.y, mal: () => zeichneHeld(h) }];
   figuren.sort((a, b) => a.y - b.y).forEach(f => f.mal());
   for (const e of S.effekte) {
     if (e.art === 'puff') { const b = PUFF[Math.min(PUFF.length - 1, Math.floor(e.t / 0.4 * PUFF.length))]; ctx.drawImage(b, Math.round(e.x - 20), Math.round(e.y - 20)); }
     else { const b = FUNKE[e.t < 0.06 ? 0 : 1]; ctx.drawImage(b, Math.round(e.x - b.width / 2), Math.round(e.y - b.height / 2)); }
   }
   zeichneHud(h);
+  zeichneBanner();
   if (S.zustand !== 'spiel') zeichneEnde();
 }
 
 // ---------- Schleife & Skalierung ----------
+// Tastatur: Platz für die Hilfezeile. Touch hochkant: Spielfeld oben, Bedienung darunter.
+// Touch quer: links und rechts Rand für Stick und Schwertknopf (darf das Spielfeld etwas überdecken).
 function skaliere() {
-  const hilfe = document.querySelector('.hilfe').offsetHeight + 30;
-  let s = Math.min(innerWidth / BREITE, (innerHeight - hilfe) / HOEHE);
+  const w = innerWidth, h = innerHeight, hochkant = h > w;
+  document.body.classList.toggle('hochkant', TOUCH.aktiv && hochkant);
+  let s;
+  if (!TOUCH.aktiv) s = Math.min(w / BREITE, (h - document.querySelector('.hilfe').offsetHeight - 30) / HOEHE);
+  else if (hochkant) s = Math.min((w - 8) / BREITE, (h - 240) / HOEHE);
+  else s = Math.min((w - 2 * 130) / BREITE, h / HOEHE);
   if (s >= 1) s = Math.floor(s);   // ganzzahlig, damit die Pixel gleich groß bleiben
   cv.style.width = BREITE * s + 'px'; cv.style.height = HOEHE * s + 'px';
 }
@@ -546,7 +754,7 @@ function schleife(jetzt) {
 }
 
 atlas.onload = () => {
-  baueBlitz(); baueHintergrund(); neuesSpiel(); skaliere();
+  baueFuchsbilder(); baueHintergrund(); neuesSpiel(); skaliere();
   requestAnimationFrame(t => { vorher = t; schleife(t); });
 };
 atlas.src = ATLAS_SRC;
