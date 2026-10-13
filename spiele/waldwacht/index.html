@@ -1,22 +1,26 @@
 <!DOCTYPE html>
 <!--
-  Waldwacht (Arbeitstitel) – Entwurf 2: Top-Down-Action-Adventure im Stil von „A Link to the Past“.
-  Ein geschlossener Raum (Waldlichtung hinter einer alten Steinmauer), der Verwalter mit Schwert, Füchse in Wellen:
-  je Welle mehr und schneller; ab Welle 3 Silberfüchse (springen nach kurzer Warnung), ab Welle 5 Glutfüchse
-  (zäher, ein ganzes Herz Schaden). Füchse lassen manchmal ein Herz fallen. Rekord (höchste Welle) im localStorage.
-  Alle Stellschrauben in CFG (arten, welle, herz).
+  Waldwacht (Arbeitstitel) – Entwurf 3: Probe-Dungeon. Top-Down-Action-Adventure im Stil von „A Link to the Past“.
+  Zweck: Räume, die je eine Mechanik, einen Gegner oder ein Rätsel erproben. Linear hintereinander, alle gleich groß
+  (20×15 Felder); wo ein Schlüssel oder Gegenstand nötig ist, zweigt der Raum davor eindeutig ab. Daraus wird später
+  das Tutorial. Raumformen, Dungeonformen, Randomizer: erst danach.
 
-  Grafik: Held, Füchse, Gras und Hindernisse sind aus dem Atlas des Gutsverwalters (spiele/foerster) geschnitten
-  (atlas_bauen.py, Ergebnis steht unten in FR/ATLAS_SRC). Mauer, Schwert, Herzen, Schrift und Effekte werden beim Start
-  in Pixeln gezeichnet, mit Farben aus der Gutsverwalter-Palette (PAL). Maßstab wie dort: 32 Bildschirmpixel je Feld.
-  Leinwand 640×480 (20×15 Felder), ganzzahlig hochskaliert, wenn das Fenster es hergibt.
+  Räume: RAEUME (Karte als Zeichenraster, Türen je Himmelsrichtung n/o/s/w mit Ziel und Art, Texte). Neuer Raum =
+  ein Eintrag mehr, Gegentür im Zielraum nicht vergessen (wird beim Start geprüft, Warnung in der Konsole).
+  Türarten: offen · kampf (Gitter zu, solange Füchse da sind) · schloss (kleiner Schlüssel) · schalter (alle Platten belegt).
+  Kartenzeichen: # Mauer · . Boden · L Baumstamm · S Stein · E Beerenbusch · P Baumstumpf · O Holzstapel (fest)
+                 b Busch (Schwert schlägt ihn weg) · B Steinblock (schiebbar) · _ Druckplatte · T Schild
+                 K Truhe · k Truhe, die erst erscheint, wenn der Kampfraum geräumt ist · f/s/g Fuchs/Silberfuchs/Glutfuchs
+  Fortschritt (offene Türen, geräumte Räume, geöffnete Truhen) bleibt bei Game Over erhalten; Neustart im aktuellen Raum.
 
-  Spiellogik in Bildschirmpixeln, feste Schrittweite 1/60 s. Kollision: achsengetrennte AABB-Prüfung gegen die Liste
-  HINDERNISSE (Mauern + Hindernisse mit Rechtecken passend zur Grafik, nicht zum ganzen Feld).
+  Grafik: Held, Füchse, Gras und Hindernisse aus dem Atlas des Gutsverwalters (atlas_bauen.py → FR/ATLAS_SRC); Mauer,
+  Türen, Truhe, Schild, Block, Platte, Schwert, Herzen, Schrift und Effekte in Pixeln mit der Gutsverwalter-Palette (PAL).
+  Leinwand 640×480, 32 Bildschirmpixel je Feld. Spiellogik in Bildschirmpixeln, feste Schrittweite 1/60 s,
+  Kollision achsengetrennt (AABB) gegen die Hindernisliste des Raums.
 
-  Steuerung: WASD/Pfeile laufen (8 Richtungen) · Leertaste Schwert · R Neustart (nach Game Over)
-  Touch (erscheint beim ersten Fingertipp): linke Hälfte Steuerstick, rechte Hälfte Schwert, nach Game Over Tippen = Neustart.
-             Touch schreibt dieselben Befehle wie die Tastatur. Zum Testen am PC: index.html?touch
+  Steuerung: WASD/Pfeile laufen · Leertaste: lesen/öffnen, sonst Schwert · R Neustart im Raum (nach Game Over)
+  Touch (erscheint beim ersten Fingertipp): linke Hälfte Steuerstick, rechte Hälfte wie Leertaste.
+  Testen: ?raum=<id> startet in einem Raum (z. B. ?raum=schieben), ?touch zeigt die Touch-Bedienung am PC.
 -->
 <html lang="de">
 <head>
@@ -31,7 +35,6 @@
   canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;background:#000}
   .hilfe{margin:0;text-align:center}
   kbd{display:inline-block;padding:0 5px;border:1px solid #454a55;border-radius:4px;background:#1c1e26;color:#ece8d6;font:inherit}
-  /* Touch: nur sichtbar, sobald ein Finger das Spiel bedient hat */
   html,body{touch-action:none}   /* muss vor dem ersten Finger feststehen, sonst bricht der Browser die Geste ab */
   body.touch{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
   body.touch .hilfe{display:none}
@@ -49,9 +52,9 @@
 </head>
 <body>
 <canvas id="c" width="640" height="480"></canvas>
-<p class="hilfe"><kbd>WASD</kbd>/<kbd>Pfeile</kbd> laufen · <kbd>Leertaste</kbd> Schwert · <kbd>R</kbd> Neustart</p>
+<p class="hilfe"><kbd>WASD</kbd>/<kbd>Pfeile</kbd> laufen · <kbd>Leertaste</kbd> lesen, öffnen, Schwert · <kbd>R</kbd> Neustart</p>
 <div id="stick" class="tb"><div id="knauf"></div></div>
-<div id="schlagknopf" class="tb">Schwert</div>
+<div id="schlagknopf" class="tb">Aktion</div>
 
 <script>
 'use strict';
@@ -59,14 +62,14 @@ const FR={"held_0":[0,0,32,48],"held_1":[33,0,32,48],"held_2":[66,0,32,48],"held
 const ATLAS_SRC='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAACjCAYAAABljcCSAAAdeElEQVR42u1dbWxc1Zl+J7JLPpikHmYGx4mDYxKTGBcSQAmFxAKa0lX6wSZpCc0C2k0hjVDTCij9EVUg0KqqlC4roEImQH9AS0NbkgVBtKBAK8fe2llCCDKOm7jBxIlj7GFCMgSya7SzP+z35szxOfeec+8591573kcazcf9eu6d87xf59xzAQgEAoFAIBAIBEIZIaG7QSqZLrotzxdyCdukiYM3j7COTxzi1R50UaF7ktXZlNdqRZsnSxyUeRTDMoTlziEu7cGqAcCT/PqNK2FgYNBlzSPWTpY4qPF4/29HQvO65c4hLu3BL6bobuB+kuGAONC1iBuHuLQH4zUANre5eu4MpZ3uP37WaO5DHPR5sMc2nYMSh/i0B6sGQJTbpKuqXHeYO3Wq5PvgUD7QyRIHMQ+v4/McTByfOMSrPVitAeBJ4oldnE2XLK+pqRaGPbjeR0O5wAUQ4iCGjItq4zOBcuUQx/YQagSgCxvetxw5BOFi2tuUO4c4tYfQagDfujwFa6+9RmmnOzvehlffzxvPv8udA8vlW5ePb4AiXhuffQNs9YaUMwe2PejARnuwkgKwxQo82UVN9Wp77Xjb6EkSB29svevWyBtTOXFg24OfbSEm0O4GrGlsgFWP/GHc76LfbIE4eHs85NH3+qPgt6ESB3/HNLFubA3AQPfhyEkTB7pWk/X/ir0BAADY8+CtSr/ZBHE4D1FKEjaPcuWwcyzNM71u7AwAhi//3fKWdB1cZivUIQ7nc0gsJomO8budrdDTdRSuu7cFrru3xUrOSRxKj6+CV9/Px+6mIGUyqWS6+Jsf3FxiZX+3sxUAAP5pbbPzW0/XUatVX+JQykPm+WwfnziUcvDqDYij+LUMAH+xZQjzDy9nDsgDAEDEJYzjE4d4tQerKQBe5I3PvuF6kuy6tv7ocufA71vGxXblnTjEpz1YiwCQ9JTkJTBjZi0kU/PgLzs3C9e9YW0LFPLH4OyZfvi/wodOnmTqIpc7B5YLy4MH8rr6hq1QONFmLRUqZw6i9uAGm+3BmgHgL/BFF9fDnEvq4L19b41r/DesbZGecNBhuMRBvdGzjf+GtS0w2Ndu7NjEQd4eAAA+/uio57am24O1FMCt0asgmZoHM2bWwpTkJb5DH+IASg0KG2AhfyySRlROHIKIP4z2YK0GAAAljZ71dLzXswniQIgbVMUfR0xRsXKDfe3aOx7saw9k7YgDIW6YjO1hCv2tBEL5QnlSUFGYM/XEL8c+fTmyUKscOaii44lPoO7bxMEmh4kc/msZABGu3RJ9gycOdG0m6v8T2xoAgUAgA6AUWnU88Unk4R1xkPMiDhDL/2bCpQCzT7087rc1t48tE6w/CGnjZInDeTQkDgCcOgAFWCrk9/0bkWfaWuMhDuL24IZBi9fCqAF45tbLYFFTPdQ0NkD9d9vhZNUtens+3Q5/2jgTAJqgp2s6bHz2Q21yxEGOw8WlkEzNg8eW5WBRUw4AZkJP13T4+b5SfjOKx6BQ+NBK4ylHDnFtD1ZSgJ6uozDQfRhmzKwFAHBGPakAt+npClYlJQ5q/KJGOXGIe3vQgXQsMg5QSM5Z4Qx55Ls8cMilbCx2IX8MCifaAMDfzQ/EQcxH5wYUGzfilDOHuLUHaymAQ+xEWxFghfaOTVx04kCIGyZbe1AqAp4906/1u9cyPyAO5xtgCqB4NmIREId4tAfrBgAvdMOSeqitq4X6BXVwtLcP+vv6Yf/e0QIGLkPgMqNz8seMA38clgPPz8ZcdCmAYqHwIVy98saSY57n9GerIabsPym9LpOXQxzapAnQQKCJHooGXMcUsPEDANQvqIPaulq4euWNoV8X5AAAkXGYSCADQPCFVDJdxOiDF+DR3r4SI2BzejZZBMQbAboLkwwAgUDQrQEQCCren823AW50UgH8vn/vn4umpwTjvT/PAfmNvpvnQAYgZAx1dcBQVwd8UTMNDg58Hlt++8e+X1kzjVoYIdZQsoapZLpYWzXNadQovv5To++yZaasLXv8qDiIeODx8OkwomUHBz43zsPrf7Fx7iptAZ+Ya5tTHDjEQReh1ABEjV4FtVXTrBVeVL2/SQ5+rkOYUcrBgc9LIg6b1190fqLjhcEpKg5x1EUoKYBbo7bV4EctpviiVWdTMDiUj0R07PGqsynoH8q78DeDxksbnOswyB2PP/fRBpouVmdT0P33w5F4nTikamFwiEIXoRgAt4ZdnR19Hprb8nwhZ7TR++FogoPKdcB3wfKiCQHy18GNE8+t8dIGIxyCtAdTxnCiczDVJkOrAXgJUAaTXoc4EAfiQCAQCAQCgRBaCkAoH9z2xPXGKtT53Aik0pXK669d2QS3LnkqgRw+OPSZs2x58/j6ytDwuXG/ZTNTYcWiBdDW0ztueT43AgAAd61Z6izPZqZCZ2se5i+eDh8c+gzmL54OO7a0J5bfs7TkOszKlJ7HqubZsKf1pPQ74vTwiHQf7DIenU8eCEWbNBSYYA264m/r6S35bf7i6c6LF7NI/AAAna15aOvphc7WvJBPKl0JO/d2OcdEoPhF4IV715qlJcIHAHinOwepdOW4ZbMylc5rVfNsOD084rziADIABKEXzWamam93VaP/CS+f2XWgRNS4L3x343NVYxryuRFnXZH43QwFGhlV8bf19MI73TlH+LwR4w0fayQAAF78qvv4Aa/lkRqAVDJddHuF4lliwKHckc+NOCE1ivD48Ke+DQEvGpHAeCMlWxdFixzZF28EZJiVqYTCmJc+3n0+FWnr6YWeQwVYu7LJ8eL4jmnF2pVNkEpXSs9h9StnAACc/fPY1PtFaP9jha7wZH3dDKzecBEHDuWKtSubnPBZJNhsZmqJIQgKt7DcLdc+PTwyznPzUN3v8e7PYG7jdOcd94/pClunwO9tmd4SLql0pfMOALD7OzNh9StnIDlmZJIc1+0LKqAubgYAhff1G1fCwMCgy5pHrAkwDhzKIfxXzdFFYTU0j76LinZuubuuSPnCHQreTfg6NQkAcATPfu45VHDe+WPhuQ0NnyuJNtBI4PsfajKQzIyODkxmKmHdunnw0kvHnPXX/zW8kYPaKYC78MJBHDhMVgwNn3Nebjm6TLBDw+eERTs2VcCXrhFyixB0xa0TUXjVBdh0gzdaWAAUYd26ea5pTiwiADannvOl/4FPPuhyXX/OlwAGme1MTsUcJYdyRypdCVc1prUaK3az8djTetJzf7gddumxn9HIuHG8qjFd0i2naiD8FD95Q+AFr/pGbAwAn2+f+F+AdFWV6w5zp05BdfYCY/l4HDj45Y3HZD9PVA6Y26PnVm28rBHAyGLR4iTMzVyoXSto6+mFFYsWwM7hLmFdgv2M3XKqNQ2VFCcs3L9pGdz65IFoUwAUXrqqCtJVVXD5ZQvh8ssWwsXZNFycTcPSJU3OZ/aF6+F21dmU79sf48DBL+8XHljh9Fbg57DFb5LDO905J/8NWuTrbM3D8eFPlbrrWO8PAI5gRV67racX1q5sGleYU/H4aFx0gL0DbC8Bgh0PIEpdRO8o/jANkdeDQYqsV2Xx/t+OKB1gcCjvOwSPA4cgeOGBFbBhWxv7OfRIwCSH08MjjnBVq+iiwh9bK1A1GAC9wuPu3NsF2cxUx4Pv3NulvF9+W1Z4929aBs/sOqBkBPheAhwrIKonYNW/MDwC/7z50pLi37p186SDmCJJAVgBfuvylNaOcZacoA0+DhwI/oRrEm6icDMQOsaF7blQ8cKiXgLctudQAe5asxT+bfu+cdsVhkec9XGE4J7Wk05XapiYoijAIOINjDhwCOKB/YTvJgc4+eGgW+wKMgpQFDGwL3ZIsB8DwQ75ZT/z27K9H5ju8MBRfbLvrNfnjcisTCXMbZzuiF9UDJQdNzID4Fy4a68BG+vqIEwOUY0qxHxd9DLBx0Y9IugoQK99e+3XzUDw22OdQGVbxPYFFVJDICqG7nnpo5J3r7SKrxl4DWIKLQUoN7DCQK+5YVtb0UQ0gXm4WzUexe+Rzxdx4ku/HNhz9XtObIVddRSgbjeizEvqbv8O5Bzvj3UCHbBDc2V8jnd/VjKij831k5KxAPncCLz41Wmw7yujvFS6ECMzADs73gYb6+rAJgeZ+NjfWGMQVbqARsBrXVbsXudkIk1iRwHKPDEbJegIWmdIsGx7AIC2jL86wfYFFSVGgB/ei+JHsaPgTwuG+YqMy6LK8zUDlcKjSSR0BKJahHv1/by1KaltcfjPR/4xtHAfxcnzyw12FwEA3t6+FcLkwvIwOR8Aj2xmqtP/LxspuGNLe8IGB7arzcsA7NjSnrj5oWVFr7CdDdf5kYNoALzC+u0LKuDRymlOEXJu5kLY03oS3nh4X7zmA8gXcgmsqkch/rhwMOXpoxgbwIoeX36vk0puzhfd2P7/sMNdlVxfBFHRj73HX8VIuOEPNZmS+wvCHh2oXQPwKq69+v4b1knb4HDNpl+ATe+L+0c0LGweJ750dWPCqw5gI/KQCXfn3i5puP5Odw7yuRHXBsuPrpu/eHrJTTS6MwapGiYcCsxywzTCbzrBdtXpws1Q4P7mL54eSQ1AOQJAb7XxWbm4cJnNp8FGzSGI8PhoRhblsB7aLZf3G0WpiL+tp9ezuu8m3nxuROkGItF9+kHgVjT0I37Z/lRn9VGp6PPzCsQqAkAhTUleAjNm1kIyNQ9+vk+8bs1XNkAhfwzOnumH1NjgHZM3A9nk0LCwGWx5XvTufkXqVfTjowseb2/fqhXuP7PrAKTSlc44fr66/+vvPQ0/+uPd7v+Zomc3HQHIhI7f0dh4HRfFyBb72Hv6EUELd8gHaxRXNaZLRgdGGgGkkunilOQlkJyzAqrrroe6xTfARRfXu+4wmZoH1XXXQ3LOCpiSvCSwJw6LA+953bx32EBuJiMQFVHmcyPQc6hQMm7/1997Gqae+CX8+ntPB4/o0nb6u2Veno00vCIPvFWXNSrsPmZlKp1x+7zn5reVDRaKAyq8hIceF0X38UdHlXacTI1ehLMAkPJ5N17YHNjl2OU3Jj6pB/byvqJc3y8e33EYAAA6+odKohVR3YIV/bW12bHt9P4HFCg7/PdHf7xbKQIwKXo2f1/enNKaVEQkfp3Q3y2Mb+vphftGPod9m5YJh/ziRB+yugE/k/C6dfPiXQRUFZ5NhMWBFQoaAQCwmia4GUIUsapXZ28DZg2BrhEQwa/4TYT1rPhltwLrGoYgkcj6v34Oyyt7lesQsmjDzVCEbgB4zzvY1+4ZdvMY7GuH6rrrfUcBceDACyqVTBdZLwwAANuahevzgjWFjv4hrYgiX8glOvqhaIsPC1kF3lZIDzA6tmBo+JxTtFQ9PnrfVc2zpQVDPCfZ/P+drXl48avTYL3Pu/dEhkLnVmbrNQCCt7hEL9vePwiurc0a6SERTR2u0jVoEvz8/rKputmCnV8vLRr7PytTKZy/j7/P3y39iPr5AMoGoJzC/7hC1/uXRgFD2t6cfQ+a45vu7kPwDwIReVB20g80AvncaDeejBcO9HmnOwenh0eg7qJq4fHZQUGyl1ddgjUUXttEWgMglIJ/fBTiyPP9oR/TC7qcvLy57LFbMgOQSlcK83TddIGdXgyFw94KLJswBCfpYLvsVIXGVvuD1AtEXYZhip0MgAHBdYwJaeEdtdJtFt5Ry61X6+xD95lvmMN7HdMLLCfVKEKnsavMv8ffH+92g5DXfH3ZzFTHAHgN7mEn/dARHA72wZuI7h+r9nvtA2cHYusFaIC87g8I+4YgqgH4EJKKEFXXM3nMMDnpQjQqEAUvu43Ya74+nbH9utNsiXJzNEKiOQBFRgDfVzXPdmYzvn/TsnEGBl8iIxGbCGD2qZe1djwIaeNko+DAemy/4XfQJ73GgUNQyCIE2W3EbvP1uUUZom5Br3H2XtELGg+c4IOfA5DdTz43UjLjz9zG6c58CfjUoFmZ8bcQo4HBSCOsWYGlBuCZWy+DRU31UNPYAPXfbYeTVbfo7fl0O/xp40wAaIKerumw8dkP9b1GDDjESURx4aAC1S45t3kGZfP1edUIsFtQNjaADbPvWrNUefwAe28/L362DsJHEql0pWNE2Cm/+ElD+EgjDEhnpvnND24GAIBFTfXwjV91OSPxVCvxhfwxeP2nTdDTNbr+xmffAN1xAFFzIBAmOxJuAgQASM5ZIRVeIT960wIOuRUJsHBC/RbUOHIgECYzvJ4LAHCirQigP/wVhWdkRt8IORAIZWkAWJw906/1u9cyP4gDBwKh7AxAvpBLpACKDUvqobauFuoX1MHR3j7o7+uH/XtHi2q4DIHLTD4XgOXAH4flwPMj708gyEHjAAgEMgAEAoEMAIFAIANAIBDKA8pDgYe6OmCoqwO+qJkGBwc+j92JIL/9Y9+vrJlG/y6BENQApJLpYm3VNCXxXWnZOOBxQFHko7zTReoJIBAMpQCqAq+tmmZsbn4VI+SXJ4FAEYALRr2nWMjV2RQMDuUjEx0erzqbgv6hvAt/AoEggqc4Gi9t8PTigxLxVWdT0P33w4EF2HhpQ9HtGF4wwYFAKEsDoGoEbAsvDhwIBAKBQCAQCIRJkALc9sT1viv1/Lzwfh7ZtGNLO4XoBEJEmGJK/LLfCATCJDEAOOcZvuP8Zvy7jQdAEAiEiA0Azp66aHHS9d3WY58JBELEKQCF+QRCmRkAfD6cTPxzMxeSgSAQJqsBOD78qetDIo8Pf1piBAgEwsSA0u3AQ8PnYGj4nKt3Fz3aiUCwAd2bzGzcDxIHDqEZgKDI50acxyax7wR/+HT/nUUAgAuvfi5RjsK//ekrAUD9eX9Hnh99uKoJEfIcVHmY5DDhDACKHd9XNc/WeiQ0Ybz48XO5GIFUMl3kRcc/LowVIrsMP//27oOBRMhz0MHtT18Jna352BkC5V4Ak8U9r5oC4sc7vlb88Y6vaY9U9LvdRBF/22tnoO21M+MMAo/cYHcxN9hdnGzil3leVvSdrfmS5Z2teefpyH7mqUgl08WFd9RqP2WYRxAOkRoAVfDDgUVCHxo+5xkBsALWEbPf7SYbWOFPBiPAQ/VhoTIRhi1ANBzIOy5GQHovQDYzFXoOFWDR4uS4dxXhs/uZm7lQKnjRvQAy4T5+25sJVfHrbBe08BNmOMd7fFEKgIJ/e/tWAAC4ZtMvAAAgXd0YejEs6LVhvb8sxPeKDGQG5Ld3H1Tih97fy+iwaYl6faI/0nSgwi3cF430073hB3sQwsbjt72ZMBUBYCN/a/Uy4fKbdu8LLa+78OrnEnEoAuI1ue/hB13Xe/ShR4xdm+XNKamwWPG5rcfn5b+9+6DSnJG6EYcqh4V31MKR5yGyeSsrdMUclnh5j67ixXnRm/D8qWS6+NbqZTD3sV+N1i9+8tNx66BhuGn3vlD+yK1HTrguT1c3JnKD3UX0/Ca9//J7lmoZVTQQpg2B22+q3jdoPm+CQ+xqAHEayacrYNM5P4ofIRI/bwjiUtxhBW9K/KJz27xhVcnLzRDc9/CDga9PkNxftA8/uTgvbr7gqMs/ynpALB8MIvIyOuJmDYeux5JBJH6MCuKKR/6yBR75yxZjxvC+hx+Eby/4F3jtwd85L5FB8IoIbDZ2FSHqCNZrv3xxz0vscYsMfBkAlS68IOuzwg0SxpsSvwhRiV/VEE6mHhAd0fjJ1YNwWt6cEo5HYGsAqsYhcgOgGv5jPz4/P4BsHgDVfn/nAj55INH55IGETqMWLZPtx1RE4JYSpJLpougVtvhN1UHYYl/LC3uk67otCxIFeIXd+N1NmKYNEft9464LYOOuC5zf8P2pj2fDxl0XxDYS8DUSECv7/Ag/2fDeoD0BOhV9U11+AKMFq5t27yvKqv88btq9D/KFXCKVTBdfeGCFcJ0N29pCq/iavBaqQj+453Xh71eu+oZRAUZVcJONQNwIs+GHF50ct/4PLzoJT308W7lXIJYpwGPrXgwt9/cK28MObceMANy0e5+r8FXEDwDwwgMrfOfAfgX97vrVxXfXr7Z63Q7ueV0qfpXlfsUoEpVOX7wfUbLRBm4vEj9rBFTHMERqAERe+rF1L8LZ9+4LzQjIDIFb47dtFPKFXAINwdzHflXyQuGriD8Kr84K35YR0BG2rhHIF3KJI8/3G8vp+dRAZSAOy0G2fxVRs8dmP0c5GMgzAvjJS+thxhWPwk9eWj9umZ/inlfuzxsCHcGriAONi+kCoar4N2xrC/xnP37bmwm3c8XlKPgFP0vDgp+lfRuBfCGXePShR4wI2u82vIjcqvJekYHJOgBvUJ76eDY89fFsrYgl9imASPwA+sU9VSPAGgJWrEF7BGz2CsjEXlfTBHU1TbBhW5sR8ZcjdKMAkUBFNQMdzyuKAniDohoFsDyiHgosvBdA1BtgaxSg23MBeMF2Pnlg3Eg/r4q3SPR+ewZSyXTx8JHWkt8aFjY7fyAbBWzY1gYAAP/175sBAOC6e1uM/dF4zioGkff4S17c7ZsD3xvg16O/ubfT17XAMfkyMbkJjl/uV3g8Bx0u/Lqq9yKEHgHwYo9iLL8sGpBdXH7wj8jj2+wWRKDHtwXdegcr+CDiZ1MBPh3QqfD7Fb8oEuALa7KBN6bE7xaN6Ib3cRC/NAIQnrilWX1UnwzEiln0Rz9+25sJWYhvUvR8BZ//E3E5GxWI1gsqfp10SCdi0L0OfEQgiwbe3NsJpq4DHlsUDbiJEIVri4MKTHIwYgBufmhZ0dT0XCpGIp8bgdd/vhu+8a+rIZWu1H40GIrcK+Sy7emjgF8h2zAAMoPo5jltHRtv1ZWJ36bovAwB8oqb8LUjAFP4/eaX4ex798GMKx6F77fc4uvZgMvvWVqU/eGTUfiEYEYoDNHFgUNkBiCbmerUCa5qTHvO9vP7zS/D91tu0UoBvNICEj6BEIEBYHsMcOpwtxmA/NYACASCeVSYEj9rBKLqNSAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCAQCgUAghI+t37yiuPWbVxTpSkSLKXQJCFGIn64CGQBCmYv/F6+9R8PAyQAQSPyEqDBh/wSviTkIJH7CJDQAYd53HeYDG3Fa8SivrS0Om5trgMQfT1TYFIJNr4yTbSKuu7fFuKHhj/HcrlegeXm9lfP5hwf/A2w/UyAKDq2dR53PLa0DpLiJVAMI+jw7E8/DExkiXpjsbyaOJxI/AMCda75DLSZgJGC6TRBCiABEYugb6AIAcJ0B17RXFqFvoKvEy9gSP6Kupgme2/WK8/3dD75wPi+ZH2h6Bel5vPvBF9r7Rl6625m8lm7pQEsrFKluE+MIwM3bovj5zza9chjiDwJVobEGw+03P/tWPb7X8bzWw2Uq+5GdH0YDJMEJEAGIhI6ev2+gq2SZzTnxbXsrkfcXRTp3rvmOEwV4iVPmvVXF41fkbtyCGhTcHo0Avz/+N5MGjBCRAYgarLe47t6WcZEJW2BKJdNGwks+0hEZN7fwHIXIrsO/I3Z3i9MJ1d9UBK6TSiyZXzHOy7ttq2vQWloHqOt2IhkAmWe37fFlYaJXfcHkAzn8hufsMtYroxB5T83+5id98BK3ridmDY6XodHZN4l/AtQA4uDxTVX0beSabvmxl6C8jIZfYdlMK0wdh8Q/wSIAtuIdRSN06+/nH7/ltX4Ynt/td1FurHK9RNGCznX304vgdk4qqQDl/RQBBA773fr7VYwF+5ufKIBNb/ymOrww3fJqlahCVn3HyEGnOs/uL4jhZmsdXukKVf8naA0gaguv2+Xnp4swX8glrru3paQnQCR8P1FRkKo4X/zzc+29ooAl8ytgd3ewCEGV1+bmGhoHEOcIwIaFDrLPMMRvE6xAVIuGKvUBnXXcUhO/g4yCRAsUCUzQCCCK3E5XzEHEL4oCgnj/iZYLq47X7+j3fwzcliKAGBoA1iqzd3HpNHjWQ1xbm4WO/iFn3yp/Ot6V5tbfz+5Hd32/RoAXf9Dimknw6YFXPUHGm0RZXkjIDIAf8buFiGgEVBuY7m2/Nm4TLsfbgUkSlAIYyXmDdgeKuvjcGqnu+nEUBAmQEJsIgBo5gTD5MSVMgZL4CQQCgUAgEAiEqPH/KjhUHRwcgykAAAAASUVORK5CYII=';
 
 // ---------- Grundmaße ----------
-const T = 32, BREITE = 640, HOEHE = 480, DT = 1 / 60;
+const T = 32, SPALTEN = 20, ZEILEN = 15, BREITE = 640, HOEHE = 480, DT = 1 / 60;
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 
 // Farben aus der Gutsverwalter-Palette
 const PAL = {
   schwarz: '#120d14', nacht: '#1c1e26', fels0: '#2e313b', fels1: '#454a55', fels2: '#626a72', fels3: '#848e92',
   fels4: '#a9b2b0', fels5: '#cfd6cf', weiss: '#fffbec', creme: '#ece8d6',
-  moos0: '#1f4226', moos1: '#2a552c', moos2: '#376a31', moos3: '#467f36',
+  moos0: '#1f4226', moos1: '#2a552c', moos2: '#376a31', moos3: '#467f36', moos4: '#58933b', moos5: '#8abd4f',
   holz0: '#5e3826', holz1: '#7a4b2e', holz2: '#986438', gold0: '#b5761e', gold1: '#e0a33a', gold2: '#f4cd5e',
   rot0: '#3e1420', rot1: '#a3343a', rot2: '#d0574a', rosa: '#f2c6a2',
 };
@@ -75,63 +78,222 @@ const PAL = {
 const CFG = {
   held: { tempo: 150, lp: 6, unverwundbar: 1.0, rueckTempo: 300, rueckDauer: 0.18 },
   schlag: { dauer: 0.28, neuAb: 0.20, aktivBis: 0.22, phasen: [0.05, 0.10, 0.20] },   // Phasenwechsel der vier Schwertstellungen
-  fuchs: { rueckTempo: 320, rueckDauer: 0.18, blitz: 0.25, wachAb: 0.7 },   // gilt für alle Arten
+  fuchs: { rueckTempo: 320, rueckDauer: 0.18, blitz: 0.25, wachAb: 1.0 },   // gilt für alle Arten
   // Fuchsarten; sprung: ab Reichweite (px) zielen (Warnung, s), dann springen (Dauer, Tempo), danach Pause [von, bis]
   arten: {
     fuchs:  { lp: 2, tempo: 55, schaden: 1, sprung: null },
     silber: { lp: 3, tempo: 62, schaden: 1, sprung: { reichweite: 150, zielen: 0.5, dauer: 0.32, tempo: 300, pause: [2.0, 3.2] } },
     glut:   { lp: 4, tempo: 58, schaden: 2, sprung: { reichweite: 190, zielen: 0.4, dauer: 0.36, tempo: 340, pause: [1.4, 2.4] } },
   },
-  // Wellen: Tempo aller Füchse +tempoPlus je Welle (bis tempoMax), Abstand der Auftritte (s), Pause zwischen Wellen (s),
-  // Banner (s, Füchse kommen ab bannerVorlauf), Mindestabstand eines neuen Fuchses zum Helden (px)
-  welle: { anzahlMax: 10, tempoPlus: 0.07, tempoMax: 1.7, abstand: 0.7, pause: 1.2, banner: 1.6, bannerVorlauf: 0.8, mindestAbstand: 170 },
-  herz: { chance: 0.2, dauer: 9 },   // Herz fallen lassen: Wahrscheinlichkeit je Fuchs, Liegedauer (s)
-  trefferStopp: 4,   // Bilder Standbild beim Treffer
+  // Wellenräume: Abstand der Auftritte (s), Pause zwischen Wellen (s), Banner (s, Füchse ab bannerVorlauf), Mindestabstand zum Helden (px)
+  welle: { abstand: 0.7, pause: 1.2, banner: 1.6, bannerVorlauf: 0.8, mindestAbstand: 170 },
+  herz: { chance: 0.2, dauer: 9 },   // Herz fallen lassen (je Fuchs), Liegedauer (s)
+  busch: { herz: 0.12 },             // Herz im Busch
+  schieben: { anlauf: 0.35, dauer: 0.3 },   // so lange gegen den Block laufen, dann so lange rutscht er ein Feld
+  wechsel: { dauer: 0.6 },           // Raumwechsel (Bildlauf)
+  text: { tempo: 70 },               // Zeichen je Sekunde im Textfenster
+  trefferStopp: 4,                   // Bilder Standbild beim Treffer
 };
 
-// ---------- Raum ----------
-// # Mauer · . Boden · L Baumstamm (3 Felder) · S Stein · U Busch · E Beerenbusch · P Baumstumpf · O Holzstapel
-const KARTE = [
-  '####################',
-  '####################',
-  '#..................#',
-  '#..................#',
-  '#.............UE...#',
-  '#...LLL............#',
-  '#..................#',
-  '#..................#',
-  '#..................#',
-  '#............SS....#',
-  '#....P.......SS....#',
-  '#....O.............#',
-  '#..................#',
-  '#..................#',
-  '####################',
-];
-const SPALTEN = 20, ZEILEN = 15;
-const START_HELD = { x: 9.5 * T, y: 8.5 * T };
+// ---------- Räume ----------
+// Türöffnungen liegen immer an derselben Stelle: Nord 2×2 Felder (Mauer ist oben zwei Felder dick), sonst 2 Felder breit.
+const TUER_RECHTECK = { n: [9 * T, 0, 2 * T, 2 * T], s: [9 * T, 14 * T, 2 * T, T], w: [0, 7 * T, T, 2 * T], o: [19 * T, 7 * T, T, 2 * T] };
+const RICHTUNG = { n: [0, -1], s: [0, 1], w: [-1, 0], o: [1, 0] };
+const GEGENUEBER = { n: 's', s: 'n', w: 'o', o: 'w' };
+const BLICK_VON = { n: 'hoch', s: 'runter', w: 'links', o: 'rechts' };
 
-// Kollisionsrechteck je Hindernis, relativ zur Feldecke (passend zur Grafik)
-const FORM = {
-  S: [4, 12, 24, 16], U: [3, 8, 26, 21], E: [3, 8, 26, 21], P: [5, 12, 22, 16], O: [4, 10, 22, 18],
+const RAEUME = {
+  start: {
+    nr: '1', titel: 'ERSTE SCHRITTE', start: [9.5, 8.5],
+    tueren: { o: { ziel: 'gestruepp', art: 'offen' } },
+    einstieg: 'Willkommen im Probe-Dungeon! Laufen: WASD oder Pfeiltasten, am Handy links wischen. Lesen, öffnen und Schwert: Leertaste, am Handy rechts tippen.',
+    schilder: ['Jeder Raum hier prüft eine Sache. Der Weg geht immer weiter nach Osten.'],
+    karte: [
+      '####################',
+      '####################',
+      '#..................#',
+      '#..................#',
+      '#...LLL.......S....#',
+      '#..................#',
+      '#.....T............#',
+      '#..................#',
+      '#..................#',
+      '#............SS....#',
+      '#....P.......SS....#',
+      '#....O.............#',
+      '#..................#',
+      '#..................#',
+      '####################',
+    ],
+  },
+  gestruepp: {
+    nr: '2', titel: 'SCHWERT',
+    tueren: { w: { ziel: 'start', art: 'offen' }, o: { ziel: 'kampf', art: 'offen' } },
+    schilder: ['Büsche versperren den Weg. Schlag sie mit dem Schwert weg - manchmal steckt ein Herz darin.'],
+    karte: [
+      '####################',
+      '####################',
+      '#.............b....#',
+      '#.............b....#',
+      '#.....b.......b....#',
+      '#.............b....#',
+      '#...T.........b....#',
+      '#.............b....#',
+      '#..........b..b....#',
+      '#.............b....#',
+      '#.....b.......b....#',
+      '#.............b....#',
+      '#.............b....#',
+      '#.............b....#',
+      '####################',
+    ],
+  },
+  kampf: {
+    nr: '3', titel: 'KAMPF', kampf: true,
+    tueren: { w: { ziel: 'gestruepp', art: 'kampf' }, o: { ziel: 'abzweig', art: 'kampf' } },
+    einstieg: 'Die Türen schließen sich! Vertreibe alle Füchse, dann öffnen sie sich wieder.',
+    karte: [
+      '####################',
+      '####################',
+      '#..................#',
+      '#..............f...#',
+      '#....S.............#',
+      '#..........E.......#',
+      '#..................#',
+      '#..................#',
+      '#..................#',
+      '#...........f......#',
+      '#.....E............#',
+      '#..................#',
+      '#...............f..#',
+      '#..................#',
+      '####################',
+    ],
+  },
+  abzweig: {
+    nr: '4', titel: 'ABZWEIGUNG',
+    tueren: { w: { ziel: 'kampf', art: 'offen' }, n: { ziel: 'schluessel', art: 'offen' }, o: { ziel: 'schieben', art: 'schloss' } },
+    schilder: ['Die Tür im Osten ist verschlossen. Den Schlüssel findest du im Raum im Norden.'],
+    karte: [
+      '####################',
+      '####################',
+      '#..................#',
+      '#..................#',
+      '#...SS........SS...#',
+      '#..................#',
+      '#..................#',
+      '#..................#',
+      '#.......T..........#',
+      '#..................#',
+      '#...SS........SS...#',
+      '#..................#',
+      '#..................#',
+      '#..................#',
+      '####################',
+    ],
+  },
+  schluessel: {
+    nr: '4A', titel: 'SCHLÜSSELRAUM', inhalt: 'schluessel',
+    tueren: { s: { ziel: 'abzweig', art: 'offen' } },
+    einstieg: 'Achtung, ein Silberfuchs! Er hält an und zittert, bevor er springt. Weich zur Seite aus!',
+    schilder: ['Truhen öffnest du mit der Leertaste, wenn du davor stehst.'],
+    karte: [
+      '####################',
+      '####################',
+      '#..................#',
+      '#.........K........#',
+      '#..................#',
+      '#...S..........S...#',
+      '#..................#',
+      '#.......s..........#',
+      '#..................#',
+      '#..................#',
+      '#..T...............#',
+      '#..................#',
+      '#...O..........P...#',
+      '#..................#',
+      '####################',
+    ],
+  },
+  schieben: {
+    nr: '5', titel: 'SCHIEBEN',
+    tueren: { w: { ziel: 'abzweig', art: 'offen' }, o: { ziel: 'arena', art: 'schalter' } },
+    schilder: ['Schieb den Steinblock auf die Platte: dagegen laufen und weiterdrücken. Steckt er fest, verlass den Raum und komm zurück.'],
+    karte: [
+      '####################',
+      '####################',
+      '#..................#',
+      '#..................#',
+      '#....S....B........#',
+      '#..................#',
+      '#..T...............#',
+      '#..................#',
+      '#..................#',
+      '#..................#',
+      '#..........._......#',
+      '#....S.............#',
+      '#..................#',
+      '#..................#',
+      '####################',
+    ],
+  },
+  arena: {
+    nr: '6', titel: 'WELLEN', kampf: true, inhalt: 'herzcontainer',
+    tueren: { w: { ziel: 'schieben', art: 'kampf' }, o: { ziel: 'ziel', art: 'kampf' } },
+    einstieg: 'Letzte Prüfung: drei Wellen Füchse. In der letzten kommen Glutfüchse - die beißen doppelt.',
+    wellen: [['fuchs', 'fuchs', 'fuchs'], ['fuchs', 'silber', 'fuchs', 'silber'], ['glut', 'fuchs', 'silber', 'glut', 'fuchs']],
+    karte: [
+      '####################',
+      '####################',
+      '#..................#',
+      '#..................#',
+      '#...S..........S...#',
+      '#..................#',
+      '#..................#',
+      '#.........k........#',
+      '#..................#',
+      '#..................#',
+      '#...S..........S...#',
+      '#..................#',
+      '#..................#',
+      '#..................#',
+      '####################',
+    ],
+  },
+  ziel: {
+    nr: '7', titel: 'ZIEL',
+    tueren: { w: { ziel: 'arena', art: 'offen' } },
+    einstieg: 'Geschafft! Das war der Probe-Dungeon. Hier kommen bald neue Räume dazu.',
+    schilder: ['Ende des Probe-Dungeons. Danke fürs Testen!'],
+    karte: [
+      '####################',
+      '####################',
+      '#..................#',
+      '#..................#',
+      '#....E........E....#',
+      '#..................#',
+      '#..................#',
+      '#.........T........#',
+      '#..................#',
+      '#..................#',
+      '#....E........E....#',
+      '#..................#',
+      '#..................#',
+      '#..................#',
+      '####################',
+    ],
+  },
 };
-const HINDERNISSE = [
-  { x: 0, y: 0, w: BREITE, h: 2 * T },                // obere Mauer (Krone + Wandfläche)
-  { x: 0, y: (ZEILEN - 1) * T, w: BREITE, h: T },     // untere Mauer
-  { x: 0, y: 0, w: T, h: HOEHE },                     // links
-  { x: (SPALTEN - 1) * T, y: 0, w: T, h: HOEHE },     // rechts
-];
-for (let r = 0; r < ZEILEN; r++) {
-  const zeile = KARTE[r];
-  for (let c = 0; c < SPALTEN; c++) {
-    const z = zeile[c];
-    if (FORM[z]) { const [x, y, w, h] = FORM[z]; HINDERNISSE.push({ x: c * T + x, y: r * T + y, w, h }); }
-    if (z === 'L' && zeile[c - 1] !== 'L') {   // ganzer Stamm als ein Rechteck
-      let n = 0; while (zeile[c + n] === 'L') n++;
-      HINDERNISSE.push({ x: c * T + 3, y: r * T + 11, w: n * T - 6, h: 16 });
-    }
-  }
+const START_RAUM = 'start';
+for (const [id, r] of Object.entries(RAEUME)) for (const [d, t] of Object.entries(r.tueren)) {   // Gegentüren prüfen
+  const gegen = RAEUME[t.ziel] && RAEUME[t.ziel].tueren[GEGENUEBER[d]];
+  if (!gegen || gegen.ziel !== id) console.warn(`Raum ${id}: Tür ${d} → ${t.ziel} hat keine passende Gegentür`);
 }
+
+// Kollisionsrechteck je festem Hindernis, relativ zur Feldecke (passend zur Grafik)
+const FORM = { S: [4, 12, 24, 16], E: [3, 8, 26, 21], P: [5, 12, 22, 16], O: [4, 10, 22, 18],
+  b: [3, 8, 26, 21], T: [5, 13, 22, 14], K: [5, 12, 22, 16], k: [5, 12, 22, 16] };
+const BODEN = new Set(['.', '_', 'B', 'f', 's', 'g']);   // darauf darf ein Block rutschen
 
 // ---------- Hilfen ----------
 function zufall(seed) {   // mulberry32: gleicher Raum bei jedem Laden
@@ -140,17 +302,21 @@ function zufall(seed) {   // mulberry32: gleicher Raum bei jedem Laden
 }
 const ueberlappt = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 const fuss = e => ({ x: e.x - e.hw, y: e.y - e.hh, w: 2 * e.hw, h: 2 * e.hh });
+const rechteck = ([x, y, w, h], extra = {}) => ({ x, y, w, h, ...extra });
+const zufallIn = ([a, b]) => a + Math.random() * (b - a);
 function leinwand(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; return [c, g]; }
 
 // Bewegt e (Mittelpunkt x/y, halbe Fußbox hw/hh) achsenweise und schiebt es aus jedem Hindernis heraus.
-function bewege(e, mx, my) {
+// stossX/stossY merken, woran es zuletzt gestoßen ist (Block schieben, Tür aufschließen).
+function bewege(e, mx, my, liste) {
+  e.stossX = e.stossY = null;
   if (mx) {
     e.x += mx;
-    for (const r of HINDERNISSE) if (ueberlappt(fuss(e), r)) e.x = mx > 0 ? r.x - e.hw : r.x + r.w + e.hw;
+    for (const r of liste) if (ueberlappt(fuss(e), r)) { e.x = mx > 0 ? r.x - e.hw : r.x + r.w + e.hw; e.stossX = r; }
   }
   if (my) {
     e.y += my;
-    for (const r of HINDERNISSE) if (ueberlappt(fuss(e), r)) e.y = my > 0 ? r.y - e.hh : r.y + r.h + e.hh;
+    for (const r of liste) if (ueberlappt(fuss(e), r)) { e.y = my > 0 ? r.y - e.hh : r.y + r.h + e.hh; e.stossY = r; }
   }
 }
 
@@ -170,6 +336,7 @@ function pixelbild(zeilen, farben, kontur, massstab = 1) {
 }
 
 // Schwert, waagerecht nach rechts; Drehpunkt mitten im Griff
+const SCHWERT_FARBEN = { o: PAL.gold1, h: PAL.holz0, H: PAL.holz2, g: PAL.gold2, G: PAL.gold0, w: PAL.weiss, b: PAL.fels5, s: PAL.fels3 };
 const SCHWERT_GERADE = pixelbild([
   '.......g......................',
   '.......gG.....................',
@@ -178,7 +345,7 @@ const SCHWERT_GERADE = pixelbild([
   'ohhhhhhgGssssssssssssssssssss.',
   '.......gG.....................',
   '.......g......................',
-], { o: PAL.gold1, h: PAL.holz0, H: PAL.holz2, g: PAL.gold2, G: PAL.gold0, w: PAL.weiss, b: PAL.fels5, s: PAL.fels3 }, PAL.nacht);
+], SCHWERT_FARBEN, PAL.nacht);
 const SCHWERT_GERADE_DREH = [5, 4];
 // Schwert diagonal nach rechts unten (45°), aus derselben Farbfolge gebaut
 const SCHWERT_SCHRAEG = (() => {
@@ -189,12 +356,11 @@ const SCHWERT_SCHRAEG = (() => {
   for (let k = -2; k <= 2; k++) { setze(4 + k, 4 - k, 'g'); setze(5 + k, 4 - k, 'G'); }
   for (let i = 5; i <= 19; i++) { setze(i, i, 'b'); setze(i + 1, i, 'w'); setze(i, i + 1, 's'); }
   setze(20, 20, 'b');
-  return pixelbild(z.map(r => r.join('')),
-    { o: PAL.gold1, h: PAL.holz0, H: PAL.holz2, g: PAL.gold2, G: PAL.gold0, w: PAL.weiss, b: PAL.fels5, s: PAL.fels3 }, PAL.nacht);
+  return pixelbild(z.map(r => r.join('')), SCHWERT_FARBEN, PAL.nacht);
 })();
 const SCHWERT_SCHRAEG_DREH = [3, 3];
 
-// Herzen 9×7, doppelt gezeichnet
+// Herzen 9×8, doppelt gezeichnet; Herzcontainer mit goldenem Rand
 const HERZ_FORM = [
   '.rr...rr.',
   'rhrr.rrrr',
@@ -211,9 +377,90 @@ const HERZ = {
   voll: pixelbild(HERZ_FORM, HERZ_FARBEN, PAL.schwarz, 2),
   halb: pixelbild(halbiert(HERZ_FORM, ch => ch, () => 'd'), HERZ_FARBEN, PAL.schwarz, 2),
   leer: pixelbild(halbiert(HERZ_FORM, () => 'd', () => 'd'), HERZ_FARBEN, PAL.schwarz, 2),
+  container: pixelbild(HERZ_FORM, HERZ_FARBEN, PAL.gold2, 3),
 };
 
-// Rauchwolke beim Verschwinden (5 Bilder) und Trefferfunke (2 Bilder)
+// Kleiner Schlüssel
+const SCHLUESSEL = pixelbild([
+  '.yyy........',
+  'y...yyyyyyyy',
+  'y...yGGGGGGG',
+  '.yyy....y.y.',
+], { y: PAL.gold2, G: PAL.gold0 }, PAL.schwarz, 2);
+
+// Truhe zu und offen (20×14), Schild (22×13)
+const TRUHE_FARBEN = { H: PAL.holz1, h: PAL.holz2, d: PAL.holz0, g: PAL.gold1, G: PAL.gold0, y: PAL.gold2, K: PAL.schwarz };
+const TRUHE_KOERPER = [
+  'HHhHHHHHHHHHHHHHHhHH',
+  'HHhHHHHHHHHHHHHHHhHH',
+  'HHhHHHHHHHHHHHHHHhHH',
+  'gggggggggggggggggggg',
+  'dddddddddddddddddddd',
+];
+const TRUHE_ZU = pixelbild([
+  '.HHHHHHHHHHHHHHHHHH.',
+  'HhhhhhhhhhhhhhhhhhhH',
+  'HhHHHHHHHHHHHHHHHHhH',
+  'HHHHHHHHHHHHHHHHHHHH',
+  'dddddddddddddddddddd',
+  'ggggggggyyyygggggggg',
+  'GGGGGGGGyKKyGGGGGGGG',
+  'HHhHHHHHyKKyHHHHHhHH',
+  'HHhHHHHHHyyHHHHHHhHH',
+  ...TRUHE_KOERPER,
+], TRUHE_FARBEN, PAL.schwarz);
+const TRUHE_AUF = pixelbild([
+  '.dddddddddddddddddd.',
+  'dHHHHHHHHHHHHHHHHHHd',
+  'dhhhhhhhhhhhhhhhhhhd',
+  'dKKKKKKKKKKKKKKKKKKd',
+  'dKKKKKKKKKKKKKKKKKKd',
+  'gggggggggggggggggggg',
+  'GGGGGGGGGGGGGGGGGGGG',
+  'HHhHHHHHHHHHHHHHHhHH',
+  'HHhHHHHHHHHHHHHHHhHH',
+  ...TRUHE_KOERPER,
+], TRUHE_FARBEN, PAL.schwarz);
+const SCHILD = pixelbild([
+  'hhhhhhhhhhhhhhhhhhhhhh',
+  'hHHHHHHHHHHHHHHHHHHHHd',
+  'hHddddHdddddHddddHHHHd',
+  'hHHHHHHHHHHHHHHHHHHHHd',
+  'hHdddHddddddHdddddHHHd',
+  'hHHHHHHHHHHHHHHHHHHHHd',
+  'hHddddddHddddHHHHHHHHd',
+  'hHHHHHHHHHHHHHHHHHHHHd',
+  'dddddddddddddddddddddd',
+  '.........HdH..........',
+  '.........HdH..........',
+  '.........HdH..........',
+  '.........HdH..........',
+], { h: PAL.holz2, H: PAL.holz1, d: PAL.holz0 }, PAL.schwarz);
+
+// Steinblock und Druckplatte (32×32)
+const BLOCK = (() => {
+  const [c, g] = leinwand(T, T);
+  g.fillStyle = PAL.schwarz; g.fillRect(1, 1, 30, 30);
+  g.fillStyle = PAL.fels2; g.fillRect(2, 2, 28, 28);
+  g.fillStyle = PAL.fels4; g.fillRect(2, 2, 28, 3); g.fillRect(2, 2, 3, 28);
+  g.fillStyle = PAL.fels1; g.fillRect(2, 27, 28, 3); g.fillRect(27, 2, 3, 28);
+  g.fillStyle = PAL.fels3; g.fillRect(9, 9, 14, 14);
+  g.fillStyle = PAL.fels4; g.fillRect(9, 9, 14, 2); g.fillRect(9, 9, 2, 14);
+  g.fillStyle = PAL.fels1; g.fillRect(9, 21, 14, 2); g.fillRect(21, 9, 2, 14);
+  return c;
+})();
+const PLATTE = [false, true].map(gedrueckt => {
+  const [c, g] = leinwand(T, T);
+  g.fillStyle = PAL.fels0; g.fillRect(3, 3, 26, 26);
+  g.fillStyle = gedrueckt ? PAL.fels1 : PAL.fels3; g.fillRect(6, 6, 20, 20);
+  if (!gedrueckt) {
+    g.fillStyle = PAL.fels4; g.fillRect(6, 6, 20, 2); g.fillRect(6, 6, 2, 20);
+    g.fillStyle = PAL.fels2; g.fillRect(6, 24, 20, 2); g.fillRect(24, 6, 2, 20);
+  }
+  return c;
+});
+
+// Rauchwolke (5 Bilder) und Trefferfunke (2 Bilder)
 function kreis(g, cx, cy, r, f) {
   g.fillStyle = f;
   for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r + r * 0.6) g.fillRect(cx + x, cy + y, 1, 1);
@@ -231,7 +478,7 @@ const FUNKE = [
   pixelbild(['w...w', '.y.y.', '..W..', '.y.y.', 'w...w'], { w: PAL.weiss, y: PAL.gold2, W: PAL.weiss }, null, 2),
 ];
 
-// Pixelschrift 5×7 (nur Großbuchstaben)
+// Pixelschrift 5×7 (nur Großbuchstaben; ß wird über toUpperCase zu SS)
 const SCHRIFT = {
   A: '.###. #...# #...# ##### #...# #...# #...#', B: '####. #...# #...# ####. #...# #...# ####.',
   C: '.###. #...# #.... #.... #.... #...# .###.', D: '####. #...# #...# #...# #...# #...# ####.',
@@ -255,6 +502,9 @@ const SCHRIFT = {
   8: '.###. #...# #...# .###. #...# #...# .###.', 9: '.###. #...# #...# .#### ....# ....# .###.',
   ':': '..... ..#.. ..#.. ..... ..#.. ..#.. .....', '!': '..#.. ..#.. ..#.. ..#.. ..#.. ..... ..#..',
   '.': '..... ..... ..... ..... ..... ..#.. ..#..', '-': '..... ..... ..... .###. ..... ..... .....',
+  ',': '..... ..... ..... ..... ..#.. ..#.. .#...', '?': '.###. #...# ....# ...#. ..#.. ..... ..#..',
+  '/': '....# ....# ...#. ..#.. .#... #.... #....', "'": '..#.. ..#.. ..... ..... ..... ..... .....',
+  '(': '...#. ..#.. .#... .#... .#... ..#.. ...#.', ')': '.#... ..#.. ...#. ...#. ...#. ..#.. .#...',
   ' ': '..... ..... ..... ..... ..... ..... .....',
 };
 // Text mit dunkler Kontur; x ist die Mitte (mitte=true) oder der linke Rand
@@ -272,12 +522,6 @@ function schreibe(text, x, y, s, farbe, mitte = true) {
 
 // ---------- Atlas ----------
 const atlas = new Image();
-// Fuchsbilder je Art (Farbtausch wie auf dem SNES) plus weiße Umrisse für den Treffer-Effekt: FUCHSBILD[art][bild]
-const FUCHSBILD = {};
-const FUCHSFARBEN = {   // Fell, Beine/Ohren, Bauch/Schwanzspitze des Atlas-Fuchses → je Art
-  silber: { '#b88250': PAL.fels4, '#4a2a2a': PAL.fels1, '#ece8d6': PAL.weiss },
-  glut: { '#b88250': PAL.rot1, '#4a2a2a': PAL.rot0, '#ece8d6': PAL.gold2 },
-};
 function zeichneBild(g, name, x, y, spiegeln = false) {
   const f = FR[name]; if (!f) return;
   x = Math.round(x); y = Math.round(y);
@@ -288,6 +532,12 @@ function zeichneLeinwand(bild, x, y, spiegeln) {
   if (!spiegeln) { ctx.drawImage(bild, x, y); return; }
   ctx.save(); ctx.translate(x + bild.width, y); ctx.scale(-1, 1); ctx.drawImage(bild, 0, 0); ctx.restore();
 }
+// Fuchsbilder je Art (Farbtausch wie auf dem SNES) plus weiße Umrisse für den Treffer-Effekt: FUCHSBILD[art][bild]
+const FUCHSBILD = {};
+const FUCHSFARBEN = {   // Fell, Beine/Ohren, Bauch/Schwanzspitze des Atlas-Fuchses → je Art
+  silber: { '#b88250': PAL.fels4, '#4a2a2a': PAL.fels1, '#ece8d6': PAL.weiss },
+  glut: { '#b88250': PAL.rot1, '#4a2a2a': PAL.rot0, '#ece8d6': PAL.gold2 },
+};
 function baueFuchsbilder() {
   const hex = (d, i) => '#' + [d[i], d[i + 1], d[i + 2]].map(v => v.toString(16).padStart(2, '0')).join('');
   const kopie = name => { const f = FR[name], [c, g] = leinwand(f[2], f[3]); g.drawImage(atlas, f[0], f[1], f[2], f[3], 0, 0, f[2], f[3]); return [c, g]; };
@@ -305,8 +555,7 @@ function baueFuchsbilder() {
   });
 }
 
-// ---------- Hintergrund (einmal gezeichnet) ----------
-const [hg, hgCtx] = leinwand(BREITE, HOEHE);
+// ---------- Raum-Hintergrund (einmal je Raum gezeichnet) ----------
 function mauerKrone(g, x, y, zz) {   // Draufsicht auf die Mauerkrone: grobe Steine, Moos
   g.fillStyle = PAL.fels0; g.fillRect(x, y, T, T);
   for (let sy = 0; sy < 2; sy++) for (let sx = 0; sx < 2; sx++) {
@@ -335,51 +584,95 @@ function mauerWand(g, x, y, zz) {   // senkrechte Wandfläche der oberen Mauer: 
   for (let i = 0; i < T; i += 2) if (zz() < 0.45) { g.fillStyle = zz() < 0.5 ? PAL.moos2 : PAL.moos1; g.fillRect(x + i, y + 1, 2, 1 + (zz() * 5 | 0)); }
   g.fillStyle = PAL.fels0; g.fillRect(x, y + T - 2, T, 2);
 }
-function baueHintergrund() {
-  const g = hgCtx, zz = zufall(7);
-  // Boden überall, Deko nur auf freien Feldern abseits des Startplatzes
-  const frei = (c, r) => KARTE[r] && KARTE[r][c] === '.';
-  const startfeld = (c, r) => Math.abs(START_HELD.x / T - 0.5 - c) < 1.5 && Math.abs(START_HELD.y / T - 0.5 - r) < 1.5;
-  for (let r = 0; r < ZEILEN; r++) for (let c = 0; c < SPALTEN; c++) {
-    const w = zz(); zeichneBild(g, w < 0.6 ? 'gras_0' : w < 0.85 ? 'gras_1' : w < 0.95 ? 'gras_2' : 'gras_3', c * T, r * T);
+// Karte des Raums mit ausgeschnittenen Türöffnungen
+function raumKarte(def) {
+  const k = def.karte.map(z => [...z]);
+  for (const d of Object.keys(def.tueren)) {
+    const [x, y, w, h] = TUER_RECHTECK[d];
+    for (let r = y / T; r < (y + h) / T; r++) for (let c = x / T; c < (x + w) / T; c++) k[r][c] = '.';
   }
-  for (let r = 0; r < ZEILEN; r++) for (let c = 0; c < SPALTEN; c++) {
+  return k;
+}
+function baueHintergrund(id, def, karte) {
+  const [c, g] = leinwand(BREITE, HOEHE), zz = zufall([...id].reduce((s, ch) => s * 31 + ch.charCodeAt(0), 7));
+  const frei = (cc, r) => karte[r] && karte[r][cc] === '.' && cc > 0 && cc < SPALTEN - 1 && r > 1 && r < ZEILEN - 1;
+  for (let r = 0; r < ZEILEN; r++) for (let cc = 0; cc < SPALTEN; cc++) {
+    const w = zz(); zeichneBild(g, w < 0.6 ? 'gras_0' : w < 0.85 ? 'gras_1' : w < 0.95 ? 'gras_2' : 'gras_3', cc * T, r * T);
+  }
+  for (let r = 0; r < ZEILEN; r++) for (let cc = 0; cc < SPALTEN; cc++) {
     const d = zz();
-    if (frei(c, r) && !startfeld(c, r) && d < 0.12) zeichneBild(g, d < 0.06 ? 'buesche' : d < 0.1 ? 'blumen' : 'pilz', c * T, r * T, zz() < 0.5);
+    if (frei(cc, r) && d < 0.1) zeichneBild(g, d < 0.05 ? 'buesche' : d < 0.08 ? 'blumen' : 'pilz', cc * T, r * T, zz() < 0.5);
   }
   // Schatten der Mauern auf den Boden (Licht von oben links)
   g.fillStyle = 'rgba(18,13,20,.32)'; g.fillRect(T, 2 * T, BREITE - 2 * T, 5); g.fillRect(T, 2 * T, 5, HOEHE - 3 * T);
   g.fillStyle = 'rgba(18,13,20,.16)'; g.fillRect(T, 2 * T + 5, BREITE - 2 * T, 5); g.fillRect(T + 5, 2 * T, 4, HOEHE - 3 * T);
-  // Mauer
-  for (let r = 0; r < ZEILEN; r++) for (let c = 0; c < SPALTEN; c++) {
-    if (KARTE[r][c] !== '#') continue;
-    if (r === 1 && c > 0 && c < SPALTEN - 1) mauerWand(g, c * T, r * T, zz); else mauerKrone(g, c * T, r * T, zz);
+  // Mauer, Kante der Mauerkrone zum Raum hin
+  const mauer = (cc, r) => karte[r] && karte[r][cc] === '#';
+  for (let r = 0; r < ZEILEN; r++) for (let cc = 0; cc < SPALTEN; cc++) {
+    if (!mauer(cc, r)) continue;
+    if (r === 1 && cc > 0 && cc < SPALTEN - 1) mauerWand(g, cc * T, r * T, zz); else mauerKrone(g, cc * T, r * T, zz);
+    if (r < 2) continue;
+    g.fillStyle = PAL.fels4;
+    if (karte[r][cc + 1] && karte[r][cc + 1] !== '#') g.fillRect(cc * T + T - 2, r * T, 2, T);
+    if (karte[r][cc - 1] && karte[r][cc - 1] !== '#') { g.fillRect(cc * T, r * T, 2, T); g.fillStyle = PAL.nacht; g.fillRect(cc * T + 2, r * T, 1, T); }
+    g.fillStyle = PAL.fels4;
+    if (karte[r - 1] && karte[r - 1][cc] !== '#' && r === ZEILEN - 1) { g.fillRect(cc * T, r * T, T, 2); g.fillStyle = PAL.nacht; g.fillRect(cc * T, r * T + 2, T, 1); }
   }
-  // Kante der Mauerkrone zum Raum hin
-  g.fillStyle = PAL.fels4;
-  g.fillRect(T - 2, 2 * T, 2, HOEHE - 3 * T);                  // links
-  g.fillRect(BREITE - T, 2 * T, 2, HOEHE - 3 * T);             // rechts
-  g.fillRect(T, HOEHE - T, BREITE - 2 * T, 2);                 // unten
-  g.fillStyle = PAL.nacht;
-  g.fillRect(BREITE - T + 2, 2 * T, 1, HOEHE - 3 * T); g.fillRect(T, HOEHE - T + 2, BREITE - 2 * T, 1);
-  // Hindernisse
+  // Türöffnungen: dunkler Gang nach außen, Pfosten an den Seiten
+  for (const d of Object.keys(def.tueren)) {
+    const [x, y, w, h] = TUER_RECHTECK[d], [dx, dy] = RICHTUNG[d];
+    for (let i = 0; i < 8; i++) {
+      g.fillStyle = `rgba(18,13,20,${0.08 * (8 - i)})`;
+      if (dx) g.fillRect(dx > 0 ? x + w - (i + 1) * 3 : x + i * 3, y, 3, h);
+      else g.fillRect(x, dy > 0 ? y + h - (i + 1) * 3 : y + i * 3, w, 3);
+    }
+    g.fillStyle = PAL.fels0;
+    if (dx) { g.fillRect(x, y - 2, w, 2); g.fillRect(x, y + h, w, 2); } else { g.fillRect(x - 2, y, 2, h); g.fillRect(x + w, y, 2, h); }
+  }
+  // feste Hindernisse und Schilder
   for (let r = 0; r < ZEILEN; r++) {
-    const zeile = KARTE[r];
-    for (let c = 0; c < SPALTEN; c++) {
-      const z = zeile[c], x = c * T, y = r * T;
-      if (z === 'S') zeichneBild(g, 'stein', x, y, (c + r) % 2 === 1);
-      else if (z === 'U') zeichneBild(g, 'busch', x, y);
+    const zeile = karte[r];
+    for (let cc = 0; cc < SPALTEN; cc++) {
+      const z = zeile[cc], x = cc * T, y = r * T;
+      if (z === 'S') zeichneBild(g, 'stein', x, y, (cc + r) % 2 === 1);
       else if (z === 'E') zeichneBild(g, 'beerenbusch', x, y);
       else if (z === 'P') zeichneBild(g, 'stumpf', x, y);
       else if (z === 'O') zeichneBild(g, 'holzstapel', x, y);
-      else if (z === 'L') zeichneBild(g, zeile[c - 1] !== 'L' ? 'stamm_0' : zeile[c + 1] !== 'L' ? 'stamm_2' : 'stamm_1', x, y);
+      else if (z === 'T') g.drawImage(SCHILD, x + 4, y + 10);
+      else if (z === 'L') zeichneBild(g, zeile[cc - 1] !== 'L' ? 'stamm_0' : zeile[cc + 1] !== 'L' ? 'stamm_2' : 'stamm_1', x, y);
     }
   }
+  return c;
+}
+const HG = {};   // Hintergründe je Raum, beim ersten Betreten gezeichnet
+
+// Baut den Laufzeitzustand eines Raums: feste Hindernisse, Büsche, Blöcke, Platten, Truhen, Schilder, Startfüchse
+function baueRaum(id) {
+  const def = RAEUME[id], karte = raumKarte(def);
+  if (!HG[id]) HG[id] = baueHintergrund(id, def, karte);
+  const raum = { id, def, karte, bg: HG[id], fest: [], buesche: [], bloecke: [], platten: [], truhen: [], schilder: [], gegner: [] };
+  let schild = 0;
+  for (let r = 0; r < ZEILEN; r++) for (let c = 0; c < SPALTEN; c++) {
+    const z = karte[r][c], x = c * T, y = r * T, form = FORM[z] && [x + FORM[z][0], y + FORM[z][1], FORM[z][2], FORM[z][3]];
+    if (z === '#') raum.fest.push(rechteck([x, y, T, T]));
+    else if ('SEPO'.includes(z)) raum.fest.push(rechteck(form));
+    else if (z === 'L' && karte[r][c - 1] !== 'L') {   // ganzer Stamm als ein Rechteck
+      let n = 0; while (karte[r][c + n] === 'L') n++;
+      raum.fest.push(rechteck([x + 3, y + 11, n * T - 6, 16]));
+    }
+    else if (z === 'T') { const s = rechteck(form, { text: (def.schilder || [])[schild++] || '' }); raum.schilder.push(s); raum.fest.push(s); }
+    else if (z === 'b') raum.buesche.push(rechteck(form, { da: true }));
+    else if (z === 'B') raum.bloecke.push({ c, r, x, y, bewegt: null });
+    else if (z === '_') raum.platten.push({ c, r });
+    else if (z === 'K' || z === 'k') raum.truhen.push(rechteck(form, { schluessel: `${id}:${c},${r}`, versteckt: z === 'k', inhalt: def.inhalt }));
+    else if (z === 'f' || z === 's' || z === 'g') raum.gegner.push({ art: { f: 'fuchs', s: 'silber', g: 'glut' }[z], x: x + T / 2, y: y + T / 2 });
+  }
+  return raum;
 }
 
 // ---------- Eingabe: Tastatur ----------
 const TASTEN = { ArrowUp: 'hoch', KeyW: 'hoch', ArrowDown: 'runter', KeyS: 'runter', ArrowLeft: 'links', KeyA: 'links',
-  ArrowRight: 'rechts', KeyD: 'rechts', Space: 'schlag', KeyR: 'neustart' };
+  ArrowRight: 'rechts', KeyD: 'rechts', Space: 'schlag', Enter: 'schlag', KeyR: 'neustart' };
 const gehalten = new Set(), gedrueckt = new Set();   // gedrueckt: seit dem letzten Spielschritt neu gedrückt
 addEventListener('keydown', e => { const t = TASTEN[e.code]; if (!t) return; e.preventDefault(); if (!e.repeat) gedrueckt.add(t); gehalten.add(t); });
 addEventListener('keyup', e => { const t = TASTEN[e.code]; if (t) gehalten.delete(t); });
@@ -387,9 +680,8 @@ addEventListener('blur', () => { gehalten.clear(); TOUCH.richtung.clear(); });
 
 // ---------- Eingabe: Touch ----------
 // Linke Bildschirmhälfte: Steuerstick, der dort entsteht, wo der Daumen aufsetzt (8 Richtungen).
-// Rechte Hälfte: jeder Tipp ein Schwerthieb. Nach dem Ende startet ein Tipp neu.
+// Rechte Hälfte: wie Leertaste (lesen, öffnen, Schwert). Nach dem Ende startet ein Tipp neu.
 // Touch schreibt dieselben Befehle wie die Tastatur (TOUCH.richtung neben gehalten, gedrueckt gemeinsam).
-// Am PC testen: index.html?touch (dann zählt auch die Maus).
 const TOUCH = { aktiv: false, stick: null, schlagId: null, richtung: new Set() };
 const elStick = document.getElementById('stick'), elKnauf = document.getElementById('knauf'), elSchlag = document.getElementById('schlagknopf');
 const STICK = { tot: 14, weg: 44 };   // Totzone und größter Ausschlag in CSS-Pixeln
@@ -431,44 +723,142 @@ function touchEnde(e) {
 }
 addEventListener('pointerup', touchEnde); addEventListener('pointercancel', touchEnde);
 addEventListener('contextmenu', e => { if (TOUCH.aktiv) e.preventDefault(); });
-if (new URLSearchParams(location.search).has('touch')) touchAn();
+const PARAM = new URLSearchParams(location.search);
+if (PARAM.has('touch')) touchAn();
 
 // ---------- Spielzustand ----------
 const WINKEL = { rechts: 0, runter: 90, links: 180, hoch: 270 };
-let S;   // alles, was ein Neustart zurücksetzt
-let beste = 0;
-try { beste = +localStorage.getItem('waldwacht.beste') || 0; } catch (e) { /* ohne Speicher eben ohne Rekord */ }
-function neuesSpiel() {
+let S;   // gesamter Spielstand
+function neuesSpiel(startRaum = START_RAUM) {
   S = {
     zustand: 'spiel',   // spiel | gameover
     zeit: 0, endeZeit: 0, stopp: 0,
-    welle: 0, banner: 0, ruhe: 0.4, warteschlange: [], spawnUhr: 0, neuerRekord: false,
-    held: { x: START_HELD.x, y: START_HELD.y, hw: 9, hh: 6, blick: 'runter', lp: CFG.held.lp, modus: 'normal', t: 0, vx: 0, vy: 0,
-      unverwundbar: 0, anim: 0, schlagNr: 0 },
-    fuechse: [], beute: [], effekte: [],
+    maxLp: CFG.held.lp, schluessel: 0,
+    offen: new Set(), geraeumt: new Set(), truhen: new Set(), besucht: new Set(),   // Fortschritt
+    held: { x: 0, y: 0, hw: 9, hh: 6, blick: 'runter', lp: CFG.held.lp, modus: 'normal', t: 0, vx: 0, vy: 0,
+      unverwundbar: 0, anim: 0, schlagNr: 0, schieben: 0 },
+    raum: null, eintritt: null, einlauf: null, wechsel: null, text: null, wellen: null,
+    fuechse: [], beute: [], effekte: [], fest: [], festGegner: [],
   };
+  const def = RAEUME[startRaum];
+  if (def.start) betreteRaum(startRaum, { x: def.start[0] * T, y: def.start[1] * T, blick: 'runter' });
+  else {   // Teststart in einem Raum: durch seine erste Tür hinein
+    const d = Object.keys(def.tueren)[0], [x, y, w, h] = TUER_RECHTECK[d];
+    betreteRaum(startRaum, { x: x + w / 2, y: y + h / 2, blick: BLICK_VON[GEGENUEBER[d]], einlauf: GEGENUEBER[d] });
+    durchgangOffen(d);
+  }
 }
 
-// ---------- Wellen ----------
-// Welle n: 2+n Füchse (höchstens anzahlMax), ab Welle 3 Silberfüchse, ab Welle 5 Glutfüchse; alle laufen je Welle schneller.
-function welleInhalt(n) {
-  const anzahl = Math.min(CFG.welle.anzahlMax, 2 + n);
-  const glut = n >= 5 ? Math.min(4, Math.floor((n - 3) / 2)) : 0;
-  const silber = n >= 3 ? Math.min(anzahl - glut, 5, n - 2) : 0;
-  const liste = [...Array(glut).fill('glut'), ...Array(silber).fill('silber'), ...Array(anzahl - glut - silber).fill('fuchs')];
-  for (let i = liste.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [liste[i], liste[j]] = [liste[j], liste[i]]; }
-  return liste;
+// Raum betreten: Laufzeitzustand bauen, Füchse setzen, Held an den Eintrittspunkt (optional mit Einlaufen durch die Tür)
+function betreteRaum(id, eintritt) {
+  S.raum = baueRaum(id);
+  const h = S.held;
+  Object.assign(h, { x: eintritt.x, y: eintritt.y, blick: eintritt.blick, modus: 'normal', t: 0, anim: 0, schieben: 0 });
+  S.fuechse = []; S.beute = []; S.effekte = []; S.wellen = null;
+  const def = S.raum.def;
+  if (!(def.kampf && S.geraeumt.has(id))) {
+    for (const g of S.raum.gegner) S.fuechse.push(neuerFuchs(g.art, g.x, g.y));
+    if (def.wellen) S.wellen = { nr: 0, warteschlange: [], spawnUhr: 0, banner: 0, ruhe: 0.5, fertig: false };
+  }
+  S.einlauf = eintritt.einlauf || null;
+  aktualisiereHindernisse();
+  if (!S.einlauf) nachEinlauf();
 }
-const welleTempo = n => Math.min(CFG.welle.tempoMax, 1 + CFG.welle.tempoPlus * (n - 1));
-function starteWelle(n) {
-  S.welle = n; S.banner = CFG.welle.banner; S.warteschlange = welleInhalt(n); S.spawnUhr = CFG.welle.bannerVorlauf;
+function nachEinlauf() {   // der Held steht im Raum: Eintrittspunkt merken (für Neustart), Einstiegstext beim ersten Mal
+  const h = S.held, id = S.raum.id;
+  S.eintritt = { x: h.x, y: h.y, blick: h.blick };
+  if (!S.besucht.has(id)) { S.besucht.add(id); if (S.raum.def.einstieg) zeigeText(S.raum.def.einstieg); }
 }
+function neuerFuchs(art, x, y) {
+  const a = CFG.arten[art];
+  return { art, x, y, hw: 11, hh: 6, lp: a.lp, tempo: a.tempo, schaden: a.schaden, rueck: 0, vx: 0, vy: 0, blitz: 0, anim: 0,
+    spiegeln: x > S.held.x, getroffen: -1, warten: CFG.fuchs.wachAb, sterbend: false, modus: 'jagen', mt: 0,
+    sprungPause: a.sprung ? zufallIn(a.sprung.pause) : 0 };
+}
+
+// ---------- Türen, Hindernisse ----------
+const kampfAktiv = () => !!S.raum.def.kampf && !S.geraeumt.has(S.raum.id) && !S.einlauf;
+function tuerZu(d) {
+  const t = S.raum.def.tueren[d];
+  if (t.art === 'kampf') return kampfAktiv();
+  if (t.art === 'schloss' || t.art === 'schalter') return !S.offen.has(`${S.raum.id}:${d}`);
+  return false;
+}
+const truheSichtbar = t => !t.versteckt || S.geraeumt.has(S.raum.id);
+// Einmal je Spielschritt: feste Teile + was sich ändern kann (Büsche, Blöcke, Truhen, geschlossene Türen).
+// Füchse bekommen zusätzlich die Türöffnungen als Wand, damit sie im Raum bleiben.
+function aktualisiereHindernisse() {
+  const r = S.raum, liste = [...r.fest];
+  for (const b of r.buesche) if (b.da) liste.push(b);
+  for (const b of r.bloecke) liste.push({ x: b.x, y: b.y, w: T, h: T, block: b });
+  for (const t of r.truhen) if (truheSichtbar(t)) liste.push(t);
+  const oeffnungen = [];
+  for (const d of Object.keys(r.def.tueren)) {
+    const rt = rechteck(TUER_RECHTECK[d], { tuer: d });
+    if (tuerZu(d)) liste.push(rt); else oeffnungen.push(rt);
+  }
+  S.fest = liste; S.festGegner = [...liste, ...oeffnungen];
+}
+function oeffneTuer(d) {
+  S.offen.add(`${S.raum.id}:${d}`);
+  const [x, y, w, h] = TUER_RECHTECK[d];
+  S.effekte.push({ art: 'puff', x: x + w / 2, y: y + h / 2, t: 0 });
+}
+
+// ---------- Text ----------
+// Seiten zu je drei Zeilen, Zeilen höchstens 46 Zeichen; Schreibmaschine, Leertaste/Tipp: zeigen bzw. weiter
+function zeigeText(text, gegenstand = null) {
+  const zeilen = [];
+  for (const wort of text.toUpperCase().split(/\s+/)) {
+    const z = zeilen.length ? zeilen[zeilen.length - 1] : null;
+    if (z !== null && (z + ' ' + wort).length <= 46) zeilen[zeilen.length - 1] = z + ' ' + wort; else zeilen.push(wort);
+  }
+  const seiten = [];
+  for (let i = 0; i < zeilen.length; i += 3) seiten.push(zeilen.slice(i, i + 3));
+  S.text = { seiten, seite: 0, zeichen: 0, gegenstand };
+}
+function updateText() {
+  const t = S.text, laenge = t.seiten[t.seite].join('').length;
+  t.zeichen = Math.min(laenge, t.zeichen + CFG.text.tempo * DT);
+  if (!gedrueckt.has('schlag')) return;
+  if (t.zeichen < laenge) t.zeichen = laenge;
+  else if (t.seite < t.seiten.length - 1) { t.seite++; t.zeichen = 0; }
+  else S.text = null;
+}
+
+// ---------- Raumwechsel ----------
+// Am Bildrand einer offenen Tür: Bildlauf in den Nachbarraum, dann läuft der Held selbst ein Stück hinein.
+function pruefeAusgang(h) {
+  const d = h.y - h.hh < 1 ? 'n' : h.y + h.hh > HOEHE - 1 ? 's' : h.x - h.hw < 1 ? 'w' : h.x + h.hw > BREITE - 1 ? 'o' : null;
+  if (!d || !S.raum.def.tueren[d]) return false;
+  const altBg = S.raum.bg, p0 = { x: h.x, y: h.y };
+  const neu = { x: h.x, y: h.y, blick: BLICK_VON[d], einlauf: d };
+  if (d === 'o') neu.x = h.hw + 1; else if (d === 'w') neu.x = BREITE - h.hw - 1;
+  else if (d === 'n') neu.y = HOEHE - h.hh - 1; else neu.y = h.hh + 1;
+  betreteRaum(S.raum.def.tueren[d].ziel, neu);
+  durchgangOffen(GEGENUEBER[d]);
+  S.wechsel = { d, t: 0, altBg, p0 };
+  return true;
+}
+function durchgangOffen(d) {   // wer durch eine Tür hereinkommt, hat sie offen: Schloss/Schalter auf dieser Seite gilt als geöffnet
+  const t = S.raum.def.tueren[d];
+  if (t && (t.art === 'schloss' || t.art === 'schalter')) { S.offen.add(`${S.raum.id}:${d}`); aktualisiereHindernisse(); }
+}
+function updateEinlauf(h) {   // automatisch hineinlaufen, bis der Held ganz im Raum steht
+  const [dx, dy] = RICHTUNG[S.einlauf];
+  bewege(h, dx * CFG.held.tempo * DT, dy * CFG.held.tempo * DT, S.fest);
+  h.anim += DT;
+  const drin = h.x - h.hw > T + 4 && h.x + h.hw < BREITE - T - 4 && h.y - h.hh > 2 * T + 4 && h.y + h.hh < HOEHE - T - 4;
+  if (drin) { S.einlauf = null; h.anim = 0; aktualisiereHindernisse(); nachEinlauf(); }
+}
+
+// ---------- Wellenräume ----------
 function freierPlatz(hw, hh) {   // zufällige Stelle im Raum: frei von Hindernissen, nicht zu nah am Helden
   const h = S.held;
   let bester = null, besterAbstand = -1;
   for (let i = 0; i < 40; i++) {
     const p = { x: T + hw + 4 + Math.random() * (BREITE - 2 * T - 2 * hw - 8), y: 2 * T + hh + 8 + Math.random() * (HOEHE - 3 * T - 2 * hh - 16), hw, hh };
-    if (HINDERNISSE.some(r => ueberlappt(fuss({ ...p, hw: hw + 4, hh: hh + 4 }), r))) continue;
+    if (S.festGegner.some(r => ueberlappt(fuss({ ...p, hw: hw + 4, hh: hh + 4 }), r))) continue;
     if (S.fuechse.some(f => Math.hypot(f.x - p.x, f.y - p.y) < 30)) continue;
     const d = Math.hypot(p.x - h.x, p.y - h.y);
     if (d >= CFG.welle.mindestAbstand) return p;
@@ -476,25 +866,34 @@ function freierPlatz(hw, hh) {   // zufällige Stelle im Raum: frei von Hinderni
   }
   return bester || { x: BREITE - 2 * T, y: HOEHE - 2 * T };
 }
-function setzeFuchs(art) {
-  const a = CFG.arten[art], p = freierPlatz(11, 6);
-  S.fuechse.push({ art, x: p.x, y: p.y, hw: 11, hh: 6, lp: a.lp, tempo: a.tempo * welleTempo(S.welle), schaden: a.schaden,
-    rueck: 0, vx: 0, vy: 0, blitz: 0, anim: 0, spiegeln: p.x > S.held.x, getroffen: -1, warten: CFG.fuchs.wachAb, sterbend: false,
-    modus: 'jagen', mt: 0, sprungPause: a.sprung ? zufallIn(a.sprung.pause) : 0 });
-  S.effekte.push({ art: 'puff', x: p.x, y: p.y - 8, t: 0 });
-}
-const zufallIn = ([a, b]) => a + Math.random() * (b - a);
 function steuereWellen() {
-  if (S.zustand !== 'spiel') return;
-  if (S.banner > 0) S.banner -= DT;
-  if (S.warteschlange.length) {
-    S.spawnUhr -= DT;
-    if (S.spawnUhr <= 0) { setzeFuchs(S.warteschlange.shift()); S.spawnUhr = CFG.welle.abstand; }
+  const w = S.wellen;
+  if (!w || w.fertig || S.einlauf || S.zustand !== 'spiel') return;
+  if (w.banner > 0) w.banner -= DT;
+  if (w.warteschlange.length) {
+    w.spawnUhr -= DT;
+    if (w.spawnUhr <= 0) {
+      const p = freierPlatz(11, 6);
+      S.fuechse.push(neuerFuchs(w.warteschlange.shift(), p.x, p.y));
+      S.effekte.push({ art: 'puff', x: p.x, y: p.y - 8, t: 0 });
+      w.spawnUhr = CFG.welle.abstand;
+    }
     return;
   }
   if (S.fuechse.length) return;
-  S.ruhe -= DT;   // kurze Verschnaufpause, dann die nächste Welle
-  if (S.ruhe <= 0) { S.ruhe = CFG.welle.pause; starteWelle(S.welle + 1); }
+  w.ruhe -= DT;   // kurze Verschnaufpause, dann die nächste Welle
+  if (w.ruhe > 0) return;
+  const liste = S.raum.def.wellen;
+  if (w.nr >= liste.length) { w.fertig = true; return; }
+  w.nr++; w.warteschlange = [...liste[w.nr - 1]]; w.banner = CFG.welle.banner; w.spawnUhr = CFG.welle.bannerVorlauf; w.ruhe = CFG.welle.pause;
+}
+function pruefeGeraeumt() {   // Kampfraum leer: Türen auf, versteckte Truhe erscheint
+  const r = S.raum;
+  if (!r.def.kampf || S.geraeumt.has(r.id) || S.einlauf) return;
+  if (S.fuechse.length || (S.wellen && !S.wellen.fertig)) return;
+  S.geraeumt.add(r.id);
+  for (const [d, t] of Object.entries(r.def.tueren)) if (t.art === 'kampf') { const [x, y, w, h] = TUER_RECHTECK[d]; S.effekte.push({ art: 'puff', x: x + w / 2, y: y + h / 2, t: 0 }); }
+  for (const t of r.truhen) if (t.versteckt) S.effekte.push({ art: 'puff', x: t.x + t.w / 2, y: t.y + t.h / 2, t: 0 });
 }
 
 // ---------- Schwert ----------
@@ -518,13 +917,37 @@ const fuchsKoerper = f => ({ x: f.x - 13, y: f.y - 14, w: 26, h: 20 });
 
 function starteSchlag(h) { h.modus = 'schlag'; h.t = 0; h.schlagNr++; h.anim = 0; }
 
+// Leertaste vor einem Schild oder einer Truhe: lesen bzw. öffnen statt zuschlagen
+function interagiere(h) {
+  const v = { rechts: [h.x + h.hw, h.y - 6, 16, 12], links: [h.x - h.hw - 16, h.y - 6, 16, 12],
+    hoch: [h.x - 6, h.y - h.hh - 16, 12, 16], runter: [h.x - 6, h.y + h.hh, 12, 16] }[h.blick];
+  const vorne = rechteck(v), r = S.raum;
+  const truhe = r.truhen.find(t => truheSichtbar(t) && !S.truhen.has(t.schluessel) && ueberlappt(vorne, t));
+  if (truhe) { oeffneTruhe(truhe); return true; }
+  const schild = r.schilder.find(s => ueberlappt(vorne, s));
+  if (schild) { zeigeText(schild.text); return true; }
+  return false;
+}
+function oeffneTruhe(t) {
+  S.truhen.add(t.schluessel);
+  if (t.inhalt === 'schluessel') {
+    S.schluessel++;
+    zeigeText('Du hast einen kleinen Schlüssel gefunden! Er öffnet eine verschlossene Tür.', SCHLUESSEL);
+  } else if (t.inhalt === 'herzcontainer') {
+    S.maxLp += 2; S.held.lp = S.maxLp;
+    zeigeText('Ein Herzcontainer! Du hast jetzt ein Herz mehr, und alle Herzen sind wieder voll.', HERZ.container);
+  } else zeigeText('Die Truhe ist leer.');
+  S.held.blick = 'runter';   // Gegenstand hochhalten, zum Betrachter gewandt
+}
+
 function updateHeld(h) {
   if (h.unverwundbar > 0) h.unverwundbar -= DT;
   if (h.modus === 'rueckstoss') {
-    h.t -= DT; bewege(h, h.vx * DT, h.vy * DT); h.vx *= 0.88; h.vy *= 0.88;
+    h.t -= DT; bewege(h, h.vx * DT, h.vy * DT, S.fest); h.vx *= 0.88; h.vy *= 0.88;
     if (h.t <= 0) h.modus = 'normal';
     return;
   }
+  if (S.einlauf) { updateEinlauf(h); return; }
   if (h.modus === 'schlag') {
     h.t += DT;
     if (h.t < CFG.schlag.aktivBis) pruefeSchwert(h);
@@ -532,15 +955,24 @@ function updateHeld(h) {
     else if (h.t >= CFG.schlag.dauer) h.modus = 'normal';
     return;
   }
-  if (gedrueckt.has('schlag')) { starteSchlag(h); pruefeSchwert(h); return; }
+  if (gedrueckt.has('schlag')) { if (!interagiere(h)) { starteSchlag(h); pruefeSchwert(h); } return; }
   const dx = halt('rechts') - halt('links'), dy = halt('runter') - halt('hoch');
-  if (!dx && !dy) { h.anim = 0; return; }
+  if (!dx && !dy) { h.anim = 0; h.schieben = 0; return; }
   const n = dx && dy ? Math.SQRT1_2 : 1;
-  bewege(h, dx * n * CFG.held.tempo * DT, dy * n * CFG.held.tempo * DT);
+  bewege(h, dx * n * CFG.held.tempo * DT, dy * n * CFG.held.tempo * DT, S.fest);
   // Blickrichtung bleibt, solange sie zu einer gedrückten Richtung passt (schräg laufen dreht nicht hin und her)
   const passt = { hoch: dy < 0, runter: dy > 0, links: dx < 0, rechts: dx > 0 }[h.blick];
   if (!passt) h.blick = dx ? (dx < 0 ? 'links' : 'rechts') : (dy < 0 ? 'hoch' : 'runter');
   h.anim += DT;
+  // gegen etwas gelaufen: verschlossene Tür mit Schlüssel aufschließen, Block nur geradeaus schieben
+  const stoss = h.stossX || h.stossY;
+  if (stoss && stoss.tuer && S.raum.def.tueren[stoss.tuer].art === 'schloss' && S.schluessel > 0) { S.schluessel--; oeffneTuer(stoss.tuer); }
+  const block = (dx && !dy && h.stossX && h.stossX.block) || (dy && !dx && h.stossY && h.stossY.block);
+  if (block && !block.bewegt) {
+    h.schieben += DT;
+    if (h.schieben >= CFG.schieben.anlauf) { schiebeBlock(block, dx, dy); h.schieben = 0; }
+  } else h.schieben = 0;
+  pruefeAusgang(h);
 }
 
 function pruefeSchwert(h) {
@@ -557,6 +989,38 @@ function pruefeSchwert(h) {
     S.effekte.push({ art: 'funke', x: feld.x + feld.w / 2, y: feld.y + feld.h / 2, t: 0 });
     S.stopp = CFG.trefferStopp;
   }
+  for (const b of S.raum.buesche) {   // Büsche: weg mit Blätterregen, manchmal ein Herz
+    if (!b.da || !felder.some(t => ueberlappt(t, b))) continue;
+    b.da = false;
+    const x = b.x + b.w / 2, y = b.y + b.h / 2;
+    S.effekte.push({ art: 'blaetter', x, y, t: 0, teile: Array.from({ length: 8 }, (_, i) => ({ a: i / 8 * Math.PI * 2 + Math.random() * 0.5, v: 50 + Math.random() * 60 })) });
+    if (Math.random() < CFG.busch.herz) S.beute.push({ x, y: y + 6, t: 0 });
+  }
+}
+
+// ---------- Blöcke und Platten ----------
+function schiebeBlock(b, dx, dy) {
+  const c = b.c + dx, r = b.r + dy, k = S.raum.karte;
+  if (c < 1 || c > SPALTEN - 2 || r < 2 || r > ZEILEN - 2 || !BODEN.has(k[r][c])) return;
+  const ziel = rechteck([c * T, r * T, T, T]);
+  if (S.raum.bloecke.some(o => o !== b && o.c === c && o.r === r)) return;
+  if (S.fest.some(o => !o.block && ueberlappt(o, ziel))) return;
+  if (S.fuechse.some(f => ueberlappt(fuss(f), ziel))) return;
+  b.bewegt = { t: 0, x0: b.x, y0: b.y }; b.c = c; b.r = r;
+}
+function updateBloecke() {
+  for (const b of S.raum.bloecke) {
+    if (!b.bewegt) continue;
+    b.bewegt.t = Math.min(1, b.bewegt.t + DT / CFG.schieben.dauer);
+    b.x = b.bewegt.x0 + (b.c * T - b.bewegt.x0) * b.bewegt.t; b.y = b.bewegt.y0 + (b.r * T - b.bewegt.y0) * b.bewegt.t;
+    if (b.bewegt.t >= 1) { b.bewegt = null; pruefePlatten(); }
+  }
+}
+const platteBelegt = p => S.raum.bloecke.some(b => !b.bewegt && b.c === p.c && b.r === p.r);
+function pruefePlatten() {   // alle Platten belegt → Schaltertüren öffnen (bleiben offen)
+  const r = S.raum;
+  if (!r.platten.length || !r.platten.every(platteBelegt)) return;
+  for (const [d, t] of Object.entries(r.def.tueren)) if (t.art === 'schalter' && !S.offen.has(`${r.id}:${d}`)) oeffneTuer(d);
 }
 
 // ---------- Füchse ----------
@@ -565,7 +1029,7 @@ function pruefeSchwert(h) {
 function updateFuchs(f, h) {
   f.blitz = Math.max(0, f.blitz - DT);
   if (f.rueck > 0) {
-    f.rueck -= DT; bewege(f, f.vx * DT, f.vy * DT); f.vx *= 0.88; f.vy *= 0.88;
+    f.rueck -= DT; bewege(f, f.vx * DT, f.vy * DT, S.festGegner); f.vx *= 0.88; f.vy *= 0.88;
     if (f.rueck <= 0 && f.sterbend) {
       f.weg = true; S.effekte.push({ art: 'puff', x: f.x, y: f.y - 8, t: 0 });
       if (Math.random() < CFG.herz.chance) S.beute.push({ x: f.x, y: f.y, t: 0 });
@@ -582,7 +1046,7 @@ function updateFuchs(f, h) {
   }
   if (f.modus === 'sprung') {
     f.mt -= DT;
-    const x0 = f.x, y0 = f.y; bewege(f, f.vx * DT, f.vy * DT);
+    const x0 = f.x, y0 = f.y; bewege(f, f.vx * DT, f.vy * DT, S.festGegner);
     const gestoppt = Math.hypot(f.x - x0, f.y - y0) < sp.tempo * DT * 0.3;   // gegen Wand oder Hindernis
     if (f.mt <= 0 || gestoppt) { f.modus = 'jagen'; f.sprungPause = zufallIn(sp.pause); }
     return;
@@ -592,7 +1056,7 @@ function updateFuchs(f, h) {
     if (f.sprungPause <= 0 && l < sp.reichweite) { f.modus = 'zielen'; f.mt = sp.zielen; f.spiegeln = dx < 0; return; }
   }
   if (l < 2) return;
-  bewege(f, dx / l * f.tempo * DT, dy / l * f.tempo * DT);
+  bewege(f, dx / l * f.tempo * DT, dy / l * f.tempo * DT, S.festGegner);
   if (Math.abs(dx) > 2) f.spiegeln = dx < 0;
   f.anim += DT;
 }
@@ -603,12 +1067,12 @@ function trenneFuechse() {   // Füchse sollen nicht ineinander laufen
     const a = lebend[i], b = lebend[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01, min = 24;
     if (d >= min) continue;
     const s = (min - d) / 2;
-    bewege(a, -dx / d * s, -dy / d * s); bewege(b, dx / d * s, dy / d * s);
+    bewege(a, -dx / d * s, -dy / d * s, S.festGegner); bewege(b, dx / d * s, dy / d * s, S.festGegner);
   }
 }
 
 function pruefeBeruehrung(h) {
-  if (h.unverwundbar > 0 || S.zustand !== 'spiel') return;
+  if (h.unverwundbar > 0 || S.zustand !== 'spiel' || S.einlauf) return;
   const k = heldKoerper(h);
   const f = S.fuechse.find(f => !f.sterbend && f.warten <= 0 && ueberlappt(k, fuchsKoerper(f)));
   if (!f) return;
@@ -616,36 +1080,47 @@ function pruefeBeruehrung(h) {
   let rx = h.x - f.x, ry = h.y - f.y; const l = Math.hypot(rx, ry) || 1; rx /= l; ry /= l;
   h.modus = 'rueckstoss'; h.t = CFG.held.rueckDauer; h.vx = rx * CFG.held.rueckTempo; h.vy = ry * CFG.held.rueckTempo;
   h.unverwundbar = CFG.held.unverwundbar;
-  if (h.lp === 0) {
-    S.zustand = 'gameover'; S.endeZeit = S.zeit;
-    if (S.welle > beste) { beste = S.welle; S.neuerRekord = true; try { localStorage.setItem('waldwacht.beste', beste); } catch (e) { /* egal */ } }
-  }
+  if (h.lp === 0) { S.zustand = 'gameover'; S.endeZeit = S.zeit; }
 }
 
 function pruefeBeute(h) {   // Herzen: einsammeln heilt ein ganzes Herz, nach einer Weile verschwinden sie
   const k = heldKoerper(h);
   S.beute = S.beute.filter(b => {
     b.t += DT;
-    if (S.zustand === 'spiel' && ueberlappt(k, { x: b.x - 9, y: b.y - 12, w: 18, h: 16 })) { h.lp = Math.min(CFG.held.lp, h.lp + 2); return false; }
+    if (S.zustand === 'spiel' && ueberlappt(k, { x: b.x - 9, y: b.y - 12, w: 18, h: 16 })) { h.lp = Math.min(S.maxLp, h.lp + 2); return false; }
     return b.t < CFG.herz.dauer;
   });
+}
+
+function neustartImRaum() {   // Game Over: Herzen voll, Raum frisch (Fortschritt bleibt), am Eintrittspunkt
+  S.zustand = 'spiel'; S.held.lp = S.maxLp; S.held.unverwundbar = 0; S.text = null;
+  betreteRaum(S.raum.id, S.eintritt);
 }
 
 function schritt() {
   if (S.stopp > 0) { S.stopp--; gedrueckt.clear(); return; }   // kurzes Standbild beim Treffer
   S.zeit += DT;
+  if (S.wechsel) {
+    S.wechsel.t += DT / CFG.wechsel.dauer;
+    if (S.wechsel.t >= 1) S.wechsel = null;
+    gedrueckt.clear(); return;
+  }
+  if (S.text) { updateText(); gedrueckt.clear(); return; }
+  aktualisiereHindernisse();
   const h = S.held;
-  if (S.zustand === 'spiel') updateHeld(h);
-  else if (h.modus === 'rueckstoss') updateHeld(h);
+  if (S.zustand === 'spiel' || h.modus === 'rueckstoss') updateHeld(h);
+  if (S.wechsel) { gedrueckt.clear(); return; }   // gerade in den nächsten Raum gegangen
+  updateBloecke();
   steuereWellen();
-  for (const f of S.fuechse) updateFuchs(f, h);
+  if (!S.einlauf) for (const f of S.fuechse) updateFuchs(f, h);
   S.fuechse = S.fuechse.filter(f => !f.weg);
   trenneFuechse();
   pruefeBeruehrung(h);
   pruefeBeute(h);
+  pruefeGeraeumt();
   for (const e of S.effekte) e.t += DT;
-  S.effekte = S.effekte.filter(e => e.t < (e.art === 'puff' ? 0.4 : 0.12));
-  if (S.zustand !== 'spiel' && gedrueckt.has('neustart') && S.zeit - S.endeZeit > 0.8) neuesSpiel();
+  S.effekte = S.effekte.filter(e => e.t < (e.art === 'funke' ? 0.12 : 0.4));
+  if (S.zustand !== 'spiel' && gedrueckt.has('neustart') && S.zeit - S.endeZeit > 0.8) neustartImRaum();
   gedrueckt.clear();
 }
 
@@ -663,76 +1138,143 @@ function zeichneSchwert(h) {
 function zeichneHeld(h) {
   if (h.unverwundbar > 0 && Math.floor(h.unverwundbar * 20) % 2) return;   // Blinken in der Schutzzeit
   const basis = { runter: 0, rechts: 3, links: 3, hoch: 6 }[h.blick];
-  const bild = h.modus === 'normal' && h.anim > 0 ? basis + SCHRITTFOLGE[Math.floor(h.anim * 8) % 4] : basis;
+  const laeuft = (h.modus === 'normal' && h.anim > 0) || S.einlauf || S.wechsel;
+  const bild = laeuft ? basis + SCHRITTFOLGE[Math.floor((h.anim + S.zeit * (S.wechsel ? 1 : 0)) * 8) % 4] : basis;
   const schlag = h.modus === 'schlag', hinten = schlag && Math.sin(schwertWinkel(h) * Math.PI / 180) < -0.1;
   if (hinten) zeichneSchwert(h);
   zeichneBild(ctx, 'held_' + bild, h.x - 16, h.y + 8 - 48 + (schlag && h.t > CFG.schlag.phasen[1] ? 1 : 0), h.blick === 'links');
   if (schlag && !hinten) zeichneSchwert(h);
+  const g = S.text && S.text.gegenstand;   // gefundenen Gegenstand über den Kopf halten
+  if (g) ctx.drawImage(g, Math.round(h.x - g.width / 2), Math.round(h.y - 44 - g.height));
 }
 function zeichneFuchs(f) {
   const bild = f.modus === 'sprung' ? 1 : f.rueck > 0 || f.anim === 0 || f.modus === 'zielen' ? 0 : Math.floor(f.anim * 6) % 2;
   const zittern = f.modus === 'zielen' ? (Math.floor(S.zeit * 30) % 2 ? 1 : -1) : 0;
   const x = Math.round(f.x - 16) + zittern, y = Math.round(f.y + 8 - 32) - (f.modus === 'sprung' ? 3 : 0);
-  if (f.warten > 0 && Math.floor(f.warten * 16) % 2) return;   // Erscheinen: kurz flackern
+  if (f.warten > 0 && f.warten > CFG.fuchs.wachAb - 0.4 && Math.floor(f.warten * 16) % 2) return;   // Erscheinen: kurz flackern
   const blitz = f.blitz > 0 && Math.floor(f.blitz * 30) % 2 === 0;
   zeichneLeinwand(blitz ? FUCHSBILD.blitz[bild] : FUCHSBILD[f.art][bild], x, y, f.spiegeln);
   if (f.modus === 'zielen') schreibe('!', f.x, y - 14, 2, PAL.gold2);
+}
+function zeichneTuer(d, art) {   // geschlossene Tür über der Öffnung: Holz mit Schloss oder Gitter
+  const [x, y, w, h] = TUER_RECHTECK[d];
+  ctx.fillStyle = PAL.schwarz; ctx.fillRect(x, y, w, h);
+  if (art === 'schloss') {
+    ctx.fillStyle = PAL.holz1; ctx.fillRect(x + 2, y + 2, w - 4, h - 4);
+    ctx.fillStyle = PAL.holz0;
+    if (w >= h) for (let i = x + 9; i < x + w - 4; i += 9) ctx.fillRect(i, y + 2, 2, h - 4);
+    else for (let i = y + 9; i < y + h - 4; i += 9) ctx.fillRect(x + 2, i, w - 4, 2);
+    ctx.fillStyle = PAL.fels1;
+    if (w >= h) { ctx.fillRect(x + 2, y + 6, w - 4, 3); ctx.fillRect(x + 2, y + h - 9, w - 4, 3); }
+    else { ctx.fillRect(x + 6, y + 2, 3, h - 4); ctx.fillRect(x + w - 9, y + 2, 3, h - 4); }
+    const mx = x + w / 2, my = y + h / 2;
+    ctx.fillStyle = PAL.gold1; ctx.fillRect(mx - 5, my - 6, 10, 12);
+    ctx.fillStyle = PAL.schwarz; ctx.fillRect(mx - 1, my - 3, 2, 3); ctx.fillRect(mx - 2, my, 4, 3);
+  } else {
+    ctx.fillStyle = PAL.fels1; ctx.fillRect(x + 2, y + 2, w - 4, h - 4);
+    ctx.fillStyle = PAL.nacht; ctx.fillRect(x + 5, y + 5, w - 10, h - 10);
+    ctx.fillStyle = PAL.fels3;
+    if (w >= h) for (let i = x + 7; i < x + w - 5; i += 8) { ctx.fillRect(i, y + 3, 3, h - 6); }
+    else for (let i = y + 7; i < y + h - 5; i += 8) { ctx.fillRect(x + 3, i, w - 6, 3); }
+    ctx.fillStyle = PAL.fels4;
+    if (w >= h) ctx.fillRect(x + 3, y + h / 2 - 2, w - 6, 3); else ctx.fillRect(x + w / 2 - 2, y + 3, 3, h - 6);
+  }
+}
+function zeichneRaumInhalt() {   // was sich im Raum ändern kann: Türen, Platten, Truhen, Büsche, Blöcke
+  const r = S.raum;
+  for (const d of Object.keys(r.def.tueren)) if (tuerZu(d)) zeichneTuer(d, r.def.tueren[d].art);
+  for (const p of r.platten) ctx.drawImage(PLATTE[platteBelegt(p) ? 1 : 0], p.c * T, p.r * T);
+  for (const t of r.truhen) if (truheSichtbar(t)) ctx.drawImage(S.truhen.has(t.schluessel) ? TRUHE_AUF : TRUHE_ZU, t.x - 1, t.y - 3);
+  for (const b of r.buesche) if (b.da) zeichneBild(ctx, 'busch', b.x - 3, b.y - 8);
+  for (const b of r.bloecke) ctx.drawImage(BLOCK, Math.round(b.x), Math.round(b.y));
 }
 function zeichneBeute(b) {
   const rest = CFG.herz.dauer - b.t;
   if (rest < 2 && Math.floor(rest * 10) % 2) return;   // kurz vor dem Verschwinden blinken
   ctx.drawImage(HERZ.voll, Math.round(b.x - 9), Math.round(b.y - 14 - Math.abs(Math.sin(b.t * 4)) * 3));
 }
+function zeichneEffekte() {
+  for (const e of S.effekte) {
+    if (e.art === 'puff') { const b = PUFF[Math.min(PUFF.length - 1, Math.floor(e.t / 0.4 * PUFF.length))]; ctx.drawImage(b, Math.round(e.x - 20), Math.round(e.y - 20)); }
+    else if (e.art === 'blaetter') {
+      for (const [i, p] of e.teile.entries()) {
+        ctx.fillStyle = i % 2 ? PAL.moos4 : PAL.moos2;
+        ctx.fillRect(Math.round(e.x + Math.cos(p.a) * p.v * e.t), Math.round(e.y + Math.sin(p.a) * p.v * e.t + 120 * e.t * e.t), 4, 3);
+      }
+    }
+    else { const b = FUNKE[e.t < 0.06 ? 0 : 1]; ctx.drawImage(b, Math.round(e.x - b.width / 2), Math.round(e.y - b.height / 2)); }
+  }
+}
 function zeichneHud(h) {
-  const anzahl = CFG.held.lp / 2, mitte = BREITE - 84, x0 = Math.round(mitte - anzahl * 10 + 1);   // oben rechts wie im Vorbild
+  const anzahl = S.maxLp / 2, mitte = BREITE - 30 - anzahl * 10, x0 = Math.round(mitte - anzahl * 10 + 1);   // oben rechts wie im Vorbild
   schreibe('- LEBEN -', mitte, 6, 2, PAL.creme);
   for (let i = 0; i < anzahl; i++) {
     const rest = h.lp - i * 2;
     ctx.drawImage(rest >= 2 ? HERZ.voll : rest === 1 ? HERZ.halb : HERZ.leer, x0 + i * 20, 24);
   }
-  if (S.welle) {
-    schreibe('WELLE ' + S.welle, 40, 6, 2, PAL.creme, false);
-    schreibe('FÜCHSE ' + (S.fuechse.filter(f => !f.sterbend).length + S.warteschlange.length), 40, 26, 2, PAL.fels4, false);
-  }
+  schreibe(S.raum.def.nr + ' ' + S.raum.def.titel, 40, 6, 2, PAL.creme, false);
+  ctx.drawImage(SCHLUESSEL, 40, 27);
+  schreibe(String(S.schluessel), 72, 26, 2, PAL.creme, false);
 }
 function zeichneBanner() {
-  if (S.banner <= 0 || S.zustand !== 'spiel') return;
-  const vergangen = CFG.welle.banner - S.banner;
-  if (vergangen < 0.12 && Math.floor(vergangen * 30) % 2) return;
-  schreibe('WELLE ' + S.welle, BREITE / 2, 190, 5, PAL.gold2);
-  const neu = S.welle === 3 ? 'SILBERFÜCHSE SPRINGEN!' : S.welle === 5 ? 'GLUTFÜCHSE BEISSEN DOPPELT!' : '';
-  if (neu) schreibe(neu, BREITE / 2, 240, 2, PAL.creme);
+  const w = S.wellen;
+  if (!w || w.banner <= 0 || S.zustand !== 'spiel') return;
+  schreibe(`WELLE ${w.nr}/${S.raum.def.wellen.length}`, BREITE / 2, 190, 5, PAL.gold2);
+}
+function zeichneText() {
+  const t = S.text, oben = S.held.y > 300, y = oben ? 72 : HOEHE - 104, x = 24, w = BREITE - 48, hh = 88;
+  ctx.fillStyle = 'rgba(18,13,20,.92)'; ctx.fillRect(x, y, w, hh);
+  ctx.fillStyle = PAL.creme; ctx.fillRect(x, y, w, 2); ctx.fillRect(x, y + hh - 2, w, 2); ctx.fillRect(x, y, 2, hh); ctx.fillRect(x + w - 2, y, 2, hh);
+  let rest = Math.floor(t.zeichen);
+  t.seiten[t.seite].forEach((zeile, i) => {
+    if (rest <= 0) return;
+    schreibe(zeile.slice(0, rest), x + 16, y + 14 + i * 22, 2, PAL.creme, false); rest -= zeile.length;
+  });
+  if (t.zeichen >= t.seiten[t.seite].join('').length && Math.floor(S.zeit * 3) % 2 === 0) {   // weiter-Pfeil
+    ctx.fillStyle = PAL.gold2; const ax = x + w - 22, ay = y + hh - 16;
+    ctx.fillRect(ax, ay, 10, 2); ctx.fillRect(ax + 2, ay + 2, 6, 2); ctx.fillRect(ax + 4, ay + 4, 2, 2);
+  }
 }
 function zeichneEnde() {
   const a = Math.min(1, (S.zeit - S.endeZeit) / 0.6), blinkt = Math.floor(S.zeit * 2) % 2 === 0;
   ctx.fillStyle = `rgba(18,13,20,${0.65 * a})`; ctx.fillRect(0, 0, BREITE, HOEHE);
   if (a < 1) return;
-  schreibe('GAME OVER', BREITE / 2, 150, 6, PAL.rot2);
-  schreibe('WELLE ' + S.welle + ' ERREICHT', BREITE / 2, 230, 3, PAL.gold2);
-  schreibe(S.neuerRekord ? 'NEUER REKORD!' : 'REKORD: WELLE ' + beste, BREITE / 2, 270, 2, S.neuerRekord ? PAL.gold2 : PAL.fels4);
-  if (blinkt) schreibe(TOUCH.aktiv ? 'TIPPEN: NEUSTART' : 'TASTE R: NEUSTART', BREITE / 2, 320, 2, PAL.creme);
+  schreibe('GAME OVER', BREITE / 2, 170, 6, PAL.rot2);
+  if (blinkt) schreibe(TOUCH.aktiv ? 'TIPPEN: RAUM NEU BEGINNEN' : 'TASTE R: RAUM NEU BEGINNEN', BREITE / 2, 260, 2, PAL.creme);
 }
-function zeichne() {
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(hg, 0, 0);
+function zeichneWelt() {
   const h = S.held;
+  zeichneRaumInhalt();
   for (const b of S.beute) zeichneBeute(b);
   for (const f of S.fuechse) if (f.warten <= 0) schatten(f.x, f.y + 6, 22);
   schatten(h.x, h.y + 6, 18);
   const figuren = [...S.fuechse.map(f => ({ y: f.y, mal: () => zeichneFuchs(f) })), { y: h.y, mal: () => zeichneHeld(h) }];
   figuren.sort((a, b) => a.y - b.y).forEach(f => f.mal());
-  for (const e of S.effekte) {
-    if (e.art === 'puff') { const b = PUFF[Math.min(PUFF.length - 1, Math.floor(e.t / 0.4 * PUFF.length))]; ctx.drawImage(b, Math.round(e.x - 20), Math.round(e.y - 20)); }
-    else { const b = FUNKE[e.t < 0.06 ? 0 : 1]; ctx.drawImage(b, Math.round(e.x - b.width / 2), Math.round(e.y - b.height / 2)); }
+  zeichneEffekte();
+}
+function zeichne() {
+  ctx.imageSmoothingEnabled = false;
+  const h = S.held, w = S.wechsel;
+  if (w) {   // Bildlauf: alter Raum schiebt hinaus, neuer herein, der Held wandert mit
+    const o = w.t < 0.5 ? 2 * w.t * w.t : 1 - 2 * (1 - w.t) * (1 - w.t), [dx, dy] = RICHTUNG[w.d];
+    ctx.drawImage(w.altBg, Math.round(-dx * o * BREITE), Math.round(-dy * o * HOEHE));
+    ctx.drawImage(S.raum.bg, Math.round(dx * (1 - o) * BREITE), Math.round(dy * (1 - o) * HOEHE));
+    const ax = w.p0.x - dx * o * BREITE, ay = w.p0.y - dy * o * HOEHE, bx = h.x + dx * (1 - o) * BREITE, by = h.y + dy * (1 - o) * HOEHE;
+    ctx.save(); ctx.translate(Math.round(ax + (bx - ax) * o - h.x), Math.round(ay + (by - ay) * o - h.y)); zeichneHeld(h); ctx.restore();
+    zeichneHud(h);
+    return;
   }
+  ctx.drawImage(S.raum.bg, 0, 0);
+  zeichneWelt();
   zeichneHud(h);
   zeichneBanner();
+  if (S.text) zeichneText();
   if (S.zustand !== 'spiel') zeichneEnde();
 }
 
 // ---------- Schleife & Skalierung ----------
 // Tastatur: Platz für die Hilfezeile. Touch hochkant: Spielfeld oben, Bedienung darunter.
-// Touch quer: links und rechts Rand für Stick und Schwertknopf (darf das Spielfeld etwas überdecken).
+// Touch quer: links und rechts Rand für Stick und Aktionsknopf (darf das Spielfeld etwas überdecken).
 function skaliere() {
   const w = innerWidth, h = innerHeight, hochkant = h > w;
   document.body.classList.toggle('hochkant', TOUCH.aktiv && hochkant);
@@ -754,7 +1296,9 @@ function schleife(jetzt) {
 }
 
 atlas.onload = () => {
-  baueFuchsbilder(); baueHintergrund(); neuesSpiel(); skaliere();
+  baueFuchsbilder();
+  neuesSpiel(RAEUME[PARAM.get('raum')] ? PARAM.get('raum') : START_RAUM);
+  skaliere();
   requestAnimationFrame(t => { vorher = t; schleife(t); });
 };
 atlas.src = ATLAS_SRC;
