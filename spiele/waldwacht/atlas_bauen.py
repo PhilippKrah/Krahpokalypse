@@ -18,11 +18,13 @@ atlas = Image.open(io.BytesIO(base64.b64decode(b64))).convert('RGBA')
 WAHL = {  # eigener Name: Name im Gutsverwalter-Atlas
     **{f'held_{i}': f'01-verwalter_{i}' for i in range(9)},   # 0-2 unten, 3-5 rechts, 6-8 oben
     'fuchs_0': '01-tiere_2', 'fuchs_1': '01-tiere_3',
+    'hase_0': '01-tiere_0', 'hase_1': '01-tiere_1', 'huhn_0': '01-tiere_4', 'huhn_1': '01-tiere_5',
     'gras_0': '01-boden_0', 'gras_1': '01-boden_1', 'gras_2': '01-boden_2', 'gras_3': '01-boden_5',
     'buesche': '01-deko_1', 'pilz': '01-deko_3', 'blumen': '01-deko_4',
     'stein': '01-deko_5', 'busch': '01-deko_8', 'beerenbusch': '01-deko_2',
     'stumpf': '01-objekte_1', 'holzstapel': '01-objekte_5',
     'stamm_0': '01-totholz_0', 'stamm_1': '01-totholz_1', 'stamm_2': '01-totholz_2',
+    'laterne_0': '01-laterne_0', 'laterne_1': '01-laterne_1',
 }
 
 BREITE = 32 * 8
