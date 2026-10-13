@@ -125,6 +125,11 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   Kristallschalter mit Pflöcken, Dunkelheit mit Fackeln und Laterne, Schlüssel,
   Wellen). Dunkelheit ist als Lichtwert je Feld modelliert (wie im
   Gutsverwalter); was sie spielerisch bewirkt, ist noch offen – bisher nur
-  Darstellung. Plan: weitere Probe-Räume, daraus ein Tutorial; Editor;
-  Raum-/Dungeonformen und Randomizer danach. Teststart `?dungeon=<id>&raum=<id>`.
+  Darstellung. Editor (`editor.js`, im Menü unter EDITOR): Dungeons mit
+  Raumkarte anlegen, Räume malen (Gelände, alle Objekte, Gegner), Türen je
+  Richtung (offen/Schloss/Kampf/Bedingung), Räume automatisch befüllen,
+  Gegnerarten mit Werten, Sprungangriff und Farben, Testen direkt aus dem
+  Editor, Rückgängig, Export/Import. Gespeichert wird nur im jeweiligen Browser.
+  Plan: weitere Probe-Räume, daraus ein Tutorial; Raum-/Dungeonformen und
+  Randomizer danach. Teststart `?dungeon=<id>&raum=<id>`.
   Grafik aus dem Gutsverwalter-Atlas, eingebettet per `atlas_bauen.py`.
