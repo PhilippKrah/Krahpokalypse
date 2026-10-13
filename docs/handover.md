@@ -117,11 +117,14 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   Änderungen an diesen Dateien direkt im Krahpokalypse-Repo gehen beim nächsten
   Veröffentlichen verloren.
 - `spiele/waldwacht/` — Spiel „Waldwacht" (Arbeitstitel), Top-Down-Action im Stil
-  von „A Link to the Past". Stand Entwurf 3 (Oktober 2026): Probe-Dungeon aus
-  acht Räumen hintereinander, je Raum eine Mechanik (Laufen, Büsche, Kampfraum
-  mit Gittertüren, Abzweigung mit Schlüssel, Schiebeblock auf Druckplatte,
-  Wellenraum mit Herzcontainer), Raumwechsel mit Bildlauf, Textfenster,
-  Touch-Steuerung. Plan: weitere Probe-Räume sammeln, daraus ein Tutorial;
-  Raumformen, Dungeonformen und Randomizer erst danach. Wird hier entwickelt,
-  Räume im Objekt `RAEUME`, Stellschrauben in `CFG`, Teststart `?raum=<id>`.
+  von „A Link to the Past". Stand Entwurf 4 (Oktober 2026): datengetriebene
+  Engine – alle Räume, Dungeons, Objekt-/Gegnerarten, Gegenstände und
+  Einstellungen stehen als JSON im Block `spieldaten` (Vorbereitung für einen
+  Editor). Zwei Dungeons im Menü: der lineare Probe-Dungeon (je Raum eine
+  Mechanik) und „Der dunkle Hain" (verzweigt: Abgründe, Block in den Graben,
+  Kristallschalter mit Pflöcken, Dunkelheit mit Fackeln und Laterne, Schlüssel,
+  Wellen). Dunkelheit ist als Lichtwert je Feld modelliert (wie im
+  Gutsverwalter); was sie spielerisch bewirkt, ist noch offen – bisher nur
+  Darstellung. Plan: weitere Probe-Räume, daraus ein Tutorial; Editor;
+  Raum-/Dungeonformen und Randomizer danach. Teststart `?dungeon=<id>&raum=<id>`.
   Grafik aus dem Gutsverwalter-Atlas, eingebettet per `atlas_bauen.py`.

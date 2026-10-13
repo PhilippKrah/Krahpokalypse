@@ -23,6 +23,7 @@ WAHL = {  # eigener Name: Name im Gutsverwalter-Atlas
     'stein': '01-deko_5', 'busch': '01-deko_8', 'beerenbusch': '01-deko_2',
     'stumpf': '01-objekte_1', 'holzstapel': '01-objekte_5',
     'stamm_0': '01-totholz_0', 'stamm_1': '01-totholz_1', 'stamm_2': '01-totholz_2',
+    'laterne_0': '01-laterne_0', 'laterne_1': '01-laterne_1',
 }
 
 BREITE = 32 * 8
