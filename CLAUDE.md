@@ -42,7 +42,8 @@ Die App konkurriert mit einer Notizen-App, in der die Aufgaben als Freitext unte
 - Datum kommt **ausschließlich über Buttons** — bewusst keine Texterkennung von „Montag"/„morgen": was getippt werden muss, spart nichts.
 - Die Tages-Buttons entstehen relativ zu heute (`Heute`, `Morgen`, dann Wochentagskürzel), damit die Frage „Montag = heute oder nächste Woche?" gar nicht aufkommt.
 - Die nächsten sieben Tage haben **immer** eine Überschrift, auch leer — sonst gäbe es dort kein „+" zum Anlegen.
-- Überfälliges rutscht in `gruppiere()` still nach „Heute" (das gespeicherte `due_date` bleibt unverändert). Keine Warnfarben, keine Überfällig-Zähler: eine App, die ein schlechtes Gewissen macht, wird nicht mehr geöffnet.
+- Überfälliges rutscht in `gruppiere()` still nach „Heute" (das gespeicherte `due_date` bleibt unverändert). Damit das nicht irritiert, steht dahinter ein kleiner **grauer** Hinweis „seit gestern"/„seit Mo"/„seit 3.10." (`seitLabel()`); „Heute" in der Aktionsleiste setzt das Datum neu und lässt ihn verschwinden. Keine Warnfarben, keine Überfällig-Zähler: eine App, die ein schlechtes Gewissen macht, wird nicht mehr geöffnet.
+- `renderTodos()` setzt den Fokus nur dann zurück in die „+"-Eingabezeile eines Abschnitts, wenn man dort gerade tippt (mit `preventScroll`). Früher fokussierte jedes Neuzeichnen sie — dann sprang die Seite bei jedem Tipp anderswo zu dieser Zeile.
 - Datumsrechnung immer in Ortszeit über `toIso()`/`fromIso()`. `toISOString()` ist hier falsch, das rechnet nach UTC und macht abends aus „heute" schon „morgen".
 
 ## Zugriffsschutz
