@@ -130,6 +130,12 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   Richtung (offen/Schloss/Kampf/Bedingung), Räume automatisch befüllen,
   Gegnerarten mit Werten, Sprungangriff und Farben, Testen direkt aus dem
   Editor, Rückgängig, Export/Import. Gespeichert wird nur im jeweiligen Browser.
+  Seit Entwurf 6: Bedingungen per Formular statt Freitext (Signale zur Auswahl,
+  `pruefeDaten()` meldet abgefragte, aber nie ausgelöste Signale), Kristalltypen
+  mit eigener Farbfolge (global verwaltet, Zustand gilt im ganzen Dungeon,
+  Pflöcke je Typ und Farbe), Pipette (Alt+Klick) und Vorlagen, Rechteck-Füllen
+  (Umschalt+Ziehen), Wellen per Zahlenfeldern, Platten wahlweise „einmal drücken
+  genügt“. Eigenlicht ohne Laterne nur noch ein kleiner Schein.
   Plan: weitere Probe-Räume, daraus ein Tutorial; Raum-/Dungeonformen und
   Randomizer danach. Teststart `?dungeon=<id>&raum=<id>`.
   Grafik aus dem Gutsverwalter-Atlas, eingebettet per `atlas_bauen.py`.

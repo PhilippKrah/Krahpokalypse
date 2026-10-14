@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Waldwacht (Arbeitstitel) – Entwurf 4: datengetriebene Engine. Top-Down-Action-Adventure im Stil von „A Link to the Past“.
+  Waldwacht (Arbeitstitel) – Entwurf 6: datengetriebene Engine mit Editor. Top-Down-Action-Adventure im Stil von „A Link to the Past“.
 
   Trennung: Der Code kennt nur allgemeine Bausteine (Kacheln, Objekt-Eigenschaften, Gegner-Verhalten, Bedingungen).
   Alles Konkrete steht als reines JSON im Block <script id="spieldaten">: Einstellungen, Kacheln, Zeichen-Legende,
@@ -11,9 +11,12 @@
     zeichen      Zeichen → { objekt: <objektart>, ...Parameter } oder { gegner: <gegnerart> }; je Raum ergänzbar (raum.zeichen)
     objektarten  Eigenschaften, die die Engine kennt:
                    bild ("@intern" oder Atlasname) · bilder+kette (gleiche Zeichen nebeneinander = ein Objekt) · fest [x,y,w,h]
-                   schneidbar {herz} · schiebbar · lesbar (text) · oeffnbar (inhalt) · platte (signal, wer: block|alle)
-                   kristall (signal, Schwert schaltet um) · pflock (oben_wenn) · leuchtet {radius, staerke} (an_wenn)
+                   schneidbar {herz} · schiebbar · lesbar (text) · oeffnbar (inhalt) · platte (signal, wer: block|alle, merken)
+                   kristall (kristalltyp; Schwert: nächste Farbe) · pflock (kristalltyp + farbe: oben, wenn der Typ diese
+                   Farbe zeigt; sonst oben_wenn) · leuchtet {radius, staerke} (an, an_wenn)
                  Parameter je Objekt: sichtbar_wenn, an_wenn, oben_wenn, merken (einmal wahr = bleibt wahr), spiegeln
+    kristalltypen  { id: {name, farben: [Farbe…]} } – Farben in Schaltreihenfolge, die erste gilt zu Beginn. Der Zustand
+                 gilt im ganzen Dungeon: alle Kristalle eines Typs zeigen dieselbe Farbe und schalten gemeinsam weiter.
     gegnerarten  bild, farben (Farbtausch), lp, tempo, schaden, fuss, koerper, beute {herz}, sprung {…} (Verhalten)
     gegenstaende bild, text, wirkung {schluessel|laterne|…: Anzahl, maxLp, heilen}, leuchtet (Held trägt Licht)
     dungeons     titel, start {raum, feld}, raeume { id: raum }
@@ -21,8 +24,10 @@
                  karte (15 Zeilen × 20 Zeichen), zeichen, objekte [{objekt, feld:[c,r], …}], gegner [{gegner, feld}],
                  tueren {n|o|s|w: {ziel, schloss, offen_wenn, merken}}, wellen [[gegnerart…]…], einstieg (Text),
                  ereignisse [{wenn, text, setze {signal: wert}}] (je einmal)
-  Bedingungen: "signal" · {"alle": [...]} · {"eine": [...]} · {"nicht": ...}. Eingebaut: "geraeumt" (keine Gegner mehr, Wellen fertig).
-  Signale kommen von Platten (solange belegt), Kristallen (umschalten, bleibt), Ereignissen (setze).
+  Bedingungen: "signal" · {"alle": [...]} · {"eine": [...]} · {"nicht": ...}. Eingebaut: "geraeumt" (keine Gegner mehr, Wellen fertig),
+               "<kristalltyp>=<farbe>" (z. B. "kristall=orange": der Typ zeigt gerade diese Farbe).
+  Signale kommen von Platten (solange belegt, mit merken dauerhaft), Kristallen (siehe oben), Ereignissen (setze).
+  Ein Signal gilt im ganzen Dungeon, nur „Platte gerade belegt“ wirkt allein im eigenen Raum.
   Licht: je Feld ein Wert 0..1 aus Raumstufe/Lichtkarte, dazu Lichtquellen (Fackeln, Laterne, eigener Schein); lichtBei(x, y)
   liefert ihn für spätere Spielregeln – bisher wirkt Dunkelheit nur auf die Darstellung.
 
@@ -81,8 +86,8 @@
     "welle": { "abstand": 0.7, "pause": 1.2, "banner": 1.6, "bannerVorlauf": 0.8, "mindestAbstand": 170 },
     "schieben": { "anlauf": 0.35, "dauer": 0.3 },
     "abgrund": { "schaden": 1, "fallDauer": 0.6 },
-    "licht": { "stufen": { "hell": 1, "daemmrig": 0.6, "dunkel": 0.3, "finster": 0.05 }, "dunkelMax": 0.94,
-               "eigen": { "radius": 1.6, "staerke": 0.55 } },
+    "licht": { "stufen": { "hell": 1, "daemmrig": 0.6, "dunkel": 0.3, "finster": 0.02 }, "dunkelMax": 0.98,
+               "eigen": { "radius": 1.1, "staerke": 0.3 } },
     "wechsel": { "dauer": 0.6 },
     "text": { "tempo": 70 },
     "trefferStopp": 4
@@ -92,9 +97,9 @@
     "S": { "objekt": "stein" }, "E": { "objekt": "beerenbusch" }, "P": { "objekt": "stumpf" }, "O": { "objekt": "holzstapel" },
     "L": { "objekt": "stamm" }, "b": { "objekt": "busch" }, "B": { "objekt": "block" },
     "_": { "objekt": "platte", "signal": "platte" }, "F": { "objekt": "fackel" },
-    "C": { "objekt": "kristall", "signal": "kristall" },
-    "x": { "objekt": "pflock", "farbe": "blau", "oben_wenn": { "nicht": "kristall" } },
-    "y": { "objekt": "pflock", "farbe": "orange", "oben_wenn": "kristall" },
+    "C": { "objekt": "kristall", "kristalltyp": "kristall" },
+    "x": { "objekt": "pflock", "kristalltyp": "kristall", "farbe": "blau" },
+    "y": { "objekt": "pflock", "kristalltyp": "kristall", "farbe": "orange" },
     "f": { "gegner": "fuchs" }, "s": { "gegner": "silber" }, "g": { "gegner": "glut" }
   },
   "objektarten": {
@@ -120,6 +125,9 @@
     "glut":   { "bild": "fuchs", "farben": { "#b88250": "#a3343a", "#4a2a2a": "#3e1420", "#ece8d6": "#f4cd5e" },
                 "lp": 4, "tempo": 58, "schaden": 2, "fuss": [11, 6], "koerper": [26, 20], "beute": { "herz": 0.2 },
                 "sprung": { "reichweite": 190, "zielen": 0.4, "dauer": 0.36, "tempo": 340, "pause": [1.4, 2.4] } }
+  },
+  "kristalltypen": {
+    "kristall": { "name": "Blau/Orange", "farben": ["blau", "orange"] }
   },
   "gegenstaende": {
     "schluessel":    { "bild": "@schluessel", "text": "Du hast einen kleinen Schlüssel gefunden! Er öffnet eine verschlossene Tür.", "wirkung": { "schluessel": 1 } },
@@ -596,6 +604,45 @@ function bewege(e, mx, my, liste) {
   }
 }
 
+// ---------- Kristalltypen ----------
+const kristallTyp = id => DATEN.kristalltypen[id] || { name: id, farben: ['blau', 'orange'] };
+function migriereObjekt(o) {   // ältere Daten: Kristall mit signal, Pflock mit oben_wenn → Kristalltyp und Farbe
+  const art = DATEN.objektarten[o.objekt];
+  if (!art) return o;
+  if (art.kristall && o.kristalltyp === undefined) { o.kristalltyp = o.signal || 'kristall'; delete o.signal; }
+  if (art.pflock && o.kristalltyp === undefined) {
+    const b = o.oben_wenn, typ = typeof b === 'string' ? b : b && typeof b.nicht === 'string' ? b.nicht : null;
+    if (typ) { const f = kristallTyp(typ).farben; o.kristalltyp = typ; o.farbe = typeof b === 'string' ? f[1] : f[0]; delete o.oben_wenn; }
+  }
+  return o;
+}
+// Welche Signale eine Bedingung abfragt (für die Prüfung und den Editor)
+function bedingungsSignale(b, liste = []) {
+  if (typeof b === 'string') liste.push(b);
+  else if (b && typeof b === 'object') for (const t of [b.nicht, ...(b.alle || []), ...(b.eine || [])]) if (t !== undefined) bedingungsSignale(t, liste);
+  return liste;
+}
+// Alle Signale eines Dungeons: wer sie auslöst (Platten, Ereignisse, Kristalltypen) und wer sie abfragt
+function dungeonSignale(d, dg) {
+  const quellen = {}, fragen = {}, neu = (tab, name, wo) => (tab[name] = tab[name] || []).push(wo);
+  for (const [id, r] of Object.entries(dg.raeume)) {
+    const legende = { ...d.zeichen, ...(r.zeichen || {}) }, eintraege = [...(r.objekte || [])];
+    for (const z of r.karte) for (const ch of z) if (legende[ch] && legende[ch].objekt) eintraege.push(legende[ch]);
+    for (const e of eintraege) {
+      const art = d.objektarten[e.objekt] || {};
+      if (art.platte && e.signal) neu(quellen, e.signal, { raum: id, art: 'platte', merken: !!e.merken });
+      if ((art.kristall || art.pflock) && e.kristalltyp) for (const f of kristallTyp(e.kristalltyp).farben) neu(quellen, e.kristalltyp + '=' + f, { raum: id, art: 'kristall' });
+      for (const k of ['sichtbar_wenn', 'an_wenn', 'oben_wenn']) for (const s of bedingungsSignale(e[k])) neu(fragen, s, { raum: id, art: e.objekt });
+    }
+    for (const [dir, t] of Object.entries(r.tueren)) for (const s of bedingungsSignale(t.offen_wenn)) neu(fragen, s, { raum: id, art: 'tür ' + dir });
+    for (const e of r.ereignisse || []) {
+      for (const s of Object.keys(e.setze || {})) neu(quellen, s, { raum: id, art: 'ereignis' });
+      for (const s of bedingungsSignale(e.wenn)) neu(fragen, s, { raum: id, art: 'ereignis' });
+    }
+  }
+  return { quellen, fragen };
+}
+
 // ---------- Daten prüfen ----------
 // Meldet Fehler in den Spieldaten (Konsole, Zahl im Menü), damit ein späterer Editor dieselben Regeln nutzen kann.
 function pruefeDaten(d, still = false) {
@@ -616,13 +663,22 @@ function pruefeDaten(d, still = false) {
         if (e.objekt && !d.objektarten[e.objekt]) w.push(`${wo}: unbekannte Objektart ${e.objekt}`);
         if (e.gegner && !d.gegnerarten[e.gegner]) w.push(`${wo}: unbekannte Gegnerart ${e.gegner}`);
         if (e.inhalt && !d.gegenstaende[e.inhalt]) w.push(`${wo}: unbekannter Gegenstand ${e.inhalt}`);
+        const art = d.objektarten[e.objekt] || {};
+        if ((art.kristall || art.pflock) && e.kristalltyp && !d.kristalltypen[e.kristalltyp]) w.push(`${wo}: unbekannter Kristalltyp ${e.kristalltyp}`);
+        if (art.pflock && e.kristalltyp && d.kristalltypen[e.kristalltyp] && !d.kristalltypen[e.kristalltyp].farben.includes(e.farbe))
+          w.push(`${wo}: Pflock-Farbe ${e.farbe} kommt im Kristalltyp ${d.kristalltypen[e.kristalltyp].name} nicht vor`);
+        if (art.platte && !e.signal) w.push(`${wo}: Platte ohne Signal`);
       }
       for (const welle of r.wellen || []) for (const g of welle) if (!d.gegnerarten[g]) w.push(`${wo}: Welle mit unbekannter Gegnerart ${g}`);
+      (r.wellen || []).forEach((welle, i) => { if (!welle.length) w.push(`${wo}: Welle ${i + 1} ist leer`); });
       for (const [dir, t] of Object.entries(r.tueren)) {
         const gegen = dg.raeume[t.ziel] && dg.raeume[t.ziel].tueren[GEGENUEBER[dir]];
         if (!gegen || gegen.ziel !== id) w.push(`${wo}: Tür ${dir} → ${t.ziel} hat keine passende Gegentür`);
       }
     }
+    const { quellen, fragen } = dungeonSignale(d, dg);   // abgefragt, aber nie ausgelöst = Tür bleibt für immer zu
+    for (const [name, wo] of Object.entries(fragen)) if (name !== 'geraeumt' && !quellen[name] && !(name.includes('=') && d.kristalltypen[name.split('=')[0]]))
+      w.push(`${did}/${wo[0].raum}: Signal „${name}“ wird abgefragt (${wo[0].art}), aber nirgends ausgelöst`);
   }
   if (!still) for (const m of w) console.warn('Spieldaten:', m);
   return w;
@@ -631,20 +687,24 @@ let WARNUNGEN = [];
 
 // ---------- Eigene Dungeons und Gegnerarten (Editor) ----------
 // Der Editor speichert im Browser (localStorage) im selben Format; beim Start kommen sie zu den eingebauten dazu.
-const EINGEBAUT = { dungeons: { ...DATEN.dungeons }, gegnerarten: { ...DATEN.gegnerarten } };
+const EINGEBAUT = { dungeons: { ...DATEN.dungeons }, gegnerarten: { ...DATEN.gegnerarten }, kristalltypen: { ...DATEN.kristalltypen } };
 const EIGENE_SCHLUESSEL = 'waldwacht.eigene';
 function ladeEigene() {
   try {
     const e = JSON.parse(localStorage.getItem(EIGENE_SCHLUESSEL) || 'null');
-    if (e && e.format === 1) return { dungeons: {}, gegnerarten: {}, ...e };
+    if (e && e.format === 1) return { dungeons: {}, gegnerarten: {}, kristalltypen: {}, ...e };
   } catch (err) { console.warn('Eigene Daten nicht lesbar:', err); }
-  return { format: 1, dungeons: {}, gegnerarten: {} };
+  return { format: 1, dungeons: {}, gegnerarten: {}, kristalltypen: {} };
 }
 function uebernehmeEigene(e, mitBildern = false) {   // auch vom Editor nach jeder Änderung aufgerufen
   const kopie = o => JSON.parse(JSON.stringify(o));
   DATEN.gegnerarten = { ...EINGEBAUT.gegnerarten, ...kopie(e.gegnerarten) };
+  DATEN.kristalltypen = { ...EINGEBAUT.kristalltypen, ...kopie(e.kristalltypen || {}) };
   DATEN.dungeons = { ...EINGEBAUT.dungeons };
-  for (const [id, d] of Object.entries(e.dungeons)) DATEN.dungeons[id] = { ...kopie(d), eigen: true };
+  for (const [id, d] of Object.entries(e.dungeons)) {
+    DATEN.dungeons[id] = { ...kopie(d), eigen: true };
+    for (const r of Object.values(DATEN.dungeons[id].raeume)) for (const o of r.objekte || []) migriereObjekt(o);
+  }
   WARNUNGEN = pruefeDaten(DATEN, mitBildern);
   if (mitBildern) baueDatenbilder();
 }
@@ -803,10 +863,16 @@ const PLATTE = [false, true].map(gedrueckt => {
   return c;
 });
 
-// Kristallschalter (blau = aus, orange = an), Pflöcke je Farbe oben/unten, Fackel (aus, zwei Flammenbilder)
-const KRISTALL = [
-  { h: PAL.blau3, c: PAL.blau2, d: PAL.blau1 }, { h: PAL.gold2, c: PAL.gold1, d: PAL.rot2 },
-].map(f => pixelbild([
+// Kristallschalter und Pflöcke je Farbe (Kristall: hell/mitte/dunkel, Pflock: hell/mitte/dunkel), Fackel (aus, zwei Flammen)
+const KFARBEN = {
+  blau:   { name: 'Blau',   k: [PAL.blau3, PAL.blau2, PAL.blau1], p: [PAL.blau3, PAL.blau1, PAL.blau0] },
+  orange: { name: 'Orange', k: [PAL.gold2, PAL.gold1, PAL.rot2],  p: [PAL.gold2, PAL.gold1, PAL.gold0] },
+  gruen:  { name: 'Grün',   k: [PAL.moos5, PAL.moos4, PAL.moos2], p: [PAL.moos5, PAL.moos3, PAL.moos1] },
+  rot:    { name: 'Rot',    k: [PAL.rosa, PAL.rot2, PAL.rot1],    p: [PAL.rot2, PAL.rot1, PAL.rot0] },
+  lila:   { name: 'Lila',   k: ['#e2b8ec', '#b07cc6', '#7a4f9a'],  p: ['#c99ad8', '#8e5ea8', '#553872'] },
+  weiss:  { name: 'Weiß',   k: [PAL.weiss, PAL.fels5, PAL.fels3], p: [PAL.weiss, PAL.fels4, PAL.fels2] },
+};
+const KRISTALL = Object.fromEntries(Object.entries(KFARBEN).map(([name, { k: [h, c, d] }]) => [name, pixelbild([
   '.....hc.....',
   '....hhcc....',
   '...hhhccc...',
@@ -821,9 +887,8 @@ const KRISTALL = [
   '..pppppppp..',
   '.pPPPPPPPPp.',
   '.PPPPPPPPPP.',
-], { ...f, p: PAL.fels4, P: PAL.fels2 }, PAL.schwarz, 2));
-const PFLOCK_FARBEN = { blau: [PAL.blau3, PAL.blau1, PAL.blau0], orange: [PAL.gold2, PAL.gold1, PAL.gold0] };
-const PFLOCK = Object.fromEntries(Object.entries(PFLOCK_FARBEN).map(([name, [hell, mitte, dunkel]]) => [name, [false, true].map(oben => {
+], { h, c, d, p: PAL.fels4, P: PAL.fels2 }, PAL.schwarz, 2)]));
+const PFLOCK = Object.fromEntries(Object.entries(KFARBEN).map(([name, { p: [hell, mitte, dunkel] }]) => [name, [false, true].map(oben => {
   const [c, g] = leinwand(T, T);
   if (oben) {
     g.fillStyle = PAL.schwarz; g.fillRect(3, 3, 26, 26);
@@ -1146,6 +1211,7 @@ function starteDungeon(dungeonId, raumId) {
     zeit: 0, endeZeit: 0, stopp: 0,
     maxLp: CFG.held.lp, inventar: {}, besitz: new Set(),
     signale: {}, gemerkt: new Set(), geraeumt: new Set(), truhen: new Set(), besucht: new Set(),   // Fortschritt
+    kristalle: {},     // je Kristalltyp die Nummer der aktuellen Farbe (gilt im ganzen Dungeon)
     live: new Set(),   // Signale, die gerade anliegen (belegte Platten)
     held: { x: 0, y: 0, hw: 9, hh: 6, blick: 'runter', lp: CFG.held.lp, modus: 'normal', t: 0, vx: 0, vy: 0,
       unverwundbar: 0, anim: 0, schlagNr: 0, schieben: 0 },
@@ -1174,7 +1240,7 @@ function betreteRaum(id, eintritt) {
     if (def.wellen) S.wellen = { nr: 0, warteschlange: [], spawnUhr: 0, banner: 0, ruhe: 0.5, fertig: false };
   }
   S.einlauf = eintritt.einlauf || null;
-  for (const o of S.raum.objekte) if (o.typ.pflock) o.oben = gilt(o.p.oben_wenn);
+  for (const o of S.raum.objekte) if (o.typ.pflock) o.oben = pflockSoll(o);
   aktualisiereSignale();
   for (const d of Object.keys(def.tueren)) S.raum.tuerZu[d] = tuerZu(d);
   aktualisiereHindernisse();
@@ -1197,10 +1263,14 @@ function raumGeraeumt() {
   if (S.raum.def.kampf) return S.geraeumt.has(S.raum.schluessel);
   return !S.gegner.some(g => !g.sterbend) && (!S.wellen || S.wellen.fertig);
 }
+const kristallFarbe = typ => { const f = kristallTyp(typ).farben; return f[(S.kristalle[typ] || 0) % f.length]; };
 function signal(name) {
   if (name === 'geraeumt') return raumGeraeumt();
+  const k = name.indexOf('=');
+  if (k > 0) return kristallFarbe(name.slice(0, k)) === name.slice(k + 1);   // "typ=farbe"
   return S.live.has(name) || !!S.signale[name];
 }
+const pflockSoll = o => o.p.kristalltyp ? kristallFarbe(o.p.kristalltyp) === o.p.farbe : gilt(o.p.oben_wenn);
 function gilt(b) {   // Bedingung aus den Daten auswerten; fehlende Bedingung gilt
   if (b === undefined || b === null) return true;
   if (typeof b === 'string') return signal(b);
@@ -1218,6 +1288,7 @@ function gemerkt(key, bedingung, merken) {   // merken: einmal wahr, bleibt wahr
 const sichtbar = o => !o.weg && gilt(o.p.sichtbar_wenn);
 const fackelAn = o => o.p.an !== false && gemerkt(o.key + ':an', o.p.an_wenn, o.p.merken);
 function platteBelegt(o) {
+  if (o.p.merken && S.gemerkt.has(o.key)) return true;   // einmal gedrückt, bleibt unten
   if (S.raum.objekte.some(b => b.typ.schiebbar && !b.weg && !b.bewegt && b.c === o.c && b.r === o.r)) return true;
   if (o.p.wer !== 'alle') return false;
   const drauf = (x, y) => { const [c, r] = feldVon(x, y); return c === o.c && r === o.r; };
@@ -1225,7 +1296,10 @@ function platteBelegt(o) {
 }
 function aktualisiereSignale() {
   S.live = new Set();
-  for (const o of S.raum.objekte) if (o.typ.platte && platteBelegt(o)) S.live.add(o.p.signal);
+  for (const o of S.raum.objekte) if (o.typ.platte && platteBelegt(o)) {
+    S.live.add(o.p.signal);
+    if (o.p.merken) { S.gemerkt.add(o.key); S.signale[o.p.signal] = true; }   // dauerhaft, im ganzen Dungeon
+  }
 }
 
 // ---------- Türen und Hindernisse ----------
@@ -1481,7 +1555,7 @@ function pruefeSchwert(h) {
     }
     if (o.typ.kristall && o.getroffen !== h.schlagNr && trifft({ x: f.x - 4, y: f.y - 10, w: f.w + 8, h: f.h + 14 })) {   // umschalten
       o.getroffen = h.schlagNr;
-      S.signale[o.p.signal] = !S.signale[o.p.signal];
+      S.kristalle[o.p.kristalltyp] = ((S.kristalle[o.p.kristalltyp] || 0) + 1) % kristallTyp(o.p.kristalltyp).farben.length;
       S.effekte.push({ art: 'funke', x: f.x + f.w / 2, y: f.y - 4, t: 0 });
       S.stopp = CFG.trefferStopp;
     }
@@ -1508,7 +1582,7 @@ function updateObjekte() {
       }
     }
     if (o.typ.pflock) {   // hochfahren erst, wenn nichts mehr darauf steht
-      const soll = gilt(o.p.oben_wenn);
+      const soll = pflockSoll(o);
       if (!soll) o.oben = false;
       else if (!o.oben) {
         const r = { x: o.x + o.typ.fest[0], y: o.y + o.typ.fest[1], w: o.typ.fest[2], h: o.typ.fest[3] };
@@ -1715,8 +1789,8 @@ function zeichneObjekt(o) {   // Bild nach Eigenschaft und Zustand
   if (!sichtbar(o)) return;
   const t = o.typ, x = Math.round(o.x), y = Math.round(o.y);
   if (t.platte) ctx.drawImage(PLATTE[platteBelegt(o) ? 1 : 0], x, y);
-  else if (t.pflock) ctx.drawImage(PFLOCK[o.p.farbe || 'blau'][o.oben ? 1 : 0], x, y);
-  else if (t.kristall) ctx.drawImage(KRISTALL[signal(o.p.signal) ? 1 : 0], x + 2, y - 2);
+  else if (t.pflock) ctx.drawImage((PFLOCK[o.p.farbe] || PFLOCK.blau)[o.oben ? 1 : 0], x, y);
+  else if (t.kristall) ctx.drawImage(KRISTALL[kristallFarbe(o.p.kristalltyp)] || KRISTALL.blau, x + 2, y - 2);
   else if (t.oeffnbar) ctx.drawImage(S.truhen.has(o.key) ? TRUHE_AUF : TRUHE_ZU, x + 4, y + 9);
   else if (t.bild === '@fackel') ctx.drawImage(FACKEL[fackelAn(o) ? 1 + Math.floor(S.zeit * 6 + o.c) % 2 : 0], x + 8, y);
   else if (t.bild === '@schild') ctx.drawImage(SCHILD, x + 4, y + 10);
