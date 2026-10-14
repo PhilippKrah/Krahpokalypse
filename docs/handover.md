@@ -167,6 +167,20 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   Schritten (Signal an/aus, warten, warten bis, Text; wiederholbar), Gegnerarten
   „abgrundfest“, Ton für alle wichtigen Aktionen und einfache Musik (Dungeon,
   Boss). Bugfix: schnelle Jäger kleben nicht mehr am Helden.
+  Danach: Probe-Dungeon startet mit dem Dolch (Schwert aus der Truhe), Klingen
+  werden je Länge gebaut (Griff und Spitze fest, nur das Mittelstück wächst).
+  **Vierter Dungeon „Die Fuchsfeste“** (`fuchsfeste`, 23 Räume) – erster großer
+  Dungeon, nur aus vorhandenen Bausteinen: Start mit Dolch, Ostflügel-Schleife
+  (Block auf Platte, Abgrundstege mit Laterne, finsterer Gang mit Wächtern,
+  Kristallwache mit dem Kristallzustand aus der Brunnenstube, Block-Graben,
+  Zeitschalter, Riegel-Abkürzung zurück zur Torhalle), Zwischenboss
+  Panzerkeiler (nur nach Aufprall verwundbar) mit dem Schwert, das man fürs
+  Tor danach und zum Zurückschlagen braucht (Schützengalerie, Zwischenboss
+  Turmeule auf einer Insel im Abgrund), Dreifarb-Kristalle, optionaler
+  Zeitlauf zum Herzcontainer, Endboss Schattenfuchs (Phasen, Knaller-
+  Explosionen treffen ihn immer). Logikprüfung: 10 Stufen, keine Hinweise.
+  Erzeugt mit einem Python-Skript (nicht im Repo); Änderungen jetzt direkt im
+  JSON oder per Editor.
   Merkposten für später (vom Nutzer so gewünscht): mehrere Etagen (Treppen,
   Löcher nach unten), Erzählung über die Umgebung, große Räume mit mitlaufender
   Kamera, die Kernmechanik des Tutorials (nicht „Rückstoß“ – kommt später),
