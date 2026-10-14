@@ -15,7 +15,7 @@ const Editor = (() => {
     werkzeug: { art: 'kachel', wert: '#' },   // bei Objekten optional vorlage: Einstellungen für neu gesetzte
     form: 'pinsel',                // pinsel | rechteck (Umschalt hält Rechteck)
     auswahl: null,                 // { liste: 'objekte' | 'gegner', i }
-    gegnerArt: null, kristallTyp: null,
+    gegnerArt: null, gPhase: null, kristallTyp: null, vorgaben: {}, vorgabenOffen: false, meldung: null,
     maus: null, malt: false, rechteck: null,
     fuellen: { hindernisse: 'mittel', buesche: true, abgruende: false, gegner: 3, arten: ['fuchs'], auto: true },
   };
@@ -80,10 +80,12 @@ const Editor = (() => {
   // Signale, die in diesem Dungeon ausgelöst werden – zur Auswahl, gruppiert und erklärt
   function signalOptionen(dazu = []) {
     const d = DATEN.dungeons[Z.dungeon], { quellen } = d ? dungeonSignale(DATEN, d) : { quellen: {} }, nrVon = id => (dg().raeume[id] || {}).nr || id;
-    const gruppen = { 'Raum': [['geraeumt', 'Raum geräumt (keine Gegner mehr)']], 'Platten': [], 'Kristalle': [], 'Ereignisse': [], 'Nirgends ausgelöst (Tippfehler?)': [] };
+    const gruppen = { 'Raum': [['geraeumt', 'Raum geräumt (keine Gegner mehr)']], 'Platten': [], 'Kristalle': [], 'Gegner': [], 'Gegenstände': [], 'Ereignisse': [], 'Nirgends ausgelöst (Tippfehler?)': [] };
+    for (const [gid, g] of Object.entries(DATEN.gegenstaende)) if (!(g.wirkung || {}).schluessel) gruppen['Gegenstände'].push(['hat:' + gid, `hat ${g.name || gid}` + (quellen['hat:' + gid] ? '' : ' (liegt in keiner Truhe dieses Dungeons)')]);
     for (const [name, wo] of Object.entries(quellen)) {
       if (wo[0].art === 'platte') gruppen.Platten.push([name, `Platte „${name}“ gedrückt (Raum ${[...new Set(wo.map(w => nrVon(w.raum)))].join(', ')})`]);
       else if (wo[0].art === 'ereignis') gruppen.Ereignisse.push([name, `„${name}“ (von einem Ereignis gesetzt)`]);
+      else if (wo[0].art === 'gegner') gruppen.Gegner.push([name, `„${name}“ besiegt (${[...new Set(wo.map(w => w.gegner))].join(', ')}, Raum ${[...new Set(wo.map(w => nrVon(w.raum)))].join(', ')})`]);
     }
     for (const [id, k] of Object.entries(DATEN.kristalltypen)) for (const f of k.farben) gruppen.Kristalle.push([id + '=' + f, `Kristall ${k.name} zeigt ${farbName(f)}`]);
     const bekannt = new Set(Object.values(gruppen).flat().map(o => o[0]));
@@ -122,6 +124,11 @@ const Editor = (() => {
     }
     aendern && aendern(z);
     const [bereich, k] = div.dataset.bed.split('.'), r = raum();
+    if (bereich === 'ereignis') {
+      merke(); const ev = r.ereignisse[Number(k)], b = baueBedingung(z);
+      if (b === undefined) delete ev.wenn; else ev.wenn = b;
+      aenderung(); renderRechts(); return;
+    }
     if (bereich === 'tuer') {   // setzeTuer merkt sich den alten Stand selbst
       const b = baueBedingung(z);
       setzeTuer(k, b === undefined ? 'offen' : 'bedingung', b, r.tueren[k] && r.tueren[k].merken); return;
@@ -243,9 +250,10 @@ const Editor = (() => {
       const t = { ziel: nid };
       if (art === 'schloss') t.schloss = true;
       if (art === 'kampf') t.offen_wenn = 'geraeumt';
-      if (art === 'bedingung') {   // ohne Vorgabe: die erste Platte des Dungeons, sonst „geräumt“
-        const platte = Object.entries(dungeonSignale(DATEN, DATEN.dungeons[Z.dungeon]).quellen).find(([, wo]) => wo[0].art === 'platte');
-        t.offen_wenn = bedingung === undefined ? (platte ? platte[0] : 'geraeumt') : bedingung; if (merken) t.merken = true;
+      if (art === 'bedingung') {   // ohne Vorgabe: das erste Signal von Platte, Gegner oder Ereignis, sonst „geräumt“ (als Liste,
+        // damit es nicht als Kampftür gilt)
+        const q = Object.entries(dungeonSignale(DATEN, DATEN.dungeons[Z.dungeon]).quellen), erstes = ['platte', 'gegner', 'ereignis'].map(k => q.find(([, wo]) => wo[0].art === k)).find(Boolean);
+        t.offen_wenn = bedingung === undefined ? (erstes ? erstes[0] : { alle: ['geraeumt'] }) : bedingung; if (merken) t.merken = true;
       }
       r.tueren[dir] = t;
       n.tueren[g] = n.tueren[g] ? { ...n.tueren[g], ziel: Z.raum } : { ziel: Z.raum };
@@ -338,6 +346,14 @@ const Editor = (() => {
     const w = rechts ? { art: 'radierer' } : Z.werkzeug;
     const iO = r.objekte.findIndex(o => o.feld[0] === c && o.feld[1] === rr), iG = r.gegner.findIndex(g => g.feld[0] === c && g.feld[1] === rr);
     if (w.art === 'pipette') { if (erster) pipette(c, rr); return; }
+    if (Z.werkzeug.art === 'weg') {   // Wegpunkte für den ausgewählten Gegner; rechts nimmt den letzten weg
+      const g = Z.auswahl && Z.auswahl.liste === 'gegner' && r.gegner[Z.auswahl.i];
+      if (!erster || !g || !innen(c, rr)) return;
+      merke();
+      if (rechts) { if (g.weg) { g.weg.pop(); if (!g.weg.length) delete g.weg; } }
+      else g.weg = [...(g.weg || [g.feld]), [c, rr]];
+      aenderung(); renderRechts(); return;
+    }
     if (w.art === 'auswahl') {
       if (erster) { Z.auswahl = iO >= 0 ? { liste: 'objekte', i: iO } : iG >= 0 ? { liste: 'gegner', i: iG } : null; renderRechts(); zeichneRaum(); }
       return;
@@ -418,10 +434,20 @@ const Editor = (() => {
     }
     g.drawImage(Z.bg, 0, 0);
     for (const o of r.objekte) vorschauObjekt(g, o, r);
+    r.gegner.forEach((e, i) => {   // Wege: alle schwach, der ausgewählte Gegner deutlich
+      if (!e.weg) return;
+      const an = Z.auswahl && Z.auswahl.liste === 'gegner' && Z.auswahl.i === i, m = p => [p[0] * T + T / 2, p[1] * T + T / 2];
+      g.strokeStyle = an ? '#f4cd5e' : 'rgba(244,205,94,.35)'; g.lineWidth = an ? 3 : 2; g.setLineDash([]);
+      g.beginPath(); e.weg.forEach((p, k) => g[k ? 'lineTo' : 'moveTo'](...m(p))); g.stroke();
+      g.setLineDash([5, 5]); g.beginPath(); g.moveTo(...m(e.weg[e.weg.length - 1])); g.lineTo(...m(e.weg[0])); g.stroke(); g.setLineDash([]);
+      if (an) e.weg.forEach((p, k) => { const [x, y] = m(p); g.fillStyle = '#f4cd5e'; g.beginPath(); g.arc(x, y, 7, 0, 7); g.fill(); g.fillStyle = '#120d14'; g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.fillText(k + 1, x, y + 4); });
+    });
     for (const e of r.gegner) {
-      const b = GEGNERBILD[e.gegner];
-      if (b) g.drawImage(b[0], e.feld[0] * T, e.feld[1] * T - 8);
+      const b = GEGNERBILD[e.gegner], art = DATEN.gegnerarten[e.gegner] || {}, k = art.groesse || 1;
+      if (b) g.drawImage(b[0], e.feld[0] * T + 16 - 16 * k, e.feld[1] * T + 16 - 24 * k, 32 * k, 32 * k);
       else { g.fillStyle = '#d0574a'; g.fillRect(e.feld[0] * T + 6, e.feld[1] * T + 6, 20, 20); }
+      const sig = e.signal || art.signal;
+      if (sig || art.boss) { g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#f4cd5e'; g.fillText(art.boss ? 'BOSS ' + (art.boss.name || '') : 'Signal: ' + sig, e.feld[0] * T + 16, e.feld[1] * T - 10 * k); }
     }
     const licht = typeof r.licht === 'number' ? r.licht : (CFG.licht.stufen[r.licht] ?? 1);   // Dunkelheit nur andeuten
     if (licht < 1) { g.fillStyle = `rgba(18,13,20,${(1 - licht) * 0.45})`; g.fillRect(0, 0, BREITE, HOEHE); }
@@ -460,10 +486,18 @@ const Editor = (() => {
     for (let y = b.y0; y <= b.y1; y++) for (let x = b.x0; x <= b.x1; x++) {
       const px = (x - b.x0) * KZ.w, py = (y - b.y0) * KZ.h, rm = raumBei(x, y);
       if (!rm) { g.strokeStyle = '#2e313b'; g.setLineDash([3, 3]); g.strokeRect(px + 6.5, py + 6.5, KZ.w - 13, KZ.h - 13); g.setLineDash([]); g.fillStyle = '#454a55'; g.fillText('+', px + KZ.w / 2, py + KZ.h / 2 + 4); continue; }
-      const [id, r] = rm, an = id === Z.raum;
+      const [id, r] = rm, an = id === Z.raum, stufe = Z.pruefung && Z.pruefung.logik.stufe[id];
       g.fillStyle = an ? '#e0a33a' : '#626a72'; g.fillRect(px + 5, py + 5, KZ.w - 10, KZ.h - 10);
+      if (Z.pruefung && stufe === undefined) { g.strokeStyle = '#d0574a'; g.lineWidth = 3; g.strokeRect(px + 6.5, py + 6.5, KZ.w - 13, KZ.h - 13); g.lineWidth = 1; }
       g.fillStyle = '#120d14'; g.fillText(r.nr || id, px + KZ.w / 2, py + KZ.h / 2 + 4);
+      if (stufe > 1) { g.font = '9px sans-serif'; g.fillStyle = '#1c1e26'; g.fillText('S' + stufe, px + KZ.w - 14, py + 14); g.font = '11px sans-serif'; }
       if (dg().start.raum === id) { g.fillStyle = '#f4cd5e'; g.fillText('★', px + 12, py + 15); }
+      const nw = Z.pruefung && Z.pruefung.logik.nachweise && Z.pruefung.logik.nachweise[id];
+      if (nw && nw.raetsel) {   // Rätselraum: grün = alle Ziele im Test erreicht, gelb = teilweise/veraltet, hohl = noch nie getestet
+        g.beginPath(); g.arc(px + KZ.w - 12, py + KZ.h - 12, 4, 0, 7);
+        if (nw.status === 'offen') { g.strokeStyle = '#120d14'; g.lineWidth = 1.5; g.stroke(); g.lineWidth = 1; }
+        else { g.fillStyle = nw.status === 'ok' ? '#58933b' : '#e0a33a'; g.fill(); }
+      }
       for (const [dir, t] of Object.entries(r.tueren)) {   // Verbindungen
         const [dx, dy] = RICHTUNG[dir], art = tuerArt(t);
         g.fillStyle = { offen: '#cfd6cf', schloss: '#f4cd5e', kampf: '#d0574a', bedingung: '#8098cc' }[art];
@@ -471,11 +505,32 @@ const Editor = (() => {
       }
     }
   }
-  function zeigeWarnungen() {
+  // Prüfung: Daten (pruefeDaten) und Logik (pruefeLogik). Läuft erst 300 ms nach der letzten Änderung, nicht bei jedem Klick.
+  let pruefUhr = null;
+  function zeigeWarnungen() { clearTimeout(pruefUhr); pruefUhr = setTimeout(pruefeJetzt, 300); }
+  function pruefeJetzt() {
+    if (!offen || !Z.dungeon || !DATEN.dungeons[Z.dungeon]) { Z.pruefung = null; zeigeStatus(); return; }
+    const daten = pruefeDaten({ ...DATEN, dungeons: { [Z.dungeon]: DATEN.dungeons[Z.dungeon] } }, true)
+      .map(m => m.replace(Z.dungeon + '/', 'Raum-ID ').replace(Z.dungeon + ':', 'Dungeon:'));
+    const logik = pruefeLogik(DATEN, Z.dungeon);
+    Z.pruefung = { fehler: [...logik.fehler, ...daten], hinweise: logik.hinweise, logik };
+    zeigeStatus(); zeichneKarte();
     const el = $('#ed-warnungen');
-    if (!el || !Z.dungeon) return;
-    const w = pruefeDaten({ ...DATEN, dungeons: { [Z.dungeon]: DATEN.dungeons[Z.dungeon] } }, true);
-    el.innerHTML = w.length ? '<b>Hinweise:</b><ul>' + w.map(m => '<li>' + esc(m.replace(Z.dungeon + '/', '').replace(Z.dungeon + ':', 'Dungeon:')) + '</li>').join('') + '</ul>' : '<span class="ok">Keine Fehler gefunden.</span>';
+    if (el) el.innerHTML = liste(Z.pruefung.fehler, 'fehler') + liste(Z.pruefung.hinweise, 'hinweis') + (Z.pruefung.fehler.length + Z.pruefung.hinweise.length ? '' : '<span class="ok">Keine Fehler gefunden, alle Räume erreichbar.</span>');
+    if (Z.ansicht === 'logik') renderLogik();
+    const ti = $('#ed-testinfo');   // Vorgaben und Nachweis hängen an der Prüfung – nachziehen, ohne ein Eingabefeld zu stören
+    if (ti && raum() && !ti.contains(document.activeElement)) ti.innerHTML = vorgabenHtml(raum(), dg()) + nachweisHtml(raum());
+  }
+  const liste = (l, klasse) => l.length ? `<ul class="${klasse}">${l.map(m => `<li>${esc(m)}</li>`).join('')}</ul>` : '';
+  function zeigeStatus() {   // rot/gelb/grün oben im Kopf; Klick öffnet die Logik-Ansicht
+    const el = $('#ed-status'), p = Z.pruefung;
+    if (!el) return;
+    if (!p) { el.className = 'status'; el.textContent = '–'; return; }
+    const f = p.fehler.length, h = p.hinweise.length;
+    el.className = 'status ' + (f ? 'rot' : h ? 'gelb' : 'gruen');
+    const offen = Object.values(p.logik.nachweise || {}).filter(n => n.raetsel && n.status !== 'ok').length;
+    el.textContent = (f ? `✗ ${f} Fehler` : h ? `! ${h} Hinweis${h > 1 ? 'e' : ''}` : '✓ lösbar') + (offen ? ` · ${offen} ungetestet` : '');
+    el.title = 'Prüfung von Daten und Logik – Klick zeigt Ablauf und Details';
   }
 
   // ---------- Werkzeugleiste ----------
@@ -506,6 +561,7 @@ const Editor = (() => {
   function renderVorlage() {   // Zeile unter der Werkzeugleiste: was gerade gesetzt wird, mit welchen Einstellungen
     const el = $('#ed-vorlage'), w = Z.werkzeug;
     if (!el) return;
+    if (w.art === 'weg') { el.innerHTML = 'Weg zeichnen: Felder anklicken, der Gegner läuft sie der Reihe nach ab und beginnt dann von vorn · rechte Maustaste nimmt den letzten Punkt weg · fertig: anderes Werkzeug wählen'; return; }
     const namen = { auswahl: 'Auswählen: Objekt oder Gegner anklicken, rechts einstellen.', pipette: 'Pipette: Feld anklicken – übernimmt Gelände, Gegner oder Objekt samt Einstellungen.',
       radierer: 'Radierer: entfernt Objekte und Gegner, sonst wird das Feld zu Boden.', start: 'Startpunkt: Feld anklicken, dort beginnt der Dungeon.' };
     let text = namen[w.art];
@@ -546,7 +602,8 @@ const Editor = (() => {
       <h3>Karte <small>(Klick: Raum wählen, + anlegen)</small></h3>
       <div class="kartenrahmen"><canvas id="ed-karte"></canvas></div>
       <div class="knoepfe"><button data-a="testdungeon" class="haupt">▶ Dungeon testen</button></div>
-      <div id="ed-warnungen" class="warnungen"></div>` : '<p>Lege einen neuen Dungeon an oder übernimm einen bestehenden als Kopie.</p>'}
+      ${Z.meldung ? `<div class="meldung">${esc(Z.meldung)} <button data-a="meldungweg" title="ausblenden">×</button></div>` : ''}
+      <h3>Prüfung <small>(Klick auf den Status oben: Ablauf)</small></h3><div id="ed-warnungen" class="warnungen"></div>` : '<p>Lege einen neuen Dungeon an oder übernimm einen bestehenden als Kopie.</p>'}
       <h3>Datei</h3>
       <div class="knoepfe"><button data-a="export">Export</button><button data-a="import">Import</button><input type="file" id="ed-datei" accept=".json,application/json" hidden></div>
       <p class="klein">Gespeichert wird automatisch in diesem Browser. Export sichert alles als Datei – zum Weitergeben oder fürs Repo.</p>`;
@@ -597,7 +654,15 @@ const Editor = (() => {
     }).join('');
     const a = Z.auswahl && r[Z.auswahl.liste][Z.auswahl.i];
     let auswahl = '<p class="klein">Mit „Auswählen“ ein Objekt oder einen Gegner anklicken, um es einzustellen. Frisch gesetzte Objekte sind gleich ausgewählt.</p>';
-    if (a && Z.auswahl.liste === 'gegner') auswahl = feld('Gegnerart', auswahlfeld('a.gegner', a.gegner, Object.fromEntries(Object.keys(DATEN.gegnerarten).map(k => [k, k])))) + `<button data-a="auswahlweg" class="gefahr">Entfernen</button>`;
+    if (a && Z.auswahl.liste === 'gegner') {
+      const art = DATEN.gegnerarten[a.gegner] || {}, kegel = art.bemerkt && art.bemerkt.art === 'kegel';
+      auswahl = feld('Gegnerart', auswahlfeld('a.gegner', a.gegner, Object.fromEntries(Object.keys(DATEN.gegnerarten).map(k => [k, k])))) +
+        parameterFeld(a, ['signal', 'signalname', 'Signal beim Besiegen', 'Z. B. für eine Tür, die erst nach diesem Gegner aufgeht. Ein Gegner mit Signal kommt nicht wieder.']) +
+        feld('Blickrichtung zu Beginn', auswahlfeld('a.blick', a.blick || '', { '': 'zum Helden', hoch: 'nach oben', runter: 'nach unten', links: 'nach links', rechts: 'nach rechts' }), kegel ? 'Wichtig für den Sichtkegel.' : '') +
+        feld('Weg (Patrouille)', `<span class="klein">${a.weg ? a.weg.length + ' Punkte' : 'kein Weg'}</span> <button data-a="wegzeichnen">${a.weg ? 'Weg ergänzen' : 'Weg zeichnen'}</button>${a.weg ? ' <button data-a="wegloeschen">Weg löschen</button>' : ''}`,
+          art.ruhig === 'patrouille' ? 'Felder anklicken – er läuft sie der Reihe nach ab und beginnt dann von vorn.' : 'Diese Gegnerart patrouilliert nicht (Bewegung „läuft einen Weg ab“ in der Gegnerart).') +
+        `<button data-a="auswahlweg" class="gefahr">Entfernen</button>`;
+    }
     else if (a) {
       const t = DATEN.objektarten[a.objekt] || {};
       const felder = Object.entries(PARAMETER).filter(([eig]) => t[eig]).flatMap(([, f]) => f);
@@ -611,10 +676,12 @@ const Editor = (() => {
       <h3>Raum ${esc(r.nr)} <small>(${esc(Z.raum)})</small></h3>
       ${feld('Titel', textfeld('r.titel', r.titel))}
       <div class="zeile">${feld('Nr.', textfeld('r.nr', r.nr))}${feld('Licht', auswahlfeld('r.licht', typeof r.licht === 'number' ? 'hell' : (r.licht || 'hell'), { hell: 'hell', daemmrig: 'dämmrig', dunkel: 'dunkel', finster: 'finster' }))}</div>
+      <small class="erkl">Licht: Ohne Laterne sieht man im Dunkeln nur einen kleinen Schein; Fackeln und Laterne leuchten. Eine Lichtkarte (je Feld 0–9) geht unter „Erweitert“.</small>
       <label class="klein"><input type="checkbox" data-f="r.kampf"${r.kampf ? ' checked' : ''}> Kampfraum (Türen erst offen, wenn geräumt; Gegner kommen nicht wieder)</label>
       ${feld('Einstiegstext', `<textarea data-f="r.einstieg" rows="2" placeholder="erscheint beim ersten Betreten">${esc(r.einstieg)}</textarea>`)}
       ${feld('Wellen', wellenFormular(r), 'Nach den Gegnern im Raum kommen die Wellen nacheinander. Am besten zusammen mit „Kampfraum“.')}
       <div class="knoepfe"><button data-a="testraum" class="haupt">▶ Raum testen</button><button data-a="startraum"${d.start.raum === Z.raum ? ' disabled' : ''}>Als Startraum</button><button data-a="raumloeschen" class="gefahr">Löschen</button></div>
+      <div id="ed-testinfo">${vorgabenHtml(r, d)}${nachweisHtml(r)}</div>
       <h3>Türen</h3>${tueren}
       <h3>Auswahl</h3>${auswahl}
       ${HILFE_SIGNALE}
@@ -625,10 +692,48 @@ const Editor = (() => {
       <div class="arten">${Object.keys(DATEN.gegnerarten).map(k => `<label class="klein"><input type="checkbox" data-fart="${k}"${f.arten.includes(k) ? ' checked' : ''}> ${k}</label>`).join('')}</div>
       <div class="knoepfe"><button data-a="befuellen">Raum befüllen</button></div>
       <label class="klein"><input type="checkbox" data-f="f.auto"${f.auto ? ' checked' : ''}> neue Räume automatisch befüllen</label>
+      <h3>Ereignisse</h3>
+      <small class="erkl">Passiert einmal, sobald die Bedingung gilt: Text zeigen und/oder ein Signal setzen (gilt dann im ganzen Dungeon). „immer“ = beim ersten Betreten.</small>
+      ${(r.ereignisse || []).map((ev, i) => `<div class="modul"><b>Ereignis ${i + 1}</b>
+        ${feld('wenn', bedingungsFormular('ereignis.' + i, ev.wenn))}
+        ${feld('Text', `<textarea rows="2" data-ev="${i}" data-evf="text">${esc(ev.text || '')}</textarea>`)}
+        ${feld('setzt Signal', `<input data-ev="${i}" data-evf="signal" value="${esc(Object.keys(ev.setze || {})[0] || '')}" placeholder="(keins)">`)}
+        <button data-a="evweg" data-i="${i}">Ereignis entfernen</button></div>`).join('')}
+      <div class="knoepfe"><button data-a="evneu">＋ Ereignis</button></div>
       <h3>Erweitert</h3>
       <details><summary class="klein">Raum als JSON (Ereignisse, Lichtkarte …)</summary>
         <textarea id="ed-json" rows="12">${esc(JSON.stringify(r, null, 1))}</textarea>
         <div class="knoepfe"><button data-a="json">JSON übernehmen</button></div></details>`;
+  }
+
+  // Test-Vorgaben: Womit startet der Raumtest? Vorgabe aus der Logik (was man frühestens beim Betreten hat), änderbar.
+  function vorgaben(raumId) {
+    if (Z.vorgaben[raumId]) return Z.vorgaben[raumId];
+    const v = Z.pruefung && Z.pruefung.logik.vorher && Z.pruefung.logik.vorher[raumId];
+    const r = dg().raeume[raumId], erste = Object.keys(r.tueren)[0];
+    return { eingang: dg().start.raum === raumId ? 'start' : erste || 'mitte', signale: v ? v.signale : [], besitz: v ? v.besitz : [], schluessel: v ? v.schluessel : 0, ausLogik: !!v };
+  }
+  function vorgabenHtml(r, d) {
+    const v = vorgaben(Z.raum), q = Object.keys(dungeonSignale(DATEN, DATEN.dungeons[Z.dungeon]).quellen).filter(n => !n.includes('=') && !n.startsWith('hat:'));
+    const eingaenge = { ...(d.start.raum === Z.raum ? { start: 'Startpunkt' } : {}), ...Object.fromEntries(Object.keys(r.tueren).map(dir => [dir, 'Tür ' + RICHTUNGSNAME[dir]])), mitte: 'Raummitte' };
+    const gegenst = Object.entries(DATEN.gegenstaende).filter(([, g]) => !(g.wirkung || {}).schluessel);
+    const kurz = [v.signale.length ? v.signale.map(n => '„' + n + '“').join(', ') : '', v.besitz.map(id => (DATEN.gegenstaende[id] || {}).name || id).join(', '), v.schluessel ? v.schluessel + ' Schlüssel' : ''].filter(Boolean).join(' · ') || 'nichts';
+    return `<details class="vorgaben"${Z.vorgabenOffen ? ' open' : ''}><summary class="klein">Test-Vorgaben: ${esc(eingaenge[v.eingang] || 'Tür')} · ${esc(kurz)}${Z.vorgaben[Z.raum] ? ' (angepasst)' : v.ausLogik ? ' (aus der Logik)' : ''}</summary>
+      <small class="erkl">Der Raumtest startet so, als hätte man das schon – vorgegeben ist, was man laut Logik frühestens beim Betreten hat. So testest du einen Raum, ohne den Dungeon davor durchzuspielen.</small>
+      ${feld('Eingang', wahlHtml('data-vg="eingang"', v.eingang, eingaenge))}
+      ${q.length ? `<div class="klein">Signale schon ausgelöst:</div>${q.map(n => `<label class="klein"><input type="checkbox" data-vg="signal" data-n="${esc(n)}"${v.signale.includes(n) ? ' checked' : ''}> ${esc(n)}</label>`).join('')}` : ''}
+      ${gegenst.length ? `<div class="klein">Gegenstände:</div>${gegenst.map(([id, g]) => `<label class="klein"><input type="checkbox" data-vg="besitz" data-n="${id}"${v.besitz.includes(id) ? ' checked' : ''}> ${esc(g.name || id)}</label>`).join('')}` : ''}
+      ${feld('Kleine Schlüssel', `<input type="number" min="0" max="9" data-vg="schluessel" value="${v.schluessel}">`)}
+      <button data-a="vorgabenlogik">wie in der Logik</button></details>`;
+  }
+  function nachweisHtml(r) {
+    const nw = Z.pruefung && Z.pruefung.logik.nachweise && Z.pruefung.logik.nachweise[Z.raum];
+    if (!nw) return '';
+    const text = { ok: 'alle Ziele im Test erreicht', teil: 'noch nicht alle Ziele erreicht', veraltet: 'Raum seit dem letzten Test geändert – neu testen', offen: 'noch nicht getestet' }[nw.status];
+    return `<div class="nachweis ${nw.status}"><b>Nachweis:</b> ${nw.raetsel ? '' : '<span class="klein">(kein Rätselraum – nicht nötig)</span> '}${text}
+      <ul>${nw.ziele.map(z => `<li class="${nw.erreicht.includes(z) ? 'ja' : 'nein'}">${nw.erreicht.includes(z) ? '✓' : '○'} ${esc(ZIEL_NAME(z))}</li>`).join('')}</ul>
+      <small class="erkl">Teste den Raum und erreiche jede Tür und jede Truhe (hinein oder hinaus zählt). Mehrere Testläufe ergänzen sich, solange der Raum gleich bleibt.</small>
+      ${nw.erreicht.length || nw.veraltet ? '<button data-a="nachweisweg">Nachweis löschen</button>' : ''}</div>`;
   }
 
   // Eingaben im rechten Bereich: r.* Raum, a.* ausgewähltes Objekt/Gegner, f.* Befüllen; Bedingungen und Wellen eigens
@@ -642,6 +747,19 @@ const Editor = (() => {
       merke();
       const i = Number(t.dataset.welle), n = Math.max(0, Math.min(12, Math.round(Number(t.value) || 0))), alt = r.wellen[i];
       r.wellen[i] = Object.keys(DATEN.gegnerarten).flatMap(k => Array(k === t.dataset.wart ? n : alt.filter(x => x === k).length).fill(k));
+      aenderung(); return;
+    }
+    if (t.dataset.vg) {   // Test-Vorgaben (nur für diese Sitzung)
+      const v = Z.vorgaben[Z.raum] = { ...vorgaben(Z.raum), ausLogik: false }; Z.vorgabenOffen = true;
+      if (t.dataset.vg === 'eingang') v.eingang = t.value;
+      else if (t.dataset.vg === 'schluessel') v.schluessel = Math.max(0, Number(t.value) || 0);
+      else { const k = t.dataset.vg === 'signal' ? 'signale' : 'besitz'; v[k] = t.checked ? [...new Set([...v[k], t.dataset.n])] : v[k].filter(x => x !== t.dataset.n); }
+      renderRechts(); return;
+    }
+    if (t.dataset.ev !== undefined) {
+      merke(); const ev = r.ereignisse[Number(t.dataset.ev)];
+      if (t.dataset.evf === 'text') { if (t.value.trim()) ev.text = t.value.trim(); else delete ev.text; }
+      else { const n = signalName(t.value); if (n) ev.setze = { [n]: true }; else delete ev.setze; t.value = n; }
       aenderung(); return;
     }
     if (t.dataset.fart) { const f = Z.fuellen; f.arten = t.checked ? [...new Set([...f.arten, t.dataset.fart])] : f.arten.filter(a => a !== t.dataset.fart); speichern(); return; }
@@ -662,16 +780,16 @@ const Editor = (() => {
       if (schluessel === 'kampf') renderRechts();
     } else if (bereich === 'a') {
       const a = r[Z.auswahl.liste][Z.auswahl.i];
-      if (t.dataset.signal !== undefined) {   // Signalnamen: klein, ohne Leer- und Sonderzeichen
+      if (t.dataset.signal !== undefined) {   // Signalnamen: klein, ohne Leer- und Sonderzeichen (bei Gegnern darf es leer sein)
         wert = signalName(wert);
-        if (!wert) { alert('Bitte einen Namen eingeben, z. B. tor-offen.'); renderRechts(); return; }
+        if (!wert && Z.auswahl.liste !== 'gegner') { alert('Bitte einen Namen eingeben, z. B. tor-offen.'); renderRechts(); return; }
         t.value = wert;
       }
       if (schluessel === 'merken' && t.tagName === 'SELECT') wert = wert === '1';
       if (wert === undefined || wert === '' || wert === false) delete a[schluessel]; else a[schluessel] = wert;
       if (schluessel === 'kristalltyp' && a.farbe !== undefined && !kristallTyp(wert).farben.includes(a.farbe)) a.farbe = kristallTyp(wert).farben[0];
       if (Z.auswahl.liste === 'objekte') vorlageAus(a);
-      if (['kristalltyp', 'signal', 'merken'].includes(schluessel)) { aenderung(); renderRechts(); return; }
+      if (['kristalltyp', 'signal', 'merken', 'gegner'].includes(schluessel)) { aenderung(); renderRechts(); return; }
     }
     aenderung();
   }
@@ -687,27 +805,136 @@ const Editor = (() => {
     }
     return grundfarben[bild] = Object.entries(zaehler).sort((a, b) => b[1] - a[1]).map(e => e[0]).slice(0, 8);
   }
+  // Formular aus Bausteinen: [Pfad, Typ, Beschriftung, Erklärung, Optionen]. Pfade wie "ki.reihe" oder "schuss.pause.0".
+  const MODUL_VORGABE = {
+    sprung: { reichweite: 150, zielen: 0.5, dauer: 0.32, tempo: 300, pause: [2, 3] },
+    schuss: { reichweite: 300, zielen: 0.6, tempo: 170, schaden: 1, anzahl: 1, pause: [1.6, 2.4] },
+    rammen: { reichweite: 300, zielen: 0.55, tempo: 320, dauer: 1.4, betaeubt: 1.6, pause: [1, 1.6] },
+    stampfen: { reichweite: 80, zielen: 0.8, radius: 70, schaden: 2, pause: [2.5, 3.5] },
+    schild: { drehtempo: 120 }, explodiert: { zeit: 1, radius: 56, schaden: 2 }, boss: { name: 'BOSS' },
+    serienschutz: { treffer: 3, zeit: 2, dauer: 1.2, konter: true, schaden: 1 }, ausweichen: { chance: 0.5, tempo: 340, abklingzeit: 1.2 },
+  };
+  const PAUSE = k => [[k + '.pause.0', 'zahl', 'Pause von (s)', '', 0.1], [k + '.pause.1', 'zahl', 'Pause bis (s)', '', 0.1]];
+  const ANKUENDIGUNG = k => [k + '.zielen', 'zahl', 'Ankündigung (s)', 'So lange zittert er mit „!“ vorher – Zeit zum Ausweichen.', 0.05];
+  const MODULE = {
+    sprung: ['Sprungangriff', 'Hält an, zittert, springt dorthin, wo du gerade stehst.', [[ 'sprung.reichweite', 'zahl', 'Reichweite (px)'], ANKUENDIGUNG('sprung'), ['sprung.dauer', 'zahl', 'Sprungdauer (s)', '', 0.02], ['sprung.tempo', 'zahl', 'Sprungtempo'], ...PAUSE('sprung')]],
+    schuss: ['Schuss', 'Wirft Kugeln, die du mit dem Schwert zurückschlagen kannst. Braucht freie Sicht.', [['schuss.reichweite', 'zahl', 'Reichweite (px)'], ANKUENDIGUNG('schuss'), ['schuss.tempo', 'zahl', 'Kugeltempo'], ['schuss.schaden', 'zahl', 'Schaden (½ Herzen)'], ['schuss.anzahl', 'wahl', 'Kugeln', '', { 1: 'eine', 3: 'drei im Fächer' }], ...PAUSE('schuss')]],
+    rammen: ['Rammen', 'Nur wenn du in einer Linie mit ihm stehst. Rennt geradeaus; prallt er gegen ein Hindernis, ist er betäubt.', [['rammen.reichweite', 'zahl', 'Reichweite (px)'], ANKUENDIGUNG('rammen'), ['rammen.tempo', 'zahl', 'Tempo'], ['rammen.dauer', 'zahl', 'höchstens (s)', '', 0.1], ['rammen.betaeubt', 'zahl', 'danach betäubt (s)', '', 0.1], ...PAUSE('rammen')]],
+    stampfen: ['Stampfen', 'Ein roter Kreis kündigt es an, dann tut es im Kreis weh.', [['stampfen.reichweite', 'zahl', 'Auslösen ab Abstand (px)'], ANKUENDIGUNG('stampfen'), ['stampfen.radius', 'zahl', 'Radius (px)'], ['stampfen.schaden', 'zahl', 'Schaden (½ Herzen)'], ...PAUSE('stampfen')]],
+  };
+  const UEBERGAENGE = { zeit: 'nach Zeit', zufall: 'nach zufälliger Zeit', lp: 'Lebenspunkte unter', angriff: 'nach einem Angriff', treffer: 'nach einer Trefferserie', signal: 'wenn ein Signal gilt' };
+  const holen = (o, pfad) => pfad.split('.').reduce((x, k) => x == null ? undefined : x[k], o);
+  function setzen(o, pfad, wert) {
+    const teile = pfad.split('.'), letztes = teile.pop();
+    const ziel = teile.reduce((x, k, i) => (x[k] = x[k] ?? (/^\d+$/.test(teile[i + 1] ?? letztes) ? [] : {})), o);
+    if (wert === undefined) delete ziel[letztes]; else ziel[letztes] = wert;
+  }
+  const eigeneArt = () => eigene.gegnerarten[Z.gegnerArt];
+  const artVon = () => eigeneArt() || DATEN.gegnerarten[Z.gegnerArt];
+  // Was das Formular zeigt: das Grundverhalten oder (bei gewählter Phase) Art und Phase zusammen – null heißt „in dieser Phase aus“
+  function anzeige() {
+    const a = artVon(), ph = Z.gPhase !== null && a.phasen && a.phasen[Z.gPhase];
+    return ph ? { ...a, ...ph } : a;
+  }
+  function gFeld([pfad, typ, label, hilfe = '', opt]) {
+    const w = holen(anzeige(), pfad);
+    if (typ === 'haken') return `<label class="klein"><input type="checkbox" data-gp="${pfad}" data-gt="haken"${w ? ' checked' : ''}> ${label}${hilfe ? ` <span class="erkl-inline">– ${hilfe}</span>` : ''}</label>`;
+    let inhalt;
+    if (typ === 'wahl') inhalt = `<select data-gp="${pfad}" data-gt="wahl">${Object.entries(opt).map(([k, v]) => `<option value="${esc(k)}"${String(w ?? '') === k ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select>`;
+    else if (typ === 'prozent') inhalt = `<input type="number" min="0" max="100" data-gp="${pfad}" data-gt="prozent" value="${Math.round((w || 0) * 100)}">`;
+    else if (typ === 'text' || typ === 'signal') inhalt = `<input data-gp="${pfad}" data-gt="${typ}" value="${esc(w ?? '')}">`;
+    else inhalt = `<input type="number" step="${opt || 1}" data-gp="${pfad}" data-gt="zahl" value="${esc(w ?? '')}">`;
+    return feld(label, inhalt, hilfe);
+  }
+  const zeilen = felder => { let html = '', paar = []; for (const f of felder) { if (f[1] === 'haken') { html += gFeld(f); continue; } paar.push(gFeld(f)); if (paar.length === 2) { html += `<div class="zeile">${paar.join('')}</div>`; paar = []; } } return html + (paar.length ? `<div class="zeile">${paar[0]}<div></div></div>` : ''); };
+  const wahlHtml = (attr, wert, optionen) => `<select ${attr}>${Object.entries(optionen).map(([k, v]) => `<option value="${esc(k)}"${String(wert ?? '') === String(k) ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select>`;
+  // Ein Übergang (je Phase „weiter“) oder Wendepunkt: wann, wohin, was beim Eintritt passiert
+  function uebergangHtml(u, i, liste, a, mitEintritt) {
+    const phasen = Object.fromEntries((a.phasen || []).map((p, k) => [k, `Phase ${k + 1}${p.name ? ' – ' + p.name : ''}`]));
+    const attr = f => `data-${liste}="${i}" data-uf="${f}"`, zahl = (f, w, schritt = 0.5) => `<input type="number" step="${schritt}" ${attr(f)} value="${w ?? ''}">`;
+    const param = { zeit: feld('Sekunden', zahl('s', u.s)), zufall: `<div class="zeile">${feld('von (s)', zahl('s0', (u.s || [3, 6])[0]))}${feld('bis (s)', zahl('s1', (u.s || [3, 6])[1]))}</div>`,
+      lp: feld('Lebenspunkte unter (%)', zahl('unter', Math.round((u.unter ?? 0.5) * 100), 5)),
+      angriff: feld('welcher Angriff', wahlHtml(attr('art'), u.art || '', { '': 'irgendeiner', sprung: 'Sprung', schuss: 'Schuss', rammen: 'Rammen', stampfen: 'Stampfen' })),
+      treffer: `<div class="zeile">${feld('Treffer', zahl('n', u.n ?? 3, 1))}${feld('in Sekunden', zahl('in', u.in ?? 2))}</div>`,
+      signal: feld('Signal', `<input ${attr('signal')} value="${esc(u.signal || '')}" list="ed-signalliste2">`) }[u.wenn] || '';
+    const [rArt, rN] = Object.entries(u.ruft || {})[0] || ['', 0];
+    const ziele = liste === 'ue' ? { ...phasen, zufall: 'zufällige andere Phase' } : phasen;
+    return `<div class="phase"><div class="zeile">${feld('wann', wahlHtml(attr('wenn'), u.wenn, liste === 'wp' ? { lp: UEBERGAENGE.lp, signal: UEBERGAENGE.signal } : UEBERGAENGE))}${feld('weiter zu', wahlHtml(attr('ziel'), u.ziel ?? '', ziele))}</div>
+      ${param}${mitEintritt ? `<div class="zeile">${feld('Banner', `<input ${attr('text')} value="${esc(u.text || '')}">`)}${feld('ruft', wahlHtml(attr('ruftArt'), rArt, { '': '– niemanden –', ...Object.fromEntries(Object.keys(DATEN.gegnerarten).filter(k => k !== Z.gegnerArt).map(k => [k, k])) }))}</div>
+      ${rArt ? feld('Anzahl', `<input type="number" min="1" max="8" ${attr('ruftN')} value="${rN}">`) : ''}` : ''}
+      <button data-a="${liste}weg" data-i="${i}">entfernen</button></div>`;
+  }
   function renderGegner() {
     const el = $('#ed-gegneransicht'), alle = Object.entries(DATEN.gegnerarten);
-    if (!Z.gegnerArt || !DATEN.gegnerarten[Z.gegnerArt]) Z.gegnerArt = alle[0][0];
-    const id = Z.gegnerArt, a = DATEN.gegnerarten[id], eigen = !!eigene.gegnerarten[id], sp = a.sprung;
-    const aus = eigen ? '' : ' disabled';
+    if (!Z.gegnerArt || !DATEN.gegnerarten[Z.gegnerArt]) { Z.gegnerArt = alle[0][0]; Z.gPhase = null; }
+    const id = Z.gegnerArt, a = artVon(), eigen = !!eigeneArt();
+    if (Z.gPhase !== null && !(a.phasen && a.phasen[Z.gPhase])) Z.gPhase = null;
+    const ph = Z.gPhase !== null ? a.phasen[Z.gPhase] : null, v = anzeige();
+    const artWahl = () => Object.fromEntries(Object.keys(DATEN.gegnerarten).filter(k => k !== id).map(k => [k, k]));
+    const b = v.bemerkt || {}, bArt = b.art || 'immer';
+    const modul = (k, titel, erkl, felder) => `<div class="modul"><label class="klein kopf"><input type="checkbox" data-gmod="${k}"${v[k] ? ' checked' : ''}> <b>${titel}</b></label>
+      <small class="erkl">${erkl}</small>${v[k] ? zeilen(felder) : ''}</div>`;
+    const reiter = `<div class="reiter"><button data-gphase=""${ph ? '' : ' class="an"'}>Grundverhalten</button>${(a.phasen || []).map((p, i) => `<button data-gphase="${i}"${Z.gPhase === i ? ' class="an"' : ''}>${i + 1} ${esc(p.name || '')}</button>`).join('')}<button data-a="phaseneu"${eigen ? '' : ' disabled'}>＋ Phase</button></div>`;
+    const signale = Object.keys(dungeonSignale(DATEN, DATEN.dungeons[Z.dungeon] || { raeume: {} }).quellen);
     el.innerHTML = `
       <div class="spalte"><h3>Gegnerarten</h3>
-        <div class="liste">${alle.map(([k, g]) => `<button data-art="${k}" class="${k === id ? 'an' : ''}">${esc(k)} <small>${eigene.gegnerarten[k] ? 'eigen' : 'eingebaut'}</small></button>`).join('')}</div>
+        <div class="liste">${alle.map(([k, g]) => `<button data-art="${k}" class="${k === id ? 'an' : ''}"><img class="kbild" src="${bildUrl(GEGNERBILD[k][0])}" alt=""> ${esc(k)} <small>${eigene.gegnerarten[k] ? 'eigen' : 'eingebaut'}${g.boss ? ' · Boss' : ''}${g.phasen ? ' · ' + g.phasen.length + ' Phasen' : ''}</small></button>`).join('')}</div>
         <div class="knoepfe"><button data-a="artneu">Neue Art</button><button data-a="artkopie">Kopie</button>${eigen ? '<button data-a="artloeschen" class="gefahr">Löschen</button>' : ''}</div></div>
       <div class="spalte breit"><h3>${esc(id)} ${eigen ? '' : '<small>(eingebaut – als Kopie bearbeiten)</small>'}</h3>
         <div class="vorschau"><canvas id="ed-gvorschau" width="128" height="128"></canvas></div>
-        <fieldset${aus}>
-        <div class="zeile">${feld('Grundbild', auswahlfeld('g.bild', a.bild, Object.fromEntries(Object.keys(GRUNDBILDER).map(k => [k, k]))))}${feld('Lebenspunkte', zahlfeld('g.lp', a.lp))}</div>
-        <div class="zeile">${feld('Tempo (px/s)', zahlfeld('g.tempo', a.tempo))}${feld('Schaden (½ Herzen)', zahlfeld('g.schaden', a.schaden))}</div>
-        ${feld('Herz fallen lassen (%)', zahlfeld('g.herz', Math.round(((a.beute || {}).herz || 0) * 100)))}
-        <label class="klein"><input type="checkbox" data-g="sprung"${sp ? ' checked' : ''}> Sprungangriff (hält an, zittert, springt)</label>
-        ${sp ? `<div class="zeile">${feld('Reichweite (px)', zahlfeld('s.reichweite', sp.reichweite))}${feld('Warnung (s)', zahlfeld('s.zielen', sp.zielen, 0.05))}</div>
-        <div class="zeile">${feld('Sprungdauer (s)', zahlfeld('s.dauer', sp.dauer, 0.02))}${feld('Sprungtempo', zahlfeld('s.tempo', sp.tempo))}</div>
-        <div class="zeile">${feld('Pause von (s)', zahlfeld('s.pause0', sp.pause[0], 0.1))}${feld('Pause bis (s)', zahlfeld('s.pause1', sp.pause[1], 0.1))}</div>` : ''}
+        <datalist id="ed-signalliste2">${signale.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+        <h3>Phasen</h3>
+        <p class="klein">Ohne Phasen hat ein Gegner ein festes Verhalten (das Grundverhalten). Mit Phasen wechselt er zwischen Verhaltensweisen,
+          z. B. „Jagd“ (unverwundbar) → „Erschöpft“ (benommen, verwundbar) → zurück. Jede Phase übernimmt das Grundverhalten und ändert nur, was du in ihr einstellst.</p>
+        ${reiter}
+        <fieldset${eigen ? '' : ' disabled'}>
+        ${ph ? '' : `<h3>Grundwerte</h3>
+        ${zeilen([['bild', 'wahl', 'Grundbild', '', Object.fromEntries(Object.keys(GRUNDBILDER).map(k => [k, k]))], ['lp', 'zahl', 'Lebenspunkte'],
+          ['beute.herz', 'prozent', 'Herz fallen lassen (%)'], ['groesse', 'wahl', 'Größe', '', { 1: 'normal', 1.5: '1,5-fach', 2: 'doppelt' }],
+          ['balken', 'wahl', 'Lebensbalken', '', { '': 'automatisch (Boss: groß)', aus: 'keiner', klein: 'klein über dem Kopf', gross: 'groß unten im Bild' }]])}`}
+        ${ph ? `<div class="modul">${feld('Name der Phase', `<input data-phname value="${esc(ph.name || '')}">`)}
+          <b>Übergänge</b> <small class="erkl">Der erste zutreffende gewinnt. Ohne Übergang bleibt er in dieser Phase.</small>
+          ${(ph.weiter || []).map((u, i) => uebergangHtml(u, i, 'ue', a, false)).join('')}<button data-a="ueneu">＋ Übergang</button>
+          <div class="zeile">${feld('Beim Eintritt: Banner', `<input data-ein="text" value="${esc((ph.eintritt || {}).text || '')}">`)}${feld('kurz unverwundbar (s)', `<input type="number" step="0.1" data-ein="unverwundbar" value="${(ph.eintritt || {}).unverwundbar ?? ''}">`)}</div>
+          <div class="knoepfe"><button data-a="phasezurueck">Phase auf Grundverhalten zurücksetzen</button><button data-a="phaseweg" class="gefahr">Phase löschen</button></div></div>
+          <p class="klein"><b>Verhalten in Phase ${Z.gPhase + 1}:</b> Alles Folgende gilt nur in dieser Phase. Ausgeschaltete Bausteine sind in dieser Phase aus.</p>`
+        : a.phasen ? `<div class="modul"><b>Wendepunkte</b> <small class="erkl">Aus jeder Phase heraus, je einmal – z. B. „unter 50 % Lebenspunkte: Wut-Phase“.</small>
+          ${(a.wendepunkte || []).map((u, i) => uebergangHtml(u, i, 'wp', a, true)).join('')}<button data-a="wpneu">＋ Wendepunkt</button></div>` : ''}
+        <h3>Werte${ph ? ' in dieser Phase' : ''}</h3>
+        ${zeilen([['tempo', 'zahl', 'Tempo (px/s)'], ['schaden', 'zahl', 'Schaden bei Berührung (½ Herzen)'],
+          ['gewicht', 'zahl', 'Gewicht', '1 normal · 0 rührt sich nicht · 2 fliegt weit (in Abgründe)', 0.1],
+          ...(ph ? [['tempoFaktor', 'zahl', 'Tempo ×', 'z. B. 1,3 = schneller', 0.05], ['pauseFaktor', 'zahl', 'Pausen zwischen Angriffen ×', 'z. B. 0,7 = greift öfter an', 0.05]] : [])])}
+        <h3>KI</h3>
+        ${zeilen([['ki.wegfindung', 'haken', 'Wegfindung', 'läuft um Hindernisse und Abgründe herum statt geradeaus'],
+          ['ki.reihe', 'haken', 'Angriffs-Reihenfolge', `höchstens ${CFG.gegner.angreiferMax} greifen gleichzeitig an, die anderen warten im Kreis`],
+          ['ki.abstand', 'wahl', 'Untereinander', '', { abstossen: 'halten Abstand', draengen: 'drängen sich (dürfen überlappen)' }]])}
+        <p class="klein">Ohne Haken: einfacher Gegner, läuft geradewegs auf dich zu.</p>
+        <h3>Wahrnehmung und Bewegung</h3>
+        ${zeilen([['bemerkt.art', 'wahl', 'Bemerkt dich', '', { immer: 'sofort', sicht: 'wenn er dich sieht', kegel: 'nur im Sichtkegel (nach vorn)', geraeusch: 'wenn er Schwerthiebe hört', beruehrung: 'schläft, bis er getroffen oder berührt wird' }],
+          ...(['sicht', 'kegel', 'geraeusch'].includes(bArt) ? [['bemerkt.weite', 'zahl', bArt === 'geraeusch' ? 'Hörweite (px)' : 'Sichtweite (px)']] : []),
+          ...(bArt === 'kegel' ? [['bemerkt.kegel', 'zahl', 'Kegelbreite (Grad)']] : []),
+          ...(['sicht', 'kegel'].includes(bArt) ? [['bemerkt.nurLicht', 'haken', 'sieht dich im Dunkeln nur im Licht (Laterne verrät dich)']] : []),
+          ['ruhig', 'wahl', 'Bewegung, solange ruhig', '', { stehen: 'steht', pendeln_w: 'pendelt waagerecht', pendeln_s: 'pendelt senkrecht', patrouille: 'läuft einen Weg ab (je Gegner im Raum)', umherirren: 'irrt umher' }],
+          ['alarm', 'wahl', 'Bewegung, wenn bemerkt', '', { jagen: 'jagt dich', fliehen: 'flieht', bleiben: 'macht weiter wie bisher (greift aber an)', schleichen: 'kommt nur, wenn du wegschaust' }]])}
+        <h3>Angriffe</h3>
+        <p class="klein">Berührung schadet immer (Schaden oben). Dazu beliebig viele Angriffe, jeder mit Ankündigung.</p>
+        ${Object.entries(MODULE).map(([k, [t, e, f]]) => modul(k, t, e, f)).join('')}
+        <h3>Verteidigung</h3>
+        ${zeilen([['unverwundbar', 'haken', 'unverwundbar', 'schimmert weiß, das Schwert prallt ab (Explosionen wirken trotzdem)'],
+          ['benommen', 'haken', 'benommen', 'steht mit Sternen still, greift nicht an, Schild und Rüstung wirken nicht – das Fenster zum Zuschlagen']])}
+        ${modul('serienschutz', 'Schutz bei Trefferserie', 'Gegen „einfach draufhauen“: Nach mehreren Treffern kurz hintereinander wird er kurz unverwundbar und stößt dich auf Wunsch mit einem Stampfer zurück.', [['serienschutz.treffer', 'zahl', 'Treffer'], ['serienschutz.zeit', 'zahl', 'innerhalb (s)', '', 0.1], ['serienschutz.dauer', 'zahl', 'dann geschützt (s)', '', 0.1], ['serienschutz.schaden', 'zahl', 'Gegenstoß-Schaden (½ Herzen)'], ['serienschutz.konter', 'haken', 'mit Gegenstoß']])}
+        ${modul('ausweichen', 'Ausweichen', 'Holst du in seiner Nähe zum Schlag aus (oder kommst sehr nah), springt er manchmal weg.', [['ausweichen.chance', 'prozent', 'Wahrscheinlichkeit (%)'], ['ausweichen.tempo', 'zahl', 'Sprungtempo'], ['ausweichen.abklingzeit', 'zahl', 'frühestens wieder nach (s)', '', 0.1]])}
+        ${modul('schild', 'Schild', 'Treffer von vorn prallen ab. Er dreht sich langsam zu dir – lauf um ihn herum.', [['schild.drehtempo', 'zahl', 'Drehtempo (Grad/s)']])}
+        ${zeilen([['ruestung', 'wahl', 'Rüstung', '', { '': 'keine', schlag: 'erster Treffer betäubt nur, dann verwundbar', betaeubt: 'nur verwundbar, wenn betäubt (Rammen, Kugel)' }]])}
+        ${ph ? '' : `<h3>Bei Niederlage</h3>
+        ${zeilen([['signal', 'signal', 'Signal auslösen', 'Alle Gegner dieser Art lösen es aus und kommen dann nicht wieder. Für einzelne Gegner: im Raum anklicken.']])}
+        <div class="modul"><label class="klein kopf"><input type="checkbox" data-gmod="teilen"${a.teilen ? ' checked' : ''}> <b>Teilt sich</b></label>
+          ${a.teilen ? `<div class="zeile">${feld('in', `<select data-gp="teilen.art" data-gt="wahl">${Object.entries(artWahl()).map(([k, w]) => `<option value="${k}"${k === a.teilen.art ? ' selected' : ''}>${w}</option>`).join('')}</select>`)}${gFeld(['teilen.anzahl', 'zahl', 'Anzahl'])}</div>` : ''}</div>
+        ${modul('explodiert', 'Explodiert', 'Nach der Niederlage blinkt ein roter Kreis, dann explodiert er – trifft auch andere Gegner.', [['explodiert.zeit', 'zahl', 'Zeit bis zur Explosion (s)', '', 0.1], ['explodiert.radius', 'zahl', 'Radius (px)'], ['explodiert.schaden', 'zahl', 'Schaden (½ Herzen)']])}
+        <h3>Boss</h3>
+        ${modul('boss', 'Ist ein Boss', 'Großer Lebensbalken mit Namen, kommt nach dem Sieg nicht wieder, zerplatzt am Ende mit Explosionen und „WOWOWOW“. Sein Verhalten baust du mit Phasen (oben).', [['boss.name', 'text', 'Name im Lebensbalken']])}
         <h3>Farben</h3><div class="farben">${farbenVon(a.bild).map(f => `<label title="${f}"><input type="color" data-farbe="${f}" value="${(a.farben || {})[f] || f}"></label>`).join('')}
-        <button data-a="farbenzurueck">Original</button></div>
+        <button data-a="farbenzurueck">Original</button></div>`}
         </fieldset>
         <p class="klein">Änderungen wirken sofort im Spiel. Gegner setzt man im Raum über die Werkzeugleiste.</p></div>`;
     zeichneGegnerVorschau();
@@ -720,21 +947,93 @@ const Editor = (() => {
     if (b) g.drawImage(b[Math.floor(performance.now() / 250) % 2], 0, 0, 32, 32, 0, 16, 128, 128);
     requestAnimationFrame(zeichneGegnerVorschau);
   }
+  // Wohin eine Eingabe schreibt: in die gewählte Phase (nur Verhaltens-Bausteine) oder in die Art
+  function schreibZiel(a, schluessel) {
+    if (Z.gPhase === null || !VERHALTEN.includes(schluessel)) return a;
+    const ph = a.phasen[Z.gPhase];
+    if (ph[schluessel] === undefined && a[schluessel] && typeof a[schluessel] === 'object') ph[schluessel] = kopie(a[schluessel]);   // erst erben, dann ändern
+    return ph;
+  }
+  function uebergangEingabe(t, u) {
+    const f = t.dataset.uf, zahl = Number(t.value);
+    if (f === 'wenn') { for (const k of ['s', 'unter', 'art', 'n', 'in', 'signal']) delete u[k]; u.wenn = t.value; if (t.value === 'zufall') u.s = [3, 6]; if (t.value === 'zeit') u.s = 5; if (t.value === 'lp') u.unter = 0.5; }
+    else if (f === 'ziel') u.ziel = t.value === 'zufall' ? 'zufall' : Number(t.value);
+    else if (f === 's0' || f === 's1') { u.s = Array.isArray(u.s) ? u.s : [3, 6]; u.s[f === 's0' ? 0 : 1] = zahl; }
+    else if (f === 'unter') u.unter = Math.max(1, Math.min(99, zahl)) / 100;
+    else if (f === 'art') { if (t.value) u.art = t.value; else delete u.art; }
+    else if (f === 'signal') { const n = signalName(t.value); if (n) u.signal = n; else delete u.signal; }
+    else if (f === 'text') { if (t.value.trim()) u.text = t.value.trim().toUpperCase(); else delete u.text; }
+    else if (f === 'ruftArt' || f === 'ruftN') {
+      const [art, n] = Object.entries(u.ruft || {})[0] || ['', 1], neuArt = f === 'ruftArt' ? t.value : art, neuN = f === 'ruftN' ? zahl : (n || 1);
+      if (neuArt && neuN > 0) u.ruft = { [neuArt]: neuN }; else delete u.ruft;
+    }
+    else u[f] = zahl;
+  }
   function gegnerEingabe(e) {
-    const t = e.target, id = Z.gegnerArt, a = eigene.gegnerarten[id];
+    const t = e.target, a = eigeneArt();
     if (!a) return;
     merke();
+    const ph = Z.gPhase !== null ? a.phasen[Z.gPhase] : null;
     if (t.dataset.farbe) { a.farben = { ...(a.farben || {}) }; if (t.value === t.dataset.farbe) delete a.farben[t.dataset.farbe]; else a.farben[t.dataset.farbe] = t.value; if (!Object.keys(a.farben).length) delete a.farben; }
-    else if (t.dataset.g === 'sprung') { if (t.checked) a.sprung = { reichweite: 150, zielen: 0.5, dauer: 0.32, tempo: 300, pause: [2, 3] }; else delete a.sprung; speichern(); renderGegner(); return; }
-    else if (t.dataset.f) {
-      const [bereich, k] = t.dataset.f.split('.'), wert = t.type === 'number' ? Number(t.value) : t.value;
-      if (bereich === 'g' && k === 'bild') { a.bild = wert; Object.assign(a, kopie(GRUNDBILDER[wert])); delete a.farben; speichern(); renderGegner(); return; }
-      if (bereich === 'g' && k === 'herz') a.beute = { herz: Math.max(0, Math.min(100, wert)) / 100 };
-      else if (bereich === 'g') a[k] = wert;
-      else if (bereich === 's' && k.startsWith('pause')) a.sprung.pause[Number(k.slice(-1))] = wert;
-      else if (bereich === 's') a.sprung[k] = wert;
+    else if (t.dataset.gmod) {   // Baustein an/aus – in einer Phase: aus = null (überschreibt das Grundverhalten)
+      const k = t.dataset.gmod, ziel = schreibZiel(a, k), vorlage = a[k] || MODUL_VORGABE[k];
+      if (t.checked) ziel[k] = k === 'teilen' ? { art: Object.keys(DATEN.gegnerarten).find(x => x !== Z.gegnerArt), anzahl: 2 } : kopie(vorlage);
+      else if (ziel === a) delete a[k]; else if (a[k]) ziel[k] = null; else delete ziel[k];
+      speichern(); renderGegner(); return;
+    }
+    else if (t.dataset.ue !== undefined) { uebergangEingabe(t, ph.weiter[Number(t.dataset.ue)]); speichern(); renderGegner(); return; }
+    else if (t.dataset.wp !== undefined) { uebergangEingabe(t, a.wendepunkte[Number(t.dataset.wp)]); speichern(); renderGegner(); return; }
+    else if (t.dataset.phname !== undefined) { ph.name = t.value.trim(); speichern(); renderGegner(); return; }
+    else if (t.dataset.ein) {
+      ph.eintritt = ph.eintritt || {};
+      if (t.dataset.ein === 'text') { if (t.value.trim()) ph.eintritt.text = t.value.trim().toUpperCase(); else delete ph.eintritt.text; }
+      else if (Number(t.value) > 0) ph.eintritt.unverwundbar = Number(t.value); else delete ph.eintritt.unverwundbar;
+      if (!Object.keys(ph.eintritt).length) delete ph.eintritt;
+      speichern(); return;
+    }
+    else if (t.dataset.gp) {
+      const pfad = t.dataset.gp, typ = t.dataset.gt, k = pfad.split('.')[0], ziel = schreibZiel(a, k);
+      let wert = typ === 'haken' ? t.checked : typ === 'zahl' ? Number(t.value) : typ === 'prozent' ? Math.max(0, Math.min(100, Number(t.value))) / 100 : t.value;
+      if (typ === 'wahl' && /^[\d.]+$/.test(wert)) wert = Number(wert);
+      if (typ === 'signal') wert = signalName(wert) || undefined;
+      if (pfad === 'bild') { a.bild = wert; Object.assign(a, kopie(GRUNDBILDER[wert])); delete a.farben; speichern(); renderGegner(); return; }
+      if (pfad === 'bemerkt.art' && wert === 'immer') { if (ziel === a) delete a.bemerkt; else ziel.bemerkt = null; speichern(); renderGegner(); return; }
+      if (pfad === 'bemerkt.art' && !ziel.bemerkt) ziel.bemerkt = { weite: 200, kegel: 80 };
+      if ((pfad === 'ruestung' || pfad === 'balken') && !wert) wert = undefined;
+      if (ziel === a && ((pfad === 'groesse' && wert === 1) || (pfad === 'gewicht' && wert === 1))) wert = undefined;
+      if (typ === 'haken' && !wert && !pfad.startsWith('ki.')) wert = ziel !== a && a[k] ? false : undefined;
+      if (ziel !== a && pfad === 'ruestung' && wert === undefined && a.ruestung) wert = null;
+      setzen(ziel, pfad, wert);
+      if (pfad === 'boss.name' && a.boss) a.boss.name = String(a.boss.name || '').toUpperCase();
+      speichern();
+      if (typ === 'wahl' || typ === 'haken' || typ === 'signal') renderGegner();
+      return;
     }
     speichern();
+  }
+  function phasenAktion(aktion, el) {
+    const a = eigeneArt();
+    if (!a) return;
+    merke();
+    if (aktion === 'phaseneu') {
+      if (!a.phasen) {   // erste Phase: gleich zwei, die sich abwechseln – als Vorlage
+        a.phasen = [{ name: 'Angriff', weiter: [{ wenn: 'zeit', s: 6, ziel: 1 }] }, { name: 'Erschöpft', benommen: true, weiter: [{ wenn: 'zeit', s: 3, ziel: 0 }] }];
+        Z.gPhase = 0;
+      } else { a.phasen.push({ name: 'Phase ' + (a.phasen.length + 1), weiter: [{ wenn: 'zeit', s: 5, ziel: 0 }] }); Z.gPhase = a.phasen.length - 1; }
+    } else if (aktion === 'phaseweg') {
+      const i = Z.gPhase;
+      a.phasen.splice(i, 1);
+      const fix = u => { if (typeof u.ziel === 'number') u.ziel = u.ziel === i ? 0 : u.ziel > i ? u.ziel - 1 : u.ziel; };
+      for (const p of a.phasen) (p.weiter || []).forEach(fix);
+      (a.wendepunkte || []).forEach(fix);
+      if (a.phasen.length === 0) { delete a.phasen; delete a.wendepunkte; }
+      Z.gPhase = null;
+    } else if (aktion === 'phasezurueck') { const p = a.phasen[Z.gPhase]; a.phasen[Z.gPhase] = { name: p.name, ...(p.weiter ? { weiter: p.weiter } : {}), ...(p.eintritt ? { eintritt: p.eintritt } : {}) }; }
+    else if (aktion === 'ueneu') { const p = a.phasen[Z.gPhase]; (p.weiter = p.weiter || []).push({ wenn: 'zeit', s: 5, ziel: (Z.gPhase + 1) % a.phasen.length }); }
+    else if (aktion === 'ueweg') { const p = a.phasen[Z.gPhase]; p.weiter.splice(Number(el.dataset.i), 1); }
+    else if (aktion === 'wpneu') (a.wendepunkte = a.wendepunkte || []).push({ wenn: 'lp', unter: 0.5, ziel: a.phasen.length - 1 });
+    else if (aktion === 'wpweg') { a.wendepunkte.splice(Number(el.dataset.i), 1); if (!a.wendepunkte.length) delete a.wendepunkte; }
+    speichern(); renderGegner();
   }
   function neueArt(vorlage) {
     const name = prompt('Name der Gegnerart (Kleinbuchstaben, ohne Leerzeichen):', vorlage ? vorlage + '2' : 'wolf');
@@ -742,7 +1041,7 @@ const Editor = (() => {
     let id = slug(name);
     while (DATEN.gegnerarten[id]) id += '2';
     merke();
-    eigene.gegnerarten[id] = vorlage ? kopie(DATEN.gegnerarten[vorlage]) : { bild: 'fuchs', lp: 2, tempo: 55, schaden: 1, ...kopie(GRUNDBILDER.fuchs), beute: { herz: 0.2 } };
+    eigene.gegnerarten[id] = vorlage ? kopie(DATEN.gegnerarten[vorlage]) : { bild: 'fuchs', lp: 2, tempo: 55, schaden: 1, ...kopie(GRUNDBILDER.fuchs), beute: { herz: 0.2 }, ki: { wegfindung: true, reihe: true } };
     Z.gegnerArt = id; speichern(); renderGegner(); renderWerkzeuge();
   }
 
@@ -797,6 +1096,92 @@ const Editor = (() => {
     speichern(); renderKristalle(); renderWerkzeuge();
   }
 
+  function bedingungLesbar(b) {   // Bedingung als Satz, z. B. „hat Laterne und nicht „steg““
+    if (typeof b === 'string') {
+      if (b === 'geraeumt') return 'Raum geräumt';
+      if (b.startsWith('hat:')) return 'hat ' + ((DATEN.gegenstaende[b.slice(4)] || {}).name || b.slice(4));
+      const k = b.indexOf('='); if (k > 0) return `Kristall ${kristallTyp(b.slice(0, k)).name} zeigt ${farbName(b.slice(k + 1))}`;
+      return '„' + b + '“';
+    }
+    if (!b) return 'immer';
+    if (b.nicht !== undefined) return 'nicht ' + bedingungLesbar(b.nicht);
+    if (b.alle) return b.alle.map(bedingungLesbar).join(' und ');
+    if (b.eine) return b.eine.map(bedingungLesbar).join(' oder ');
+    return JSON.stringify(b);
+  }
+  // ---------- Logik-Ansicht: Ablauf in Stufen (wie ein Spoiler-Log), Fehler, Abhängigkeiten der Türen ----------
+  function renderLogik() {
+    const el = $('#ed-logikansicht'), d = dg(), p = Z.pruefung;
+    if (!d) { el.innerHTML = '<div class="spalte breit"><p>Erst einen Dungeon wählen.</p></div>'; return; }
+    if (!p) { el.innerHTML = '<div class="spalte breit"><p>Prüfe …</p></div>'; zeigeWarnungen(); return; }
+    const nr = id => esc((d.raeume[id] || {}).nr || id), richtung = { n: 'Nord', o: 'Ost', s: 'Süd', w: 'West' };
+    const was = e => e.was === 'truhe' ? `Truhe: ${esc((DATEN.gegenstaende[e.name] || {}).name || e.name)}` : e.was === 'kristall' ? `Kristall ${esc(kristallTyp(e.name).name)} schaltbar` : `Signal „${esc(e.name)}“${e.ereignis ? ' (Ereignis)' : ''}`;
+    const tueren = [];
+    for (const [id, r] of Object.entries(d.raeume)) for (const [dir, t] of Object.entries(r.tueren)) {
+      if (!t.schloss && t.offen_wenn === undefined) continue;
+      const bed = t.schloss ? 'kleiner Schlüssel' : bedingungLesbar(t.offen_wenn);
+      tueren.push(`<tr><td>Raum ${nr(id)} ${richtung[dir]}</td><td>→ Raum ${nr(t.ziel)}</td><td>${esc(bed)}${t.merken ? ' (bleibt offen)' : ''}</td></tr>`);
+    }
+    el.innerHTML = `<div class="spalte breit">
+      <h3>Prüfung: ${p.fehler.length ? `<span class="rot">${p.fehler.length} Fehler</span>` : '<span class="gruen">lösbar</span>'}${p.hinweise.length ? ` · <span class="gelb">${p.hinweise.length} Hinweise</span>` : ''}</h3>
+      ${liste(p.fehler, 'fehler')}${liste(p.hinweise, 'hinweis')}
+      <h3>Ablauf in Stufen</h3>
+      <p class="klein">So kommt man durch den Dungeon: In Stufe 1 ist alles erreichbar, was ohne Schlüssel und Signale geht. Was man dort bekommt, öffnet die Türen der nächsten Stufe – usw. Die Stufen stehen auch klein auf der Karte (S2, S3 …); rot umrandete Räume sind nie erreichbar.</p>
+      <ol class="ablauf">${p.logik.ablauf.map(a => `<li><b>Stufe ${a.stufe}</b>
+        ${a.raeume.length ? `<div>erreichbar: ${a.raeume.map(id => `<button data-raumwahl="${id}">Raum ${nr(id)}</button>`).join(' ')}</div>` : ''}
+        ${a.erhalten.length ? `<div>dort gibt es: ${a.erhalten.map(e => `${was(e)} <small>(Raum ${nr(e.raum)})</small>`).join(' · ')}</div>` : ''}
+        ${a.geoeffnet.length ? `<div>aufgeschlossen: ${a.geoeffnet.map(t => `Raum ${nr(t.raum)} ${richtung[t.dir]}`).join(' · ')}</div>` : ''}</li>`).join('')}</ol>
+      <h3>Rätselräume und Nachweise</h3>
+      <p class="klein">Ob ein Rätsel innerhalb eines Raums lösbar ist, weist ein Testlauf nach: Im Raumtest jede Tür und jede Truhe einmal erreichen. Der Nachweis gilt, bis du den Raum änderst.</p>
+      ${(() => { const n = Object.entries(p.logik.nachweise || {}).filter(([, x]) => x.raetsel); return n.length ? `<ul class="nachweisliste">${n.map(([id, x]) => `<li class="${x.status}"><button data-raumwahl="${id}">Raum ${nr(id)}</button> ${{ ok: '✓ nachgewiesen', teil: `${x.erreicht.length}/${x.ziele.length} Ziele`, veraltet: 'geändert – neu testen', offen: 'noch nicht getestet' }[x.status]}${x.status !== 'ok' && x.erreicht.length < x.ziele.length ? ` <small>(fehlt: ${x.ziele.filter(z => !x.erreicht.includes(z)).map(ZIEL_NAME).join(', ')})</small>` : ''}</li>`).join('')}</ul>` : '<p class="klein">Keine Rätselräume (Abgründe, Blöcke, Platten, Kristalle, Pflöcke, bedingte Truhen).</p>'; })()}
+      <h3>Türen mit Bedingung</h3>
+      ${tueren.length ? `<table class="tabelle">${tueren.join('')}</table>` : '<p class="klein">Keine – alle Türen sind offen.</p>'}
+      <h3>Was die Prüfung kann – und was nicht</h3>
+      <p class="klein">Sie spielt den Dungeon gedanklich durch: Türen je Richtung, Schlüssel (auch in ungünstiger Reihenfolge), Signale von Platten, Gegnern, Kristallen und Ereignissen, Truhen, die erst unter einer Bedingung erscheinen. Sie prüft <b>nicht</b>, ob ein Rätsel innerhalb eines Raums lösbar ist (Blöcke, Pflöcke, Abgründe) – das geht nur durch Testen.</p></div>`;
+  }
+
+  // ---------- Hilfe ----------
+  const HILFE = [
+    ['Grundidee', `Ein <b>Dungeon</b> besteht aus Räumen auf einem Raster. Jeder Raum ist 20 × 15 Felder groß; der Rand ist Mauer, Türen liegen fest in der Mitte jeder Seite.
+      Du malst Gelände, setzt Objekte und Gegner, stellst Türen ein und testest sofort. Alles wird automatisch im Browser gespeichert – <b>Export</b> sichert es als Datei.`],
+    ['Räume und Karte', `Links die Dungeon-Karte: Raum anklicken = bearbeiten, „+“ = neuen Raum anlegen (neben dem gewählten gleich mit Tür). ★ ist der Startraum.
+      Rechts die Einstellungen des Raums: Titel, Licht, Kampfraum (Türen erst offen, wenn alle Gegner besiegt sind), Einstiegstext, Wellen, Türen, Ereignisse.
+      „Automatisch befüllen“ verteilt Hindernisse, Büsche, Abgründe und Gegner so, dass alle Türen erreichbar bleiben.`],
+    ['Malen', `Werkzeuge oben: <b>Auswählen</b> (Objekt/Gegner anklicken und rechts einstellen), <b>Pipette</b> (übernimmt ein Feld samt Einstellungen; auch Alt+Klick),
+      <b>Radierer</b> (auch rechte Maustaste), <b>Startpunkt</b>. Form <b>Rechteck</b> (oder Umschalt+Ziehen) füllt Flächen. Ein eingestelltes Objekt ist Vorlage für alle weiteren seiner Art.
+      Strg+Z macht rückgängig.`],
+    ['Türen', `Je Seite: keine, offen, Schloss (braucht einen kleinen Schlüssel aus einer Truhe), Kampf (offen, wenn der Raum geräumt ist) oder Bedingung.
+      Eine Tür gilt immer für die Seite, auf der sie steht – wer hereinkommt, findet sie von innen offen.`],
+    ['Signale und Bedingungen', `<b>Signale</b> sind Namen für Zustände. Sie kommen von Platten (solange etwas daraufsteht, oder dauerhaft mit „bleibt unten“), von Kristallen
+      (der Kristalltyp zeigt eine Farbe), von besiegten Gegnern (Signal an der Gegnerart oder am einzelnen Gegner) und von Ereignissen. Dazu immer „Raum geräumt“.
+      Bedingungen können auch Gegenstände abfragen („hat Laterne“).
+      <b>Bedingungen</b> fragen Signale ab – für Türen, Fackeln („brennt“), Objekte („erscheint“) und Ereignisse. Ein Signal gilt im ganzen Dungeon, nur eine Platte ohne „bleibt unten“ wirkt allein in ihrem Raum.`],
+    ['Objekte', `Stein, Busch (schneidbar), Block (schiebbar, füllt Abgründe), Schild (Text), Truhe (Inhalt; mit „erscheint“ z. B. erst nach dem Kampf),
+      Platte, Kristall und Pflock (siehe Kristalltypen), Fackel (Licht, „brennt“ mit Bedingung).`],
+    ['Kristalltypen', `Ein Kristalltyp ist eine Farbfolge. Ein Schwertschlag auf einen Kristall schaltet alle Kristalle dieses Typs im Dungeon eine Farbe weiter.
+      Ein Pflock gehört zu einem Typ und steht oben (versperrt den Weg), solange der Typ seine Farbe zeigt.`],
+    ['Gegnerarten', `Eine Gegnerart setzt sich aus Bausteinen zusammen: Grundwerte, KI (Wegfindung, Angriffs-Reihenfolge, Abstand), Wahrnehmung, Bewegung,
+      Angriffe (Sprung, Schuss, Rammen, Stampfen – jeder mit Ankündigung), Verteidigung (unverwundbar, benommen, Schutz bei Trefferserie, Ausweichen, Schild, Rüstung)
+      und was bei der Niederlage passiert (Signal, Teilen, Explodieren). Eingebaute Arten sind schreibgeschützt – „Kopie“ macht eine eigene daraus.`],
+    ['Phasen und Bosse', `Mit <b>Phasen</b> wechselt ein Gegner sein Verhalten: Jede Phase übernimmt das Grundverhalten und ändert nur, was in ihr eingestellt ist.
+      <b>Übergänge</b> führen weiter – nach Zeit, nach zufälliger Zeit, unter X % Lebenspunkten, nach einem Angriff, nach einer Trefferserie oder wenn ein Signal gilt.
+      <b>Wendepunkte</b> greifen aus jeder Phase heraus, je einmal (z. B. „unter 50 %: Wut-Phase, Banner, Verstärkung“).
+      Ein <b>Boss</b> bekommt einen großen Lebensbalken, kommt nicht wieder und zerplatzt am Ende. Bewährtes Muster gegen „einfach draufhauen“:
+      Angriffsphase unverwundbar → Erschöpft-Phase benommen → zurück, dazu „Schutz bei Trefferserie“.`],
+    ['Prüfung und Logik', `Oben rechts steht der Prüfstatus: grün = alles lösbar, gelb = Hinweise, rot = Fehler. Die Prüfung läuft kurz nach jeder Änderung und spielt den Dungeon
+      gedanklich durch (Reiter <b>Logik</b>): Welche Räume sind in welcher Stufe erreichbar, was gibt es dort, welche Tür braucht was? Sie findet z. B. einen Gegner, dessen Signal
+      seine eigene Tür öffnen soll, Schlüssel-Fallen und Räume ohne Rückweg. Ob ein Rätsel <i>innerhalb</i> eines Raums lösbar ist, prüft sie nicht – dafür „Raum testen“.`],
+    ['Testen, Vorgaben und Nachweise', `„▶ Raum testen“ startet direkt in diesem Raum, „▶ Dungeon testen“ am Startpunkt. Esc führt zurück in den Editor. Im Spiel: M schaltet den Ton.
+      Die <b>Test-Vorgaben</b> unter dem Knopf legen fest, womit der Raumtest beginnt: Eingang, schon ausgelöste Signale, Gegenstände, Schlüssel. Vorgegeben ist,
+      was man laut Logik frühestens beim Betreten des Raums hat – du musst den Dungeon davor also nicht durchspielen.
+      Jeder Testlauf wird ausgewertet: Welche Türen und Truhen eines Raums hast du erreicht? Das ist der <b>Nachweis</b>. <b>Rätselräume</b> (mit Abgründen, Blöcken, Platten,
+      Kristallen, Pflöcken oder bedingten Truhen) gelten erst als geprüft, wenn ein Testlauf jedes Ziel erreicht hat – auf der Karte grüner Punkt, sonst gelb oder hohl.
+      Mehrere Testläufe ergänzen sich; ändert sich der Raum, ist der Nachweis veraltet.`],
+  ];
+  function renderHilfe() {
+    $('#ed-hilfeansicht').innerHTML = `<div class="spalte breit hilfe-text"><h3>Hilfe zum Editor</h3>${HILFE.map(([t, x]) => `<h3>${t}</h3><p>${x}</p>`).join('')}</div>`;
+  }
+
   // ---------- Aktionen (Knöpfe) ----------
   function aktion(a, el) {
     const d = dg();
@@ -808,6 +1193,9 @@ const Editor = (() => {
         if (confirm(`Dungeon „${d.titel}“ wirklich löschen?`)) { merke(); delete eigene.dungeons[Z.dungeon]; Z.dungeon = Object.keys(eigene.dungeons)[0] || null; Z.raum = Z.dungeon ? dg().start.raum : null; speichern(); render(); }
         break;
       case 'testdungeon': teste(null); break;
+      case 'meldungweg': Z.meldung = null; renderLinks(); break;
+      case 'nachweisweg': { merke(); const n = dg().nachweise; if (n) delete n[Z.raum]; aenderung(); renderRechts(); break; }
+      case 'vorgabenlogik': delete Z.vorgaben[Z.raum]; renderRechts(); break;
       case 'testraum': teste(Z.raum); break;
       case 'startraum': merke(); d.start = { raum: Z.raum, feld: [9.5, 8.5] }; aenderung(); renderRechts(); break;
       case 'raumloeschen': loescheRaum(); break;
@@ -822,6 +1210,8 @@ const Editor = (() => {
       }
       case 'bedplus': schreibeBedingung(el.closest('.bed'), z => z.teile.push({ s: z.teile.length ? z.teile[z.teile.length - 1].s : 'geraeumt', nicht: false })); break;
       case 'bedweg': schreibeBedingung(el.closest('.bed'), z => { z.teile.splice(Number(el.dataset.i), 1); if (!z.teile.length) z.modus = 'immer'; }); break;
+      case 'evneu': { merke(); const r = raum(); (r.ereignisse = r.ereignisse || []).push({ wenn: 'geraeumt', text: 'Geschafft!' }); aenderung(); renderRechts(); break; }
+      case 'evweg': { merke(); const r = raum(); r.ereignisse.splice(Number(el.dataset.i), 1); if (!r.ereignisse.length) delete r.ereignisse; aenderung(); renderRechts(); break; }
       case 'welleplus': { merke(); const r = raum(); r.wellen = [...(r.wellen || []), [Object.keys(DATEN.gegnerarten)[0]]]; aenderung(); renderRechts(); break; }
       case 'welleweg': { merke(); const r = raum(); r.wellen.splice(Number(el.dataset.i), 1); if (!r.wellen.length) delete r.wellen; aenderung(); renderRechts(); break; }
       case 'json':
@@ -845,6 +1235,9 @@ const Editor = (() => {
         if (!confirm(benutzt ? 'Diese Art wird in eigenen Dungeons benutzt. Trotzdem löschen?' : 'Gegnerart löschen?')) break;
         merke(); delete eigene.gegnerarten[Z.gegnerArt]; Z.gegnerArt = null; speichern(); renderGegner(); renderWerkzeuge(); break;
       }
+      case 'phaseneu': case 'phaseweg': case 'phasezurueck': case 'ueneu': case 'ueweg': case 'wpneu': case 'wpweg': phasenAktion(a, el); break;
+      case 'wegzeichnen': Z.werkzeug = { art: 'weg' }; renderWerkzeuge(); break;
+      case 'wegloeschen': { merke(); delete raum().gegner[Z.auswahl.i].weg; aenderung(); renderRechts(); break; }
       case 'farbenzurueck': if (eigene.gegnerarten[Z.gegnerArt]) { merke(); delete eigene.gegnerarten[Z.gegnerArt].farben; speichern(); renderGegner(); } break;
     }
   }
@@ -865,7 +1258,7 @@ const Editor = (() => {
     };
     leser.readAsText(datei);
   }
-  function teste(raumId) { schliesse(); vergissHintergruende(Z.dungeon); starteDungeon(Z.dungeon, raumId); S.ausEditor = true; }
+  function teste(raumId) { const v = raumId ? vorgaben(raumId) : null; schliesse(); vergissHintergruende(Z.dungeon); starteDungeon(Z.dungeon, raumId, v); S.ausEditor = true; }
 
   // ---------- Aufbau ----------
   const CSS = `
@@ -905,6 +1298,21 @@ const Editor = (() => {
   #editor .welle{display:flex;gap:4px;align-items:center;margin:3px 0} #editor .welle label{display:flex;align-items:center}
   #editor .welle img{width:22px;height:22px;image-rendering:pixelated} #editor .welle input{width:42px;padding:2px}
   #editor .kbild{width:24px;height:24px;image-rendering:pixelated;vertical-align:middle;object-fit:contain}
+  #editor .modul{margin:6px 0;padding:6px 8px;background:#1c1e26;border-radius:4px} #editor .modul .kopf{margin:0}
+  #editor .phase{margin:6px 0;padding:6px;border:1px solid #2e313b;border-radius:4px} #editor .erkl-inline{color:#848e92}
+  #editor .status{font-weight:bold;min-width:96px} #editor .status.rot{background:#5c1e24;border-color:#d0574a;color:#ffd9d2}
+  #editor .status.gelb{background:#4a3a14;border-color:#e0a33a;color:#f4cd5e} #editor .status.gruen{background:#1f4226;border-color:#58933b;color:#cfe8b8}
+  #editor span.rot{color:#d0574a} #editor span.gelb{color:#f4cd5e} #editor span.gruen{color:#8abd4f}
+  #editor ul.fehler{margin:4px 0;padding-left:18px;color:#ff9c8f} #editor ul.hinweis{margin:4px 0;padding-left:18px;color:#f4cd5e}
+  #editor .ablauf li{margin:8px 0} #editor .ablauf button{padding:1px 6px;font-size:12px} #editor .tabelle td{padding:2px 10px 2px 0}
+  #editor .reiter{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0} #editor .reiter button.an{background:#5e3826;border-color:#e0a33a}
+  #editor .hilfe-text{max-width:760px} #editor .hilfe-text p{margin:4px 0 10px;line-height:1.5}
+  #editor .meldung{margin:8px 0;padding:6px 8px;background:#1f4226;border:1px solid #58933b;border-radius:4px;font-size:12px} #editor .meldung button{padding:0 5px}
+  #editor .vorgaben{margin:6px 0;padding:6px 8px;background:#1c1e26;border-radius:4px} #editor .vorgaben summary{cursor:pointer;color:#cfd6cf}
+  #editor .nachweis{margin:8px 0;padding:6px 8px;border-radius:4px;background:#1c1e26;border-left:4px solid #454a55;font-size:12px}
+  #editor .nachweis.ok{border-color:#58933b} #editor .nachweis.teil,#editor .nachweis.veraltet{border-color:#e0a33a}
+  #editor .nachweis ul{margin:4px 0;padding-left:4px;list-style:none} #editor .nachweis li.ja{color:#8abd4f} #editor .nachweis li.nein{color:#a9b2b0}
+  #editor .nachweisliste li.ok{color:#8abd4f} #editor .nachweisliste li.teil,#editor .nachweisliste li.veraltet{color:#f4cd5e}
   #editor .kfarben{padding-left:20px} #editor .kfarben li{margin:4px 0} #editor .kfarben .knoepfe{display:inline-flex;margin:0 0 0 8px}
   @media (max-width:900px){#editor .ansichten{flex-direction:column} #editor .spalte{flex:none}}`;
   function baue() {
@@ -912,7 +1320,8 @@ const Editor = (() => {
     wurzel = document.createElement('div'); wurzel.id = 'editor';
     wurzel.innerHTML = `
       <header><h2>Waldwacht-Editor</h2>
-        <button data-ansicht="dungeon">Dungeons &amp; Räume</button><button data-ansicht="gegner">Gegnerarten</button><button data-ansicht="kristalle">Kristalltypen</button>
+        <button data-ansicht="dungeon">Dungeons &amp; Räume</button><button data-ansicht="gegner">Gegnerarten</button><button data-ansicht="kristalle">Kristalltypen</button><button data-ansicht="logik">Logik</button><button data-ansicht="hilfe">Hilfe</button>
+        <button id="ed-status" class="status" data-ansicht="logik">–</button>
         <span style="flex:1"></span><button data-a2="zurueck" title="Strg+Z">↶ Rückgängig</button><button data-a2="spiel">Zum Spiel</button></header>
       <div class="ansichten" id="ed-dungeonansicht">
         <div class="spalte" id="ed-links"></div>
@@ -921,7 +1330,9 @@ const Editor = (() => {
         <div class="spalte" id="ed-rechts"></div>
       </div>
       <div class="ansichten" id="ed-gegneransicht"></div>
-      <div class="ansichten" id="ed-kristallansicht"></div>`;
+      <div class="ansichten" id="ed-kristallansicht"></div>
+      <div class="ansichten" id="ed-logikansicht"></div>
+      <div class="ansichten" id="ed-hilfeansicht"></div>`;
     document.body.appendChild(wurzel);
     wurzel.addEventListener('click', e => {
       const b = e.target.closest('button');
@@ -929,10 +1340,13 @@ const Editor = (() => {
       if (b.dataset.ansicht) { Z.ansicht = b.dataset.ansicht; render(); }
       else if (b.dataset.a2 === 'zurueck') zurueck();
       else if (b.dataset.a2 === 'spiel') { schliesse(); }
-      else if (b.dataset.art) { Z.gegnerArt = b.dataset.art; renderGegner(); }
+      else if (b.dataset.art) { Z.gegnerArt = b.dataset.art; Z.gPhase = null; renderGegner(); }
+      else if (b.dataset.gphase !== undefined) { Z.gPhase = b.dataset.gphase === '' ? null : Number(b.dataset.gphase); renderGegner(); }
       else if (b.dataset.ktyp) { Z.kristallTyp = b.dataset.ktyp; renderKristalle(); }
+      else if (b.dataset.raumwahl) { Z.raum = b.dataset.raumwahl; Z.ansicht = 'dungeon'; Z.auswahl = null; render(); }
       else if (b.dataset.a) aktion(b.dataset.a, b);
     });
+    wurzel.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('vorgaben')) Z.vorgabenOffen = e.target.open; }, true);
     wurzel.addEventListener('change', e => {
       const t = e.target;
       if (t.id === 'ed-dungeonwahl') { Z.dungeon = t.value; Z.raum = dg().start.raum; Z.auswahl = null; render(); }
@@ -949,7 +1363,7 @@ const Editor = (() => {
       e.preventDefault(); cvRaum.setPointerCapture(e.pointerId);
       const f = feldUnter(e), rechts = e.button === 2;
       if (e.altKey) { pipette(...f); return; }
-      if ((Z.form === 'rechteck' || e.shiftKey) && (rechts || ['kachel', 'objekt', 'gegner', 'radierer'].includes(Z.werkzeug.art))) { Z.rechteck = { a: f, b: f, rechts }; zeichneRaum(); return; }
+      if ((Z.form === 'rechteck' || e.shiftKey) && Z.werkzeug.art !== 'weg' && (rechts || ['kachel', 'objekt', 'gegner', 'radierer'].includes(Z.werkzeug.art))) { Z.rechteck = { a: f, b: f, rechts }; zeichneRaum(); return; }
       Z.malt = { rechts, letztes: f.join() }; anwenden(...f, true, rechts);
     });
     cvRaum.addEventListener('pointermove', e => {
@@ -982,16 +1396,41 @@ const Editor = (() => {
     $('#ed-dungeonansicht').style.display = Z.ansicht === 'dungeon' ? '' : 'none';
     $('#ed-gegneransicht').style.display = Z.ansicht === 'gegner' ? '' : 'none';
     $('#ed-kristallansicht').style.display = Z.ansicht === 'kristalle' ? '' : 'none';
-    wurzel.querySelectorAll('[data-ansicht]').forEach(b => b.classList.toggle('an', b.dataset.ansicht === Z.ansicht));
+    $('#ed-logikansicht').style.display = Z.ansicht === 'logik' ? '' : 'none';
+    $('#ed-hilfeansicht').style.display = Z.ansicht === 'hilfe' ? '' : 'none';
+    wurzel.querySelectorAll('[data-ansicht]:not(#ed-status)').forEach(b => b.classList.toggle('an', b.dataset.ansicht === Z.ansicht));
+    zeigeWarnungen();
     renderWerkzeuge();
     if (Z.ansicht === 'gegner') { renderGegner(); return; }
     if (Z.ansicht === 'kristalle') { renderKristalle(); return; }
+    if (Z.ansicht === 'logik') { renderLogik(); return; }
+    if (Z.ansicht === 'hilfe') { renderHilfe(); return; }
     renderLinks(); renderRechts(); zeichneRaum();
+  }
+  // Nach einem Test: erreichte Ziele je Raum als Nachweis speichern (gilt, solange sich der Raum nicht ändert)
+  function werteTestAus() {
+    const t = LETZTER_TEST; LETZTER_TEST = null;
+    const d = t && eigene.dungeons[t.dungeon];
+    if (!d) return;
+    const zeilen = [];
+    d.nachweise = d.nachweise || {};
+    for (const [id, p] of Object.entries(t.protokoll)) {
+      const r = d.raeume[id]; if (!r) continue;
+      const fp = raumFingerabdruck(r), alt = d.nachweise[id] && d.nachweise[id].fp === fp ? d.nachweise[id].erreicht : [];
+      const neu = [...p.rein.filter(x => x.length === 1), ...p.raus].map(x => 'tuer:' + x).concat(p.truhen.map(x => 'truhe:' + x));
+      const erreicht = [...new Set([...alt, ...neu])].filter(z => raumZiele(DATEN, r).includes(z));
+      d.nachweise[id] = { fp, erreicht };
+      const ziele = raumZiele(DATEN, r);
+      zeilen.push(`Raum ${r.nr || id}: ${erreicht.length} von ${ziele.length} Zielen erreicht`);
+    }
+    if (zeilen.length) { Z.meldung = 'Testlauf ausgewertet – ' + zeilen.join(' · '); speichern(); }
   }
   function oeffne() {
     if (!wurzel) baue();
     eigene = ladeEigene();
     for (const d of Object.values(eigene.dungeons)) for (const r of Object.values(d.raeume)) for (const o of r.objekte || []) migriereObjekt(o);
+    for (const a of Object.values(eigene.gegnerarten)) migriereGegnerart(a);
+    werteTestAus();
     if (!Z.dungeon || !dg()) { Z.dungeon = Object.keys(eigene.dungeons)[0] || null; Z.raum = Z.dungeon ? dg().start.raum : null; }
     if (Z.dungeon && !raum()) Z.raum = dg().start.raum;
     offen = true; S = null;

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Waldwacht (Arbeitstitel) – Entwurf 6: datengetriebene Engine mit Editor. Top-Down-Action-Adventure im Stil von „A Link to the Past“.
+  Waldwacht (Arbeitstitel) – Entwurf 9: datengetriebene Engine mit Editor, Gegnern aus Bausteinen und Phasen, Logikprüfung und Nachweisen. Top-Down-Action-Adventure im Stil von „A Link to the Past“.
 
   Trennung: Der Code kennt nur allgemeine Bausteine (Kacheln, Objekt-Eigenschaften, Gegner-Verhalten, Bedingungen).
   Alles Konkrete steht als reines JSON im Block <script id="spieldaten">: Einstellungen, Kacheln, Zeichen-Legende,
@@ -17,17 +17,33 @@
                  Parameter je Objekt: sichtbar_wenn, an_wenn, oben_wenn, merken (einmal wahr = bleibt wahr), spiegeln
     kristalltypen  { id: {name, farben: [Farbe…]} } – Farben in Schaltreihenfolge, die erste gilt zu Beginn. Der Zustand
                  gilt im ganzen Dungeon: alle Kristalle eines Typs zeigen dieselbe Farbe und schalten gemeinsam weiter.
-    gegnerarten  bild, farben (Farbtausch), lp, tempo, schaden, fuss, koerper, beute {herz}, sprung {…} (Verhalten)
+    gegnerarten  bild, farben (Farbtausch), lp, tempo, schaden, fuss, koerper, beute {herz}, groesse, gewicht (Rückstoß-Faktor,
+                 0 = unbeweglich). Verhalten aus Bausteinen, alle optional:
+                   ki {wegfindung, reihe (Angriffs-Reihenfolge), abstand: abstossen|draengen}
+                   bemerkt {art: immer|sicht|kegel|geraeusch|beruehrung, weite, kegel (Grad), nurLicht}
+                   ruhig: stehen|pendeln_w|pendeln_s|patrouille|umherirren · alarm: jagen|fliehen|bleiben|schleichen
+                   Angriffe sprung|schuss|rammen|stampfen {reichweite, zielen (Ankündigung), pause [von, bis], …}
+                   schild {drehtempo} · ruestung: schlag|betaeubt · teilen {art, anzahl} · explodiert {zeit, radius, schaden}
+                   unverwundbar · benommen · serienschutz {treffer, zeit, dauer, konter, schaden} · ausweichen {chance, tempo, abklingzeit}
+                   signal (beim Besiegen) · boss {name} · balken: aus|klein|gross
+                 phasen [{name, …Bausteine (null = aus), tempoFaktor, pauseFaktor, eintritt {text, ruft, unverwundbar},
+                   weiter [{wenn: zeit|zufall|lp|angriff|treffer|signal, …, ziel: Nr|"zufall"}]}] · wendepunkte [{wenn: lp|signal, ziel, text, ruft}]
     gegenstaende bild, text, wirkung {schluessel|laterne|…: Anzahl, maxLp, heilen}, leuchtet (Held trägt Licht)
     dungeons     titel, start {raum, feld}, raeume { id: raum }
     raum         nr, titel, licht (Stufe oder 0..1), lichtkarte (Ziffern 0–9 je Feld), kampf (geräumt bleibt geräumt),
                  karte (15 Zeilen × 20 Zeichen), zeichen, objekte [{objekt, feld:[c,r], …}], gegner [{gegner, feld}],
+                 gegner [{gegner, feld, signal, weg [[c,r]…], blick}],
                  tueren {n|o|s|w: {ziel, schloss, offen_wenn, merken}}, wellen [[gegnerart…]…], einstieg (Text),
                  ereignisse [{wenn, text, setze {signal: wert}}] (je einmal)
   Bedingungen: "signal" · {"alle": [...]} · {"eine": [...]} · {"nicht": ...}. Eingebaut: "geraeumt" (keine Gegner mehr, Wellen fertig),
                "<kristalltyp>=<farbe>" (z. B. "kristall=orange": der Typ zeigt gerade diese Farbe).
-  Signale kommen von Platten (solange belegt, mit merken dauerhaft), Kristallen (siehe oben), Ereignissen (setze).
+  Signale kommen von Platten (solange belegt, mit merken dauerhaft), Kristallen (siehe oben), Ereignissen (setze),
+  besiegten Gegnern (signal an der Art oder am einzelnen Gegner; solche Gegner kommen nicht wieder, Bosse auch nicht).
   Ein Signal gilt im ganzen Dungeon, nur „Platte gerade belegt“ wirkt allein im eigenen Raum.
+  Bedingungen können auch Gegenstände abfragen: "hat:laterne". Nachweise (dungeon.nachweise {raum: {fp, erreicht}}) halten fest,
+  welche Ziele eines Raums (Türen, Truhen) ein Testlauf aus dem Editor erreicht hat (raumZiele, raumFingerabdruck).
+  Logik: pruefeLogik(DATEN, dungeonId) spielt einen Dungeon gedanklich durch (Stufen/Sphären, Schlüssel, Signale) und meldet
+  unerreichbare Räume mit Grund, Schlüssel-Fallen und Räume ohne Rückweg (der Editor zeigt das als Prüfstatus und Reiter „Logik“).
   Licht: je Feld ein Wert 0..1 aus Raumstufe/Lichtkarte, dazu Lichtquellen (Fackeln, Laterne, eigener Schein); lichtBei(x, y)
   liefert ihn für spätere Spielregeln – bisher wirkt Dunkelheit nur auf die Darstellung.
 
@@ -35,7 +51,7 @@
   Grafik: Held, Füchse, Gras, Hindernisse, Laterne aus dem Gutsverwalter-Atlas (atlas_bauen.py → FR/ATLAS_SRC);
   Mauer, Abgrund, Türen, Truhe, Schild, Block, Platte, Kristall, Pflöcke, Fackel, Schwert, Herzen, Schrift in Pixeln (PAL).
 
-  Steuerung: WASD/Pfeile laufen · Leertaste: lesen/öffnen, sonst Schwert · R Neustart im Raum (nach Game Over) · Esc Menü
+  Steuerung: WASD/Pfeile laufen · Leertaste: lesen/öffnen, sonst Schwert · R Neustart im Raum (nach Game Over) · M Ton · Esc Menü
   Touch (erscheint beim ersten Fingertipp): linke Hälfte Steuerstick, rechte Hälfte wie Leertaste, im Menü Eintrag antippen.
   Editor: Menüeintrag EDITOR lädt editor.js (Dungeons, Räume, Objekte, Gegner, Gegnerarten); gespeichert wird im Browser
   (localStorage, EIGENE_SCHLUESSEL) im selben Format, eigene Dungeons erscheinen im Menü. Export/Import als JSON-Datei.
@@ -72,7 +88,7 @@
 </head>
 <body>
 <canvas id="c" width="640" height="480"></canvas>
-<p class="hilfe"><kbd>WASD</kbd>/<kbd>Pfeile</kbd> laufen · <kbd>Leertaste</kbd> lesen, öffnen, Schwert · <kbd>R</kbd> Neustart · <kbd>Esc</kbd> Menü</p>
+<p class="hilfe"><kbd>WASD</kbd>/<kbd>Pfeile</kbd> laufen · <kbd>Leertaste</kbd> lesen, öffnen, Schwert · <kbd>R</kbd> Neustart · <kbd>M</kbd> Ton · <kbd>Esc</kbd> Menü</p>
 <div id="stick" class="tb"><div id="knauf"></div></div>
 <div id="schlagknopf" class="tb">Aktion</div>
 
@@ -82,7 +98,8 @@
   "einstellungen": {
     "held": { "tempo": 150, "lp": 6, "unverwundbar": 1.0, "rueckTempo": 300, "rueckDauer": 0.18 },
     "schlag": { "dauer": 0.28, "neuAb": 0.20, "aktivBis": 0.22, "phasen": [0.05, 0.10, 0.20] },
-    "gegner": { "rueckTempo": 320, "rueckDauer": 0.18, "blitz": 0.25, "wachAb": 1.0, "herzDauer": 9 },
+    "gegner": { "rueckTempo": 320, "rueckDauer": 0.18, "blitz": 0.25, "wachAb": 1.0, "herzDauer": 9,
+                "angreiferMax": 2, "wartAbstand": [80, 150], "betaeubt": 1.6, "drehtempo": 120, "teilenMax": 3, "bossTod": 2.4 },
     "welle": { "abstand": 0.7, "pause": 1.2, "banner": 1.6, "bannerVorlauf": 0.8, "mindestAbstand": 170 },
     "schieben": { "anlauf": 0.35, "dauer": 0.3 },
     "abgrund": { "schaden": 1, "fallDauer": 0.6 },
@@ -118,21 +135,62 @@
     "fackel":      { "bild": "@fackel", "fest": [10, 16, 12, 14], "leuchtet": { "radius": 3.5, "staerke": 1 } }
   },
   "gegnerarten": {
-    "fuchs":  { "bild": "fuchs", "lp": 2, "tempo": 55, "schaden": 1, "fuss": [11, 6], "koerper": [26, 20], "beute": { "herz": 0.2 } },
+    "fuchs":  { "bild": "fuchs", "lp": 2, "tempo": 55, "schaden": 1, "fuss": [11, 6], "koerper": [26, 20], "beute": { "herz": 0.2 },
+                "ki": { "wegfindung": true, "reihe": true } },
     "silber": { "bild": "fuchs", "farben": { "#b88250": "#a9b2b0", "#4a2a2a": "#454a55", "#ece8d6": "#fffbec" },
                 "lp": 3, "tempo": 62, "schaden": 1, "fuss": [11, 6], "koerper": [26, 20], "beute": { "herz": 0.2 },
+                "ki": { "wegfindung": true, "reihe": true },
                 "sprung": { "reichweite": 150, "zielen": 0.5, "dauer": 0.32, "tempo": 300, "pause": [2.0, 3.2] } },
     "glut":   { "bild": "fuchs", "farben": { "#b88250": "#a3343a", "#4a2a2a": "#3e1420", "#ece8d6": "#f4cd5e" },
                 "lp": 4, "tempo": 58, "schaden": 2, "fuss": [11, 6], "koerper": [26, 20], "beute": { "herz": 0.2 },
-                "sprung": { "reichweite": 190, "zielen": 0.4, "dauer": 0.36, "tempo": 340, "pause": [1.4, 2.4] } }
+                "ki": { "wegfindung": true, "reihe": true },
+                "sprung": { "reichweite": 190, "zielen": 0.4, "dauer": 0.36, "tempo": 340, "pause": [1.4, 2.4] } },
+    "schuetze": { "bild": "huhn", "farben": { "#ece8d6": "#7fbcdc", "#b88250": "#3f5190", "#d0574a": "#f4cd5e" },
+                "lp": 2, "tempo": 40, "schaden": 1, "fuss": [8, 5], "koerper": [18, 18], "beute": { "herz": 0.3 },
+                "bemerkt": { "art": "sicht", "weite": 330 }, "ruhig": "pendeln_w", "alarm": "bleiben",
+                "schuss": { "reichweite": 340, "zielen": 0.6, "tempo": 170, "schaden": 1, "anzahl": 1, "pause": [1.6, 2.4] } },
+    "schildfuchs": { "bild": "fuchs", "farben": { "#b88250": "#626a72", "#4a2a2a": "#2e313b", "#ece8d6": "#cfd6cf" },
+                "lp": 3, "tempo": 45, "schaden": 1, "fuss": [11, 6], "koerper": [26, 20], "beute": { "herz": 0.3 },
+                "ki": { "wegfindung": true, "reihe": true }, "schild": { "drehtempo": 100 }, "gewicht": 0.6 },
+    "rammler": { "bild": "hase", "farben": { "#6f6463": "#986438", "#848e92": "#5e3826" },
+                "lp": 2, "tempo": 35, "schaden": 2, "fuss": [8, 5], "koerper": [18, 16], "beute": { "herz": 0.4 },
+                "ki": { "wegfindung": true }, "bemerkt": { "art": "sicht", "weite": 240 }, "ruhig": "umherirren", "alarm": "jagen",
+                "rammen": { "reichweite": 320, "zielen": 0.55, "tempo": 330, "dauer": 1.4, "betaeubt": 1.8, "pause": [0.8, 1.4] },
+                "ruestung": "betaeubt" },
+    "waechter": { "bild": "fuchs", "farben": { "#b88250": "#5a70b0", "#4a2a2a": "#1c1e26", "#ece8d6": "#7fbcdc" },
+                "lp": 2, "tempo": 75, "schaden": 1, "fuss": [11, 6], "koerper": [26, 20], "beute": { "herz": 0.2 },
+                "ki": { "wegfindung": true, "reihe": true }, "bemerkt": { "art": "kegel", "weite": 190, "kegel": 70 },
+                "ruhig": "patrouille", "alarm": "jagen" },
+    "teiler": { "bild": "hase", "farben": { "#6f6463": "#467f36", "#848e92": "#2a552c" },
+                "lp": 2, "tempo": 45, "schaden": 1, "fuss": [8, 5], "koerper": [18, 16],
+                "ki": { "wegfindung": true, "abstand": "draengen" }, "teilen": { "art": "sproessling", "anzahl": 2 } },
+    "sproessling": { "bild": "hase", "farben": { "#6f6463": "#8abd4f", "#848e92": "#467f36" },
+                "lp": 1, "tempo": 80, "schaden": 1, "fuss": [8, 5], "koerper": [18, 16], "beute": { "herz": 0.15 }, "gewicht": 1.6,
+                "ki": { "abstand": "draengen" } },
+    "knaller": { "bild": "huhn", "farben": { "#ece8d6": "#d0574a", "#b88250": "#3e1420" },
+                "lp": 1, "tempo": 62, "schaden": 1, "fuss": [8, 5], "koerper": [18, 18],
+                "ki": { "wegfindung": true }, "explodiert": { "zeit": 1.0, "radius": 60, "schaden": 2 } },
+    "fuchskoenig": { "bild": "fuchs", "farben": { "#b88250": "#e0a33a", "#4a2a2a": "#5e3826", "#ece8d6": "#fffbec" },
+                "lp": 14, "tempo": 52, "schaden": 2, "fuss": [11, 6], "koerper": [26, 20], "groesse": 2, "gewicht": 0.25,
+                "beute": { "herz": 1 }, "ki": { "wegfindung": true }, "boss": { "name": "FUCHSKÖNIG" },
+                "sprung": { "reichweite": 240, "zielen": 0.6, "dauer": 0.42, "tempo": 330, "pause": [1.6, 2.4] },
+                "serienschutz": { "treffer": 3, "zeit": 2, "dauer": 1.2, "konter": true, "schaden": 1 },
+                "phasen": [
+                  { "name": "Jagd", "unverwundbar": true, "weiter": [ { "wenn": "zufall", "s": [5, 7], "ziel": 1 } ] },
+                  { "name": "Erschöpft", "benommen": true, "weiter": [ { "wenn": "zeit", "s": 3, "ziel": 0 } ] },
+                  { "name": "Wut", "unverwundbar": true, "tempoFaktor": 1.3, "pauseFaktor": 0.75,
+                    "stampfen": { "reichweite": 90, "zielen": 0.7, "radius": 80, "schaden": 2, "pause": [2.2, 3.2] },
+                    "weiter": [ { "wenn": "zufall", "s": [4, 6], "ziel": 3 } ] },
+                  { "name": "Erschöpft", "benommen": true, "weiter": [ { "wenn": "zeit", "s": 2.5, "ziel": 2 } ] } ],
+                "wendepunkte": [ { "wenn": "lp", "unter": 0.5, "ziel": 2, "text": "DER KÖNIG WIRD WÜTEND!", "ruft": { "fuchs": 2 } } ] }
   },
   "kristalltypen": {
     "kristall": { "name": "Blau/Orange", "farben": ["blau", "orange"] }
   },
   "gegenstaende": {
-    "schluessel":    { "bild": "@schluessel", "text": "Du hast einen kleinen Schlüssel gefunden! Er öffnet eine verschlossene Tür.", "wirkung": { "schluessel": 1 } },
-    "herzcontainer": { "bild": "@herzcontainer", "text": "Ein Herzcontainer! Du hast jetzt ein Herz mehr, und alle Herzen sind wieder voll.", "wirkung": { "maxLp": 2, "heilen": true } },
-    "laterne":       { "bild": "laterne_1", "text": "Du hast eine Laterne gefunden! In dunklen Räumen leuchtet sie dir den Weg.", "wirkung": { "laterne": 1 },
+    "schluessel":    { "name": "Kleiner Schlüssel", "bild": "@schluessel", "text": "Du hast einen kleinen Schlüssel gefunden! Er öffnet eine verschlossene Tür.", "wirkung": { "schluessel": 1 } },
+    "herzcontainer": { "name": "Herzcontainer", "bild": "@herzcontainer", "text": "Ein Herzcontainer! Du hast jetzt ein Herz mehr, und alle Herzen sind wieder voll.", "wirkung": { "maxLp": 2, "heilen": true } },
+    "laterne":       { "name": "Laterne", "bild": "laterne_1", "text": "Du hast eine Laterne gefunden! In dunklen Räumen leuchtet sie dir den Weg.", "wirkung": { "laterne": 1 },
                        "leuchtet": { "radius": 3.2, "staerke": 0.95 } }
   },
   "dungeons": {
@@ -545,6 +603,77 @@
           ]
         }
       }
+    },
+    "gegner": {
+      "titel": "GEGNER-PROBE", "untertitel": "Schützen, Schilde, Rammler, Wächter, Boss",
+      "start": { "raum": "schuetzen", "feld": [9.5, 12.5] },
+      "raeume": {
+        "schuetzen": {
+          "nr": "1", "titel": "SCHÜTZEN", "licht": "hell",
+          "tueren": { "n": { "ziel": "rammler", "offen_wenn": "geraeumt" } },
+          "einstieg": "Schlag die Kugeln der Schützen zurück! Der Schildfuchs pariert von vorn - geh um ihn herum.",
+          "karte": [
+            "####################", "####################", "#..................#", "#..................#",
+            "#..SSS........SSS..#", "#..................#", "#..................#", "#..................#",
+            "#..................#", "#..................#", "#..................#", "#..................#",
+            "#..................#", "#..................#", "####################" ],
+          "objekte": [], "gegner": [
+            { "gegner": "schuetze", "feld": [4, 3] }, { "gegner": "schuetze", "feld": [15, 3] },
+            { "gegner": "schildfuchs", "feld": [10, 7] } ]
+        },
+        "rammler": {
+          "nr": "2", "titel": "RAMMLER", "licht": "hell",
+          "tueren": { "s": { "ziel": "schuetzen" }, "n": { "ziel": "waechter", "offen_wenn": "geraeumt" } },
+          "einstieg": "Rammler sind gepanzert. Weich aus - wenn sie gegen eine Wand krachen, sind sie kurz verwundbar.",
+          "karte": [
+            "####################", "####################", "#..................#", "#..................#",
+            "#....S........S....#", "#..................#", "#..................#", "#..................#",
+            "#..................#", "#..................#", "#....S........S....#", "#..................#",
+            "#..................#", "#..................#", "####################" ],
+          "objekte": [], "gegner": [ { "gegner": "rammler", "feld": [9, 5] }, { "gegner": "rammler", "feld": [11, 9] } ]
+        },
+        "waechter": {
+          "nr": "3", "titel": "WACHGANG", "licht": "daemmrig",
+          "tueren": { "s": { "ziel": "rammler" }, "n": { "ziel": "gewimmel", "offen_wenn": "hauptmann", "merken": true } },
+          "einstieg": "Wächter sehen nur nach vorn. Besiege den Hauptmann, der oben patrouilliert - dann öffnet sich das Tor.",
+          "karte": [
+            "####################", "####################", "#..................#", "#..................#",
+            "#..................#", "#..................#", "#...SS...SS...SS...#", "#..................#",
+            "#..................#", "#...SS...SS...SS...#", "#..................#", "#..................#",
+            "#..................#", "#..................#", "####################" ],
+          "objekte": [], "gegner": [
+            { "gegner": "waechter", "feld": [3, 3], "signal": "hauptmann", "weg": [[3, 3], [16, 3], [16, 4], [3, 4]] },
+            { "gegner": "waechter", "feld": [16, 7], "weg": [[16, 7], [16, 8], [3, 8], [3, 7]] },
+            { "gegner": "waechter", "feld": [9, 11], "blick": "links", "weg": [[3, 11], [16, 11]] } ]
+        },
+        "gewimmel": {
+          "nr": "4", "titel": "GEWIMMEL", "licht": "hell",
+          "tueren": { "s": { "ziel": "waechter" }, "n": { "ziel": "thron", "offen_wenn": "geraeumt" } },
+          "einstieg": "Teiler zerfallen in zwei, Knaller explodieren kurz nach dem Treffer - Abstand halten!",
+          "karte": [
+            "####################", "####################", "#..................#", "#..................#",
+            "#..................#", "#...~~........~~...#", "#...~~........~~...#", "#..................#",
+            "#..................#", "#..................#", "#..................#", "#..................#",
+            "#..................#", "#..................#", "####################" ],
+          "objekte": [], "gegner": [
+            { "gegner": "teiler", "feld": [6, 4] }, { "gegner": "teiler", "feld": [13, 4] },
+            { "gegner": "knaller", "feld": [3, 9] }, { "gegner": "knaller", "feld": [16, 9] } ]
+        },
+        "thron": {
+          "nr": "5", "titel": "THRONSAAL", "licht": "daemmrig", "kampf": true,
+          "tueren": { "s": { "ziel": "gewimmel", "offen_wenn": "geraeumt" } },
+          "einstieg": "Der Fuchskönig! Solange er schimmert, prallt dein Schwert ab. Warte, bis er erschöpft ist - dann zuschlagen, aber nicht zu oft hintereinander!",
+          "ereignisse": [ { "wenn": "geraeumt", "text": "Der Fuchskönig ist besiegt! Das war die Gegner-Probe." } ],
+          "karte": [
+            "####################", "####################", "#..................#", "#..................#",
+            "#.~~............~~.#", "#.~~............~~.#", "#..................#", "#..................#",
+            "#..................#", "#..................#", "#.~~............~~.#", "#.~~............~~.#",
+            "#..................#", "#..................#", "####################" ],
+          "objekte": [ { "objekt": "truhe", "feld": [9, 7], "inhalt": "herzcontainer", "sichtbar_wenn": "geraeumt" },
+                       { "objekt": "fackel", "feld": [4, 2] }, { "objekt": "fackel", "feld": [15, 2] } ],
+          "gegner": [ { "gegner": "fuchskoenig", "feld": [9, 5] } ]
+        }
+      }
     }
   }
 }
@@ -606,6 +735,15 @@ function bewege(e, mx, my, liste) {
 
 // ---------- Kristalltypen ----------
 const kristallTyp = id => DATEN.kristalltypen[id] || { name: id, farben: ['blau', 'orange'] };
+function migriereGegnerart(a) {   // ältere Daten: boss.phasen [{ab, tempo, pause, ruft, text}] → phasen + wendepunkte
+  const alt = a.boss && a.boss.phasen;
+  if (!alt || a.phasen) { if (a.boss) delete a.boss.phasen; return a; }
+  let t = 1, p = 1;
+  a.phasen = [{ name: 'Start' }, ...alt.map((ph, i) => ({ name: 'Phase ' + (i + 2), tempoFaktor: +(t *= ph.tempo || 1).toFixed(2), pauseFaktor: +(p *= ph.pause || 1).toFixed(2) }))];
+  a.wendepunkte = alt.map((ph, i) => ({ wenn: 'lp', unter: ph.ab, ziel: i + 1, ...(ph.text ? { text: ph.text } : {}), ...(ph.ruft ? { ruft: ph.ruft } : {}) }));
+  delete a.boss.phasen;
+  return a;
+}
 function migriereObjekt(o) {   // ältere Daten: Kristall mit signal, Pflock mit oben_wenn → Kristalltyp und Farbe
   const art = DATEN.objektarten[o.objekt];
   if (!art) return o;
@@ -626,14 +764,20 @@ function bedingungsSignale(b, liste = []) {
 function dungeonSignale(d, dg) {
   const quellen = {}, fragen = {}, neu = (tab, name, wo) => (tab[name] = tab[name] || []).push(wo);
   for (const [id, r] of Object.entries(dg.raeume)) {
-    const legende = { ...d.zeichen, ...(r.zeichen || {}) }, eintraege = [...(r.objekte || [])];
-    for (const z of r.karte) for (const ch of z) if (legende[ch] && legende[ch].objekt) eintraege.push(legende[ch]);
+    const legende = { ...d.zeichen, ...(r.zeichen || {}) }, eintraege = [...(r.objekte || [])], gegner = [...(r.gegner || [])];
+    for (const z of r.karte) for (const ch of z) if (legende[ch]) (legende[ch].gegner ? gegner : eintraege).push(legende[ch]);
     for (const e of eintraege) {
       const art = d.objektarten[e.objekt] || {};
       if (art.platte && e.signal) neu(quellen, e.signal, { raum: id, art: 'platte', merken: !!e.merken });
       if ((art.kristall || art.pflock) && e.kristalltyp) for (const f of kristallTyp(e.kristalltyp).farben) neu(quellen, e.kristalltyp + '=' + f, { raum: id, art: 'kristall' });
+      if (art.oeffnbar && e.inhalt) neu(quellen, 'hat:' + e.inhalt, { raum: id, art: 'truhe' });
       for (const k of ['sichtbar_wenn', 'an_wenn', 'oben_wenn']) for (const s of bedingungsSignale(e[k])) neu(fragen, s, { raum: id, art: e.objekt });
     }
+    for (const e of gegner) {
+      const sig = e.signal || (d.gegnerarten[e.gegner] || {}).signal;
+      if (sig) neu(quellen, sig, { raum: id, art: 'gegner', gegner: e.gegner });
+    }
+    for (const art of (r.wellen || []).flat()) { const sig = (d.gegnerarten[art] || {}).signal; if (sig) neu(quellen, sig, { raum: id, art: 'gegner', gegner: art }); }
     for (const [dir, t] of Object.entries(r.tueren)) for (const s of bedingungsSignale(t.offen_wenn)) neu(fragen, s, { raum: id, art: 'tür ' + dir });
     for (const e of r.ereignisse || []) {
       for (const s of Object.keys(e.setze || {})) neu(quellen, s, { raum: id, art: 'ereignis' });
@@ -643,11 +787,211 @@ function dungeonSignale(d, dg) {
   return { quellen, fragen };
 }
 
+// ---------- Räume: Ziele, Fingerabdruck, Rätselräume (für Nachweise per Testlauf) ----------
+// Ein Nachweis hält fest, welche Ziele eines Raums (Türen, Truhen) ein Testlauf erreicht hat – gültig, solange sich der
+// Raum nicht ändert (Fingerabdruck). So muss man Rätselräume einzeln testen, nicht den ganzen Dungeon.
+function raumFingerabdruck(r) {
+  const t = JSON.stringify([r.karte, r.objekte || [], r.gegner || [], r.zeichen || {}, r.wellen || [], r.ereignisse || [],
+    Object.entries(r.tueren).sort().map(([dir, x]) => [dir, !!x.schloss, x.offen_wenn ?? null])]);
+  let h = 5381;
+  for (let i = 0; i < t.length; i++) h = (Math.imul(h, 33) ^ t.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+function raumObjekte(d, r) {   // Objekte aus Liste und Karten-Legende, mit Feld
+  const legende = { ...d.zeichen, ...(r.zeichen || {}) }, liste = [...(r.objekte || [])];
+  r.karte.forEach((z, y) => [...z].forEach((ch, x) => { if (legende[ch] && legende[ch].objekt) liste.push({ ...legende[ch], feld: [x, y] }); }));
+  return liste;
+}
+function raumZiele(d, r) {
+  return [...Object.keys(r.tueren).sort().map(dir => 'tuer:' + dir),
+    ...raumObjekte(d, r).filter(o => (d.objektarten[o.objekt] || {}).oeffnbar).map(o => 'truhe:' + o.feld.join(','))];
+}
+function istRaetselraum(d, r) {   // alles, was die Logikprüfung nicht von außen beurteilen kann
+  if (r.karte.some(z => [...z].some(ch => d.kacheln[ch] === 'abgrund'))) return true;
+  return raumObjekte(d, r).some(o => { const a = d.objektarten[o.objekt] || {}; return a.schiebbar || a.platte || a.kristall || a.pflock || (a.oeffnbar && o.sichtbar_wenn !== undefined); });
+}
+const ZIEL_NAME = z => z.startsWith('tuer:') ? 'Tür ' + ({ n: 'Nord', o: 'Ost', s: 'Süd', w: 'West' })[z.slice(5)] : 'Truhe auf ' + z.slice(6);
+
+// ---------- Logik: ist der Dungeon lösbar? ----------
+// Spielt den Dungeon gedanklich durch, in Stufen wie die „Sphären“ eines Randomizers: was ist vom Start aus erreichbar,
+// welche Signale, Schlüssel und Gegenstände gibt es dort, welche Türen gehen damit auf – bis sich nichts mehr ändert.
+// Türen gelten je Richtung (wer von A nach B will, braucht die Tür in A). Platten ohne „bleibt unten“ wirken nur im
+// eigenen Raum. „nicht …“ gilt als erfüllbar (alle Signale beginnen aus). Schlüssel: zusätzlich die ungünstigste
+// Reihenfolge der Schlosstüren. Was die Prüfung nicht kann: ob ein Block-Rätsel im Raum selbst lösbar ist.
+function logikInfo(d, dg) {   // je Raum: was es dort zu holen gibt
+  const info = {};
+  for (const [id, r] of Object.entries(dg.raeume)) {
+    const legende = { ...d.zeichen, ...(r.zeichen || {}) }, objekte = [...(r.objekte || [])], gegner = [...(r.gegner || [])];
+    for (const z of r.karte) for (const ch of z) if (legende[ch]) (legende[ch].gegner ? gegner : objekte).push(legende[ch]);
+    const i = info[id] = { lokal: [], global: [], kristalle: [], truhen: [], ereignisse: r.ereignisse || [] };
+    objekte.forEach((o, k) => {
+      const art = d.objektarten[o.objekt] || {};
+      if (art.platte && o.signal) (o.merken ? i.global : i.lokal).push(o.signal);
+      if ((art.kristall || art.pflock) && o.kristalltyp && art.kristall) i.kristalle.push(o.kristalltyp);
+      if (art.oeffnbar && o.inhalt) i.truhen.push({ key: id + ':' + k, inhalt: o.inhalt, wenn: o.sichtbar_wenn });
+    });
+    for (const e of gegner) { const sig = e.signal || (d.gegnerarten[e.gegner] || {}).signal; if (sig) i.global.push(sig); }
+    for (const art of (r.wellen || []).flat()) { const sig = (d.gegnerarten[art] || {}).signal; if (sig) i.global.push(sig); }
+  }
+  return info;
+}
+function logikLauf(d, dg, info, schlossWahl) {
+  const raeume = dg.raeume, w = { signale: new Set(), kristalle: new Set(), besitz: new Set(), truhen: new Set(), schluessel: 0, verbraucht: 0,
+    stufe: {}, offen: new Set(), ablauf: [], vorher: {} };
+  // Zustand, mit dem man einen Raum frühestens betritt (für den Teststart mit Vorgaben)
+  const merkeVorher = id => { w.vorher[id] = { signale: [...w.signale], besitz: [...w.besitz], schluessel: w.schluessel - w.verbraucht }; };
+  const typFarbe = s => { const k = s.indexOf('='); return k > 0 ? [s.slice(0, k), s.slice(k + 1)] : null; };
+  const moeglich = (b, raum) => {
+    if (b === undefined || b === null) return true;
+    if (typeof b === 'string') {
+      if (b === 'geraeumt') return true;
+      if (b.startsWith('hat:')) return w.besitz.has(b.slice(4));
+      const tf = typFarbe(b);
+      if (tf) return w.kristalle.has(tf[0]) || (kristallTyp(tf[0]).farben[0] === tf[1]);
+      return w.signale.has(b) || info[raum].lokal.includes(b);
+    }
+    if (b.alle) return b.alle.every(x => moeglich(x, raum));
+    if (b.eine) return b.eine.some(x => moeglich(x, raum));
+    if (b.nicht !== undefined) return true;
+    return false;
+  };
+  w.moeglich = moeglich;
+  const tuerFrei = (id, dir) => { const t = raeume[id].tueren[dir]; return (!t.schloss || w.offen.has(id + ':' + dir)) && (t.offen_wenn === undefined || moeglich(t.offen_wenn, id)); };
+  let runde = 1;
+  w.stufe[dg.start.raum] = 1; merkeVorher(dg.start.raum);
+  for (let sicherung = 0; sicherung < 500; sicherung++) {
+    const eintrag = { stufe: runde, raeume: [], erhalten: [], geoeffnet: [] };
+    // 1. alles Erreichbare fluten
+    const schlange = Object.keys(w.stufe);
+    while (schlange.length) {
+      const id = schlange.shift();
+      for (const [dir, t] of Object.entries(raeume[id].tueren)) {
+        if (!raeume[t.ziel] || !tuerFrei(id, dir)) continue;
+        w.offen.add(t.ziel + ':' + GEGENUEBER[dir]);   // durch eine Schlosstür gekommen: von innen offen
+        if (w.stufe[t.ziel] === undefined) { w.stufe[t.ziel] = runde; merkeVorher(t.ziel); schlange.push(t.ziel); }
+      }
+    }
+    eintrag.raeume = Object.keys(w.stufe).filter(id => w.stufe[id] === runde);
+    // 2. einsammeln
+    let neu = false;
+    for (const id of Object.keys(w.stufe)) {
+      const i = info[id];
+      for (const sig of i.global) if (!w.signale.has(sig)) { w.signale.add(sig); neu = true; eintrag.erhalten.push({ was: 'signal', name: sig, raum: id }); }
+      for (const typ of i.kristalle) if (!w.kristalle.has(typ)) { w.kristalle.add(typ); neu = true; eintrag.erhalten.push({ was: 'kristall', name: typ, raum: id }); }
+      for (const tr of i.truhen) if (!w.truhen.has(tr.key) && moeglich(tr.wenn, id)) {
+        w.truhen.add(tr.key); neu = true;
+        const g = (d.gegenstaende[tr.inhalt] || {}).wirkung || {};
+        if (g.schluessel) w.schluessel += g.schluessel; else w.besitz.add(tr.inhalt);
+        eintrag.erhalten.push({ was: 'truhe', name: tr.inhalt, raum: id });
+      }
+      i.ereignisse.forEach((e, k) => {
+        if (!moeglich(e.wenn, id)) return;
+        for (const sig of Object.keys(e.setze || {})) if (!w.signale.has(sig)) { w.signale.add(sig); neu = true; eintrag.erhalten.push({ was: 'signal', name: sig, raum: id, ereignis: true }); }
+      });
+    }
+    // 3. nichts Neues mehr: eine Schlosstür aufschließen, wenn ein Schlüssel übrig ist
+    if (!neu && w.schluessel > w.verbraucht) {
+      const kandidaten = [];
+      for (const id of Object.keys(w.stufe)) for (const [dir, t] of Object.entries(raeume[id].tueren))
+        if (t.schloss && !w.offen.has(id + ':' + dir) && raeume[t.ziel]) kandidaten.push([id, dir]);
+      if (kandidaten.length) {
+        const [id, dir] = schlossWahl(kandidaten);
+        w.offen.add(id + ':' + dir); w.verbraucht++; neu = true;
+        eintrag.geoeffnet.push({ raum: id, dir, schloss: true });
+      }
+    }
+    if (eintrag.raeume.length || eintrag.erhalten.length || eintrag.geoeffnet.length) w.ablauf.push(eintrag);
+    if (!neu) break;
+    runde++;
+  }
+  return w;
+}
+function pruefeLogik(d, dgId) {
+  const dg = d.dungeons[dgId], erg = { fehler: [], hinweise: [], stufe: {}, ablauf: [] };
+  if (!dg || !dg.raeume[dg.start.raum]) return erg;
+  const info = logikInfo(d, dg), raeume = dg.raeume, nr = id => (raeume[id].nr || id);
+  const w = logikLauf(d, dg, info, k => k[0]), w2 = logikLauf(d, dg, info, k => k[k.length - 1]);
+  Object.assign(erg, { stufe: w.stufe, ablauf: w.ablauf, vorher: w.vorher, nachweise: {} });
+  for (const [id, r] of Object.entries(raeume)) {   // Rätselräume: Was hat ein Testlauf schon erreicht?
+    const ziele = raumZiele(d, r), nw = (dg.nachweise || {})[id], gueltig = nw && nw.fp === raumFingerabdruck(r);
+    const erreicht = gueltig ? ziele.filter(z => nw.erreicht.includes(z)) : [];
+    erg.nachweise[id] = { raetsel: istRaetselraum(d, r), ziele, erreicht, veraltet: !!nw && !gueltig,
+      status: erreicht.length === ziele.length && gueltig ? 'ok' : erreicht.length ? 'teil' : nw && !gueltig ? 'veraltet' : 'offen' };
+  }
+  const { quellen } = dungeonSignale(d, dg);
+  const quelleText = sig => {   // warum ist das Signal nicht zu haben?
+    const wo = quellen[sig];
+    if (!wo) return `„${sig}“ – das wird nirgends ausgelöst`;
+    const orte = [...new Set(wo.map(q => q.raum))];
+    if (wo.every(q => q.art === 'platte' && !q.merken)) return `„${sig}“ – das kommt von einer Platte in Raum ${orte.map(nr).join(', ')}, die nur in ihrem eigenen Raum wirkt (Wirkung „bleibt unten“ wählen)`;
+    return `„${sig}“ – das gibt es nur in Raum ${orte.map(nr).join(', ')}, ${orte.length > 1 ? 'die' : 'der'} selbst nicht erreichbar ${orte.length > 1 ? 'sind' : 'ist'}`;
+  };
+  // Unerreichbare Räume: an jeder Grenztür erklären, was fehlt
+  for (const id of Object.keys(raeume)) {
+    if (w.stufe[id] !== undefined) continue;
+    const gruende = [];
+    for (const [von, r] of Object.entries(raeume)) {
+      if (w.stufe[von] === undefined) continue;
+      for (const [dir, t] of Object.entries(r.tueren)) {
+        if (t.ziel !== id) continue;
+        const wo = `Tür ${({ n: 'Nord', o: 'Ost', s: 'Süd', w: 'West' })[dir]} in Raum ${nr(von)}`;
+        if (t.schloss && !w.offen.has(von + ':' + dir)) gruende.push(`${wo} ist verschlossen, aber es gibt keinen Schlüssel mehr`);
+        if (t.offen_wenn !== undefined && !w.moeglich(t.offen_wenn, von))
+          gruende.push(`${wo} braucht ${bedingungsSignale(t.offen_wenn).filter(sg => !w.moeglich(sg, von)).map(quelleText).join(' und ')}`);
+      }
+    }
+    if (gruende.length) erg.fehler.push(`Raum ${nr(id)} ist nicht erreichbar: ${gruende.join('; ')}.`);
+    else erg.fehler.push(`Raum ${nr(id)} ist nicht erreichbar (nur über andere unerreichbare Räume).`);
+  }
+  // Schlüssel-Falle: andere Reihenfolge der Schlosstüren, anderes Ergebnis
+  const fehltBei2 = Object.keys(raeume).filter(id => w.stufe[id] !== undefined && w2.stufe[id] === undefined);
+  if (fehltBei2.length) erg.fehler.push(`Schlüssel-Falle: Je nachdem, welche Schlosstür man zuerst öffnet, bleibt Raum ${fehltBei2.map(nr).join(', ')} unerreichbar. Mehr Schlüssel verteilen oder eine Schlosstür weniger.`);
+  // Hinweise: Rückweg, Truhen, die nie erscheinen
+  const zurueck = new Set([dg.start.raum]);
+  for (let geaendert = true; geaendert;) {
+    geaendert = false;
+    for (const [id, r] of Object.entries(raeume)) {
+      if (zurueck.has(id) || w.stufe[id] === undefined) continue;
+      if (Object.entries(r.tueren).some(([dir, t]) => zurueck.has(t.ziel) && (!t.schloss || w.offen.has(id + ':' + dir)) && (t.offen_wenn === undefined || w.moeglich(t.offen_wenn, id)))) { zurueck.add(id); geaendert = true; }
+    }
+  }
+  const sackgassen = Object.keys(raeume).filter(id => w.stufe[id] !== undefined && !zurueck.has(id));
+  if (sackgassen.length) erg.hinweise.push(`Aus Raum ${sackgassen.map(nr).join(', ')} führt kein Weg zurück zum Start. Gewollt (Ende)? Sonst sitzt man dort fest.`);
+  for (const [id, i] of Object.entries(info)) if (w.stufe[id] !== undefined) for (const tr of i.truhen) if (!w.truhen.has(tr.key)) erg.hinweise.push(`Raum ${nr(id)}: Die Truhe (${tr.inhalt}) erscheint nie – ihre Bedingung ist nicht erfüllbar.`);
+  const schloesser = Object.entries(raeume).reduce((n, [id, r]) => n + Object.entries(r.tueren).filter(([dir, t]) => t.schloss && !(raeume[t.ziel] && raeume[t.ziel].tueren[GEGENUEBER[dir]] && raeume[t.ziel].tueren[GEGENUEBER[dir]].schloss && t.ziel < id)).length, 0);
+  if (w.schluessel > schloesser) erg.hinweise.push(`${w.schluessel} Schlüssel, aber nur ${schloesser} Schlosstüren – ${w.schluessel - schloesser} bleiben übrig.`);
+  return erg;
+}
+
+// Verhalten einer Gegnerart in einer Phase: Phase überschreibt die Art, null schaltet einen Baustein ab (siehe Phasen)
+const VERHALTEN = ['tempo', 'schaden', 'gewicht', 'ki', 'bemerkt', 'ruhig', 'alarm', 'sprung', 'schuss', 'rammen', 'stampfen',
+  'schild', 'ruestung', 'unverwundbar', 'ausweichen', 'serienschutz', 'benommen', 'tempoFaktor', 'pauseFaktor'];
+function verhaltenVon(a, phase) {
+  const v = {};
+  for (const k of VERHALTEN) { const w = phase && k in phase ? phase[k] : a[k]; if (w !== null && w !== undefined) v[k] = w; }
+  return v;
+}
+
 // ---------- Daten prüfen ----------
 // Meldet Fehler in den Spieldaten (Konsole, Zahl im Menü), damit ein späterer Editor dieselben Regeln nutzen kann.
 function pruefeDaten(d, still = false) {
   const w = [], bekannt = ch => d.kacheln[ch] !== undefined;
   for (const [ch, e] of Object.entries(d.zeichen)) if (e.objekt && !d.objektarten[e.objekt]) w.push(`Zeichen ${ch}: unbekannte Objektart ${e.objekt}`);
+  for (const [id, a] of Object.entries(d.gegnerarten)) {
+    if (a.teilen && !d.gegnerarten[a.teilen.art]) w.push(`Gegnerart ${id}: teilt sich in unbekannte Art ${a.teilen.art}`);
+    for (let k = a, weg = [id]; k && k.teilen && d.gegnerarten[k.teilen.art];) {   // Kette A → B → … zurück zu A?
+      if (weg.includes(k.teilen.art)) { w.push(`Gegnerart ${id}: Teilen im Kreis (${[...weg, k.teilen.art].join(' → ')}) – nach ${CFG.gegner.teilenMax} Generationen ist Schluss`); break; }
+      weg.push(k.teilen.art); k = d.gegnerarten[k.teilen.art];
+    }
+    const n = (a.phasen || []).length;
+    for (const u of [...(a.wendepunkte || []), ...(a.phasen || []).flatMap(p => [...(p.weiter || []), p.eintritt || {}])]) {
+      for (const art of Object.keys(u.ruft || {})) if (!d.gegnerarten[art]) w.push(`Gegnerart ${id}: ruft unbekannte Art ${art}`);
+      if (typeof u.ziel === 'number' && (u.ziel < 0 || u.ziel >= n)) w.push(`Gegnerart ${id}: Übergang zu Phase ${u.ziel + 1}, die es nicht gibt`);
+    }
+    (a.phasen || []).forEach((p, i) => { if (n > 1 && !(p.weiter || []).length && !(a.wendepunkte || []).some(u => u.ziel !== i)) w.push(`Gegnerart ${id}: aus Phase ${i + 1} (${p.name || ''}) führt kein Übergang heraus`); });
+    if ((a.phasen || []).length && a.phasen.every(p => verhaltenVon(a, p).unverwundbar)) w.push(`Gegnerart ${id}: in jeder Phase unverwundbar – nicht zu besiegen`);
+    if (a.ruestung === 'betaeubt' && !a.rammen) w.push(`Gegnerart ${id}: Rüstung „nur betäubt verwundbar“ ohne Rammen – nur zurückgeschlagene Geschosse betäuben ihn`);
+  }
   for (const [did, dg] of Object.entries(d.dungeons)) {
     if (!dg.raeume[dg.start.raum]) w.push(`${did}: Startraum ${dg.start.raum} fehlt`);
     else {   // jeder Raum vom Start aus über Türen erreichbar?
@@ -671,6 +1015,7 @@ function pruefeDaten(d, still = false) {
       }
       for (const welle of r.wellen || []) for (const g of welle) if (!d.gegnerarten[g]) w.push(`${wo}: Welle mit unbekannter Gegnerart ${g}`);
       (r.wellen || []).forEach((welle, i) => { if (!welle.length) w.push(`${wo}: Welle ${i + 1} ist leer`); });
+      for (const e of r.gegner || []) if (e.weg && !e.weg.length) w.push(`${wo}: Gegner auf ${e.feld} hat einen leeren Weg`);
       for (const [dir, t] of Object.entries(r.tueren)) {
         const gegen = dg.raeume[t.ziel] && dg.raeume[t.ziel].tueren[GEGENUEBER[dir]];
         if (!gegen || gegen.ziel !== id) w.push(`${wo}: Tür ${dir} → ${t.ziel} hat keine passende Gegentür`);
@@ -699,6 +1044,7 @@ function ladeEigene() {
 function uebernehmeEigene(e, mitBildern = false) {   // auch vom Editor nach jeder Änderung aufgerufen
   const kopie = o => JSON.parse(JSON.stringify(o));
   DATEN.gegnerarten = { ...EINGEBAUT.gegnerarten, ...kopie(e.gegnerarten) };
+  for (const a of Object.values(DATEN.gegnerarten)) migriereGegnerart(a);
   DATEN.kristalltypen = { ...EINGEBAUT.kristalltypen, ...kopie(e.kristalltypen || {}) };
   DATEN.dungeons = { ...EINGEBAUT.dungeons };
   for (const [id, d] of Object.entries(e.dungeons)) {
@@ -1116,7 +1462,7 @@ function baueRaum(id) {
       const ch = def.karte[r][c], e = legende[ch];
       raum.kachel[r].push(DATEN.kacheln[ch] || 'boden');
       if (!e) continue;
-      if (e.gegner) raum.gegner.push({ art: e.gegner, x: c * T + T / 2, y: r * T + T / 2 });
+      if (e.gegner) raum.gegner.push({ art: e.gegner, x: c * T + T / 2, y: r * T + T / 2, p: {} });
       else if (e.objekt && DATEN.objektarten[e.objekt]) {
         const vorher = raum.objekte[raum.objekte.length - 1];
         if (DATEN.objektarten[e.objekt].kette && vorher && vorher.quelle === e && vorher.r === r && vorher.c + vorher.laenge === c) vorher.laenge++;
@@ -1130,7 +1476,7 @@ function baueRaum(id) {
     if (typ.kette && v && v.art === e.objekt && v.quelle === v.p && v.r === e.feld[1] && v.c + v.laenge === e.feld[0]) v.laenge++;
     else neu(e);
   }
-  for (const e of def.gegner || []) if (DATEN.gegnerarten[e.gegner]) raum.gegner.push({ art: e.gegner, x: e.feld[0] * T + T / 2, y: e.feld[1] * T + T / 2 });
+  for (const e of def.gegner || []) if (DATEN.gegnerarten[e.gegner]) raum.gegner.push({ art: e.gegner, x: e.feld[0] * T + T / 2, y: e.feld[1] * T + T / 2, p: e });
   for (const d of Object.keys(def.tueren)) {
     const [x, y, w, h] = TUER_RECHTECK[d];
     for (let r = y / T; r < (y + h) / T; r++) for (let c = x / T; c < (x + w) / T; c++) raum.kachel[r][c] = 'boden';
@@ -1145,9 +1491,13 @@ const istLoch = (c, r) => S.raum.kachel[r] && S.raum.kachel[r][c] === 'abgrund' 
 
 // ---------- Eingabe: Tastatur ----------
 const TASTEN = { ArrowUp: 'hoch', KeyW: 'hoch', ArrowDown: 'runter', KeyS: 'runter', ArrowLeft: 'links', KeyA: 'links',
-  ArrowRight: 'rechts', KeyD: 'rechts', Space: 'schlag', Enter: 'schlag', KeyR: 'neustart', Escape: 'menue' };
+  ArrowRight: 'rechts', KeyD: 'rechts', Space: 'schlag', Enter: 'schlag', KeyR: 'neustart', Escape: 'menue', KeyM: 'ton' };
 const gehalten = new Set(), gedrueckt = new Set();   // gedrueckt: seit dem letzten Spielschritt neu gedrückt
-addEventListener('keydown', e => { const t = TASTEN[e.code]; if (!t || imEditor() || (e.target.closest && e.target.closest('input,textarea,select'))) return; e.preventDefault(); if (!e.repeat) gedrueckt.add(t); gehalten.add(t); });
+addEventListener('keydown', e => {
+  const t = TASTEN[e.code]; if (!t || imEditor() || (e.target.closest && e.target.closest('input,textarea,select'))) return; e.preventDefault();
+  if (t === 'ton') { if (!e.repeat) TON.an = !TON.an; return; }
+  if (!e.repeat) gedrueckt.add(t); gehalten.add(t);
+});
 addEventListener('keyup', e => { const t = TASTEN[e.code]; if (t) gehalten.delete(t); });
 addEventListener('blur', () => { gehalten.clear(); TOUCH.richtung.clear(); });
 
@@ -1201,9 +1551,42 @@ addEventListener('contextmenu', e => { if (TOUCH.aktiv) e.preventDefault(); });
 const PARAM = new URLSearchParams(location.search);
 if (PARAM.has('touch')) touchAn();
 
+// ---------- Ton ----------
+// Kleine Synthesizer-Klänge über WebAudio, ohne Dateien. M schaltet den Ton an und aus.
+const TON = { an: true, ctx: null };
+function tonStart() { try { TON.ctx = TON.ctx || new (window.AudioContext || window.webkitAudioContext)(); if (TON.ctx.state === 'suspended') TON.ctx.resume(); } catch (e) { TON.an = false; } }
+addEventListener('keydown', tonStart); addEventListener('pointerdown', tonStart);
+function ton(art, lautstaerke = 1) {
+  const c = TON.ctx;
+  if (!TON.an || !c || c.state !== 'running') return;
+  const t0 = c.currentTime, aus = c.createGain(); aus.gain.value = 0.16 * lautstaerke; aus.connect(c.destination);
+  const osz = (typ, f0, f1, dauer, start = 0) => {
+    const o = c.createOscillator(), g = c.createGain(); o.type = typ;
+    o.frequency.setValueAtTime(f0, t0 + start); o.frequency.exponentialRampToValueAtTime(f1, t0 + start + dauer);
+    g.gain.setValueAtTime(1, t0 + start); g.gain.exponentialRampToValueAtTime(0.001, t0 + start + dauer);
+    o.connect(g); g.connect(aus); o.start(t0 + start); o.stop(t0 + start + dauer); return o;
+  };
+  const rauschen = (dauer, f0, f1) => {
+    const n = Math.floor(c.sampleRate * dauer), puffer = c.createBuffer(1, n, c.sampleRate), d = puffer.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n) ** 2;
+    const q = c.createBufferSource(), filter = c.createBiquadFilter(); q.buffer = puffer; filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(f0, t0); filter.frequency.exponentialRampToValueAtTime(f1, t0 + dauer);
+    q.connect(filter); filter.connect(aus); q.start(t0);
+  };
+  if (art === 'treffer') osz('square', 260, 90, 0.08);
+  else if (art === 'abprall') { osz('triangle', 1400, 1100, 0.09); osz('square', 2100, 1800, 0.05); }
+  else if (art === 'knall') rauschen(0.35, 1800, 120);
+  else if (art === 'stampf') { rauschen(0.25, 500, 60); osz('sine', 90, 40, 0.25); }
+  else if (art === 'wowow') {   // das „WOWOWOW“ beim Ende eines Bosses: fallender Ton mit schnellem Wabern
+    const o = osz('square', 520, 70, 2.2), lfo = c.createOscillator(), tiefe = c.createGain();
+    lfo.frequency.value = 9; tiefe.gain.value = 140; lfo.connect(tiefe); tiefe.connect(o.frequency); lfo.start(t0); lfo.stop(t0 + 2.2);
+  }
+}
+
 // ---------- Spielstand ----------
 let S = null;   // null = Menü; sonst der gesamte Spielstand eines Dungeons
-function starteDungeon(dungeonId, raumId) {
+let LETZTER_TEST = null;   // Protokoll des letzten Testlaufs aus dem Editor
+function starteDungeon(dungeonId, raumId, vorgaben = null) {
   const dg = DATEN.dungeons[dungeonId];
   S = {
     dungeonId, dungeon: dg,
@@ -1217,13 +1600,24 @@ function starteDungeon(dungeonId, raumId) {
       unverwundbar: 0, anim: 0, schlagNr: 0, schieben: 0 },
     raum: null, eintritt: null, einlauf: null, wechsel: null, text: null, wellen: null,
     gegner: [], beute: [], effekte: [], fest: [], festGegner: [], festRueck: [],
+    geschosse: [], gefahren: [], banner: null, laerm: null,
+    protokoll: {},   // je Raum: erreichte Ziele (für Nachweise aus dem Editor)
   };
-  if (!raumId || !dg.raeume[raumId] || raumId === dg.start.raum) {
-    betreteRaum(dg.start.raum, { x: dg.start.feld[0] * T, y: dg.start.feld[1] * T, blick: 'runter' });
-  } else if (!Object.keys(dg.raeume[raumId].tueren).length) {   // Teststart in einem Raum ohne Türen: in der Mitte
-    betreteRaum(raumId, { x: 9.5 * T, y: 8.5 * T, blick: 'runter' });
-  } else {   // Teststart in einem Raum: durch seine erste Tür hinein
-    const d = Object.keys(dg.raeume[raumId].tueren)[0], [x, y, w, h] = TUER_RECHTECK[d];
+  if (vorgaben) {   // Teststart aus dem Editor: Signale, Gegenstände und Schlüssel, als hätte man sie schon
+    for (const sig of vorgaben.signale || []) S.signale[sig] = true;
+    for (const id of vorgaben.besitz || []) {
+      const g = DATEN.gegenstaende[id]; if (!g) continue;
+      S.besitz.add(id); if ((g.wirkung || {}).maxLp) { S.maxLp += g.wirkung.maxLp; S.held.lp = S.maxLp; }
+    }
+    if (vorgaben.schluessel) S.inventar.schluessel = vorgaben.schluessel;
+  }
+  const eingang = vorgaben && vorgaben.eingang, tueren = raumId && dg.raeume[raumId] ? dg.raeume[raumId].tueren : {};
+  if (!raumId || !dg.raeume[raumId] || (raumId === dg.start.raum && (!eingang || eingang === 'start'))) {
+    betreteRaum(dg.start.raum, { x: dg.start.feld[0] * T, y: dg.start.feld[1] * T, blick: 'runter', seite: 'start' });
+  } else if (eingang === 'mitte' || !Object.keys(tueren).length) {   // Teststart in der Raummitte
+    betreteRaum(raumId, { x: 9.5 * T, y: 8.5 * T, blick: 'runter', seite: 'mitte' });
+  } else {   // Teststart in einem Raum: durch die gewählte (sonst die erste) Tür hinein
+    const d = tueren[eingang] ? eingang : Object.keys(tueren)[0], [x, y, w, h] = TUER_RECHTECK[d];
     betreteRaum(raumId, { x: x + w / 2, y: y + h / 2, blick: BLICK_VON[GEGENUEBER[d]], einlauf: GEGENUEBER[d] });
     durchgangOffen(d);
   }
@@ -1234,12 +1628,18 @@ function betreteRaum(id, eintritt) {
   S.raum = baueRaum(id);
   const h = S.held, def = S.raum.def;
   Object.assign(h, { x: eintritt.x, y: eintritt.y, blick: eintritt.blick, modus: 'normal', t: 0, anim: 0, schieben: 0 });
-  S.gegner = []; S.beute = []; S.effekte = []; S.wellen = null; S.live = new Set();
+  S.gegner = []; S.beute = []; S.effekte = []; S.wellen = null; S.live = new Set(); S.geschosse = []; S.gefahren = []; S.banner = null;
   if (!(def.kampf && S.geraeumt.has(S.raum.schluessel))) {
-    for (const g of S.raum.gegner) if (DATEN.gegnerarten[g.art]) S.gegner.push(neuerGegner(g.art, g.x, g.y));
+    S.raum.gegner.forEach((e, i) => {   // benannte Gegner (mit Signal) und Bosse bleiben besiegt
+      const a = DATEN.gegnerarten[e.art], key = `${S.raum.schluessel}:g${i}`, benannt = a && (e.p.signal || a.signal || a.boss);
+      if (!a || (benannt && S.gemerkt.has(key))) return;
+      S.gegner.push(neuerGegner(e.art, e.x, e.y, { ...e.p, key: benannt ? key : null }));
+    });
     if (def.wellen) S.wellen = { nr: 0, warteschlange: [], spawnUhr: 0, banner: 0, ruhe: 0.5, fertig: false };
   }
   S.einlauf = eintritt.einlauf || null;
+  const prot = S.protokoll[id] = S.protokoll[id] || { rein: [], raus: [], truhen: [] }, seite = eintritt.einlauf ? GEGENUEBER[eintritt.einlauf] : eintritt.seite;
+  if (seite && !prot.rein.includes(seite)) prot.rein.push(seite);
   for (const o of S.raum.objekte) if (o.typ.pflock) o.oben = pflockSoll(o);
   aktualisiereSignale();
   for (const d of Object.keys(def.tueren)) S.raum.tuerZu[d] = tuerZu(d);
@@ -1251,11 +1651,63 @@ function nachEinlauf() {   // der Held steht im Raum: Eintrittspunkt merken (fü
   S.eintritt = { x: h.x, y: h.y, blick: h.blick };
   if (!S.besucht.has(k)) { S.besucht.add(k); if (S.raum.def.einstieg) zeigeText(S.raum.def.einstieg); }
 }
-function neuerGegner(art, x, y) {
-  const a = DATEN.gegnerarten[art];
-  return { art, a, x, y, hw: a.fuss[0], hh: a.fuss[1], lp: a.lp, rueck: 0, vx: 0, vy: 0, blitz: 0, anim: 0,
-    spiegeln: x > S.held.x, getroffen: -1, warten: CFG.gegner.wachAb, sterbend: false, modus: 'jagen', mt: 0,
-    sprungPause: a.sprung ? zufallIn(a.sprung.pause) : 0 };
+const ANGRIFFE = ['sprung', 'schuss', 'rammen', 'stampfen'];
+const BLICKWINKEL = { rechts: 0, runter: Math.PI / 2, links: Math.PI, hoch: -Math.PI / 2 };
+function neuerGegner(art, x, y, inst = {}) {   // inst: Angaben aus dem Raum (signal, weg, blick, key)
+  const a = DATEN.gegnerarten[art], s = a.groesse || 1;
+  const g = { art, a, x, y, s, hw: a.fuss[0] * s, hh: a.fuss[1] * s, lp: a.lp, lpMax: a.lp, rueck: 0, vx: 0, vy: 0, blitz: 0, anim: 0,
+    spiegeln: x > S.held.x, getroffen: -1, warten: CFG.gegner.wachAb, sterbend: false, modus: 'normal', mt: 0, angriff: null,
+    inst, key: inst.key || null, alarm: !a.bemerkt || a.bemerkt.art === 'immer', ausruf: 0, angreifer: true,
+    blickW: BLICKWINKEL[inst.blick] ?? (x > S.held.x ? Math.PI : 0), betaeubt: 0, phase: 0, v: null,
+    pausen: {}, wegI: 0, richtung: 1, irrUhr: 0, irrV: null, kreis: Math.random() < 0.5 ? 1 : -1, gefahr: null,
+    schutz: 0, trefferZeiten: [], letzterAngriff: null, wendepunkte: new Set(), ausweichUhr: 0 };
+  setzePhase(g, 0, true);
+  return g;
+}
+// ---------- Phasen ----------
+// Eine Gegnerart kann Phasen haben: je Phase ein Verhaltensblock, der das Grundverhalten der Art überschreibt
+// (null = Baustein in dieser Phase aus). Übergänge je Phase (weiter) und aus jeder Phase je einmal (wendepunkte).
+function setzePhase(g, i, anfang = false) {
+  const a = g.a, ph = a.phasen && a.phasen[i];
+  g.phase = i; g.phaseT = 0; g.phaseDauer = null; g.v = verhaltenVon(a, ph);
+  for (const k of ANGRIFFE) if (g.v[k] && (anfang || g.pausen[k] === undefined)) g.pausen[k] = zufallIn(g.v[k].pause || [1.5, 2.5]);
+  if (!anfang && g.modus !== 'normal') { g.modus = 'normal'; if (g.gefahr) { g.gefahr.weg = true; g.gefahr = null; } }
+  if (!anfang && ph) phasenEintritt(g, ph.eintritt);
+}
+function phasenEintritt(g, e) {   // beim Wechsel: Banner, Verstärkung, kurz unverwundbar
+  if (!e) return;
+  if (e.text) S.banner = { text: e.text, t: CFG.welle.banner };
+  if (e.unverwundbar) g.schutz = Math.max(g.schutz, e.unverwundbar);
+  for (const [art, n] of Object.entries(e.ruft || {})) for (let i = 0; i < n && DATEN.gegnerarten[art]; i++) {
+    const q = freierPlatz(11, 6); S.gegner.push(neuerGegner(art, q.x, q.y)); S.effekte.push({ art: 'puff', x: q.x, y: q.y - 8, t: 0 });
+  }
+}
+function uebergangGilt(g, u) {
+  switch (u.wenn) {
+    case 'zeit': return g.phaseT >= (u.s ?? 5);
+    case 'zufall': if (g.phaseDauer === null) g.phaseDauer = zufallIn(u.s || [3, 6]); return g.phaseT >= g.phaseDauer;
+    case 'lp': return g.lp / g.lpMax <= (u.unter ?? 0.5);
+    case 'angriff': return g.letzterAngriff !== null && (!u.art || g.letzterAngriff === u.art);
+    case 'treffer': return g.trefferZeiten.filter(t => S.zeit - t <= (u.in ?? 2)).length >= (u.n ?? 3);
+    case 'signal': return gilt(u.signal);
+  }
+  return false;
+}
+function pruefeUebergaenge(g) {
+  const a = g.a;
+  for (const [i, u] of (a.wendepunkte || []).entries()) {   // aus jeder Phase, je einmal
+    if (g.wendepunkte.has(i) || !uebergangGilt(g, u)) continue;
+    g.wendepunkte.add(i); g.trefferZeiten = [];
+    setzePhase(g, Math.max(0, Math.min((a.phasen || [0]).length - 1, u.ziel ?? g.phase + 1))); phasenEintritt(g, u); return;
+  }
+  const ph = a.phasen && a.phasen[g.phase];
+  for (const u of (ph && ph.weiter) || []) {
+    if (!uebergangGilt(g, u)) continue;
+    const n = a.phasen.length, ziel = u.ziel === 'zufall' ? (n > 1 ? (g.phase + 1 + Math.floor(Math.random() * (n - 1))) % n : 0) : (u.ziel ?? (g.phase + 1) % n);
+    g.trefferZeiten = []; g.letzterAngriff = null;
+    setzePhase(g, Math.max(0, Math.min(n - 1, ziel))); return;
+  }
+  g.letzterAngriff = null;
 }
 
 // ---------- Signale und Bedingungen ----------
@@ -1266,6 +1718,7 @@ function raumGeraeumt() {
 const kristallFarbe = typ => { const f = kristallTyp(typ).farben; return f[(S.kristalle[typ] || 0) % f.length]; };
 function signal(name) {
   if (name === 'geraeumt') return raumGeraeumt();
+  if (name.startsWith('hat:')) return S.besitz.has(name.slice(4));   // "hat:laterne": Gegenstand im Besitz
   const k = name.indexOf('=');
   if (k > 0) return kristallFarbe(name.slice(0, k)) === name.slice(k + 1);   // "typ=farbe"
   return S.live.has(name) || !!S.signale[name];
@@ -1371,6 +1824,7 @@ function pruefeEreignisse() {   // je Ereignis einmal: wenn die Bedingung gilt, 
 function pruefeAusgang(h) {
   const d = h.y - h.hh < 1 ? 'n' : h.y + h.hh > HOEHE - 1 ? 's' : h.x - h.hw < 1 ? 'w' : h.x + h.hw > BREITE - 1 ? 'o' : null;
   if (!d || !S.raum.def.tueren[d]) return;
+  const prot = S.protokoll[S.raum.id]; if (prot && !prot.raus.includes(d)) prot.raus.push(d);
   const alt = { bg: S.raum.bg, licht: raumDunkel(S.raum) ? lichtKopie() : null }, p0 = { x: h.x, y: h.y };
   const neu = { x: h.x, y: h.y, blick: BLICK_VON[d], einlauf: d };
   if (d === 'o') neu.x = h.hw + 1; else if (d === 'w') neu.x = BREITE - h.hw - 1;
@@ -1447,9 +1901,10 @@ function schwertTrefferfelder(h) {   // drei kleine AABB entlang der Klinge
   return [10, 18, 26].map(d => ({ x: gx + Math.cos(a) * d - 5, y: gy + Math.sin(a) * d - 5, w: 10, h: 10 }));
 }
 const heldKoerper = h => ({ x: h.x - 9, y: h.y - 22, w: 18, h: 28 });
-const gegnerKoerper = g => ({ x: g.x - g.a.koerper[0] / 2, y: g.y + g.hh - g.a.koerper[1], w: g.a.koerper[0], h: g.a.koerper[1] });
+const gegnerKoerper = g => ({ x: g.x - g.a.koerper[0] * g.s / 2, y: g.y + g.hh - g.a.koerper[1] * g.s, w: g.a.koerper[0] * g.s, h: g.a.koerper[1] * g.s });
+const geschossKoerper = p => ({ x: p.x - 6, y: p.y - 18, w: 12, h: 12 });   // fliegt etwa in Brusthöhe über dem Schatten
 
-function starteSchlag(h) { h.modus = 'schlag'; h.t = 0; h.schlagNr++; h.anim = 0; }
+function starteSchlag(h) { h.modus = 'schlag'; h.t = 0; h.schlagNr++; h.anim = 0; S.laerm = { x: h.x, y: h.y }; }
 
 // Leertaste vor etwas Lesbarem oder Öffenbarem: lesen bzw. öffnen statt zuschlagen
 function interagiere(h) {
@@ -1459,7 +1914,11 @@ function interagiere(h) {
   for (const o of S.raum.objekte) {
     const f = festVon(o);
     if (!f || !ueberlappt(vorne, f)) continue;
-    if (o.typ.oeffnbar && !S.truhen.has(o.key)) { S.truhen.add(o.key); gibGegenstand(o.p.inhalt); return true; }
+    if (o.typ.oeffnbar && !S.truhen.has(o.key)) {
+      S.truhen.add(o.key); gibGegenstand(o.p.inhalt);
+      const prot = S.protokoll[S.raum.id], z = o.p.feld ? o.p.feld.join(',') : o.c + ',' + o.r; if (prot && !prot.truhen.includes(z)) prot.truhen.push(z);
+      return true;
+    }
     if (o.typ.lesbar) { zeigeText(o.p.text || ''); return true; }
   }
   return false;
@@ -1536,13 +1995,15 @@ function pruefeSchwert(h) {
     if (g.sterbend || g.getroffen === h.schlagNr) continue;
     const feld = trifft(gegnerKoerper(g));
     if (!feld) continue;
-    g.getroffen = h.schlagNr; g.lp--; g.blitz = CFG.gegner.blitz; g.rueck = CFG.gegner.rueckDauer; g.warten = 0;
-    if (g.modus !== 'jagen') { g.modus = 'jagen'; g.sprungPause = g.a.sprung.pause[0]; }   // Treffer unterbricht den Sprung
-    let rx = g.x - h.x, ry = g.y - h.y; const l = Math.hypot(rx, ry) || 1; rx /= l; ry /= l;
-    g.vx = rx * CFG.gegner.rueckTempo; g.vy = ry * CFG.gegner.rueckTempo;
-    if (g.lp <= 0) g.sterbend = true;
+    g.getroffen = h.schlagNr;
+    treffeGegner(g, h.x, h.y, 1, 'schwert');
     S.effekte.push({ art: 'funke', x: feld.x + feld.w / 2, y: feld.y + feld.h / 2, t: 0 });
     S.stopp = CFG.trefferStopp;
+  }
+  for (const p of S.geschosse) if (p.von === 'gegner' && trifft(geschossKoerper(p))) {   // zurückschlagen: fliegt jetzt gegen die Gegner
+    const l = Math.hypot(p.x - h.x, p.y - h.y) || 1, v = Math.hypot(p.vx, p.vy) * 1.3;
+    p.vx = (p.x - h.x) / l * v; p.vy = (p.y - h.y) / l * v; p.von = 'held';
+    S.effekte.push({ art: 'funke', x: p.x, y: p.y - 12, t: 0 }); S.stopp = 2;
   }
   for (const o of S.raum.objekte) {
     const f = festVon(o);
@@ -1595,66 +2056,354 @@ function updateObjekte() {
 }
 
 // ---------- Gegner ----------
-// jagen: langsam auf den Helden zu. Mit sprung (Daten): in Reichweite kurz anhalten und zittern (zielen,
-// das ist die Warnung), dann geradeaus dorthin springen, wo der Held beim Absprung stand.
+// Eine Gegnerart setzt sich aus Bausteinen zusammen (alle optional, Werte im Kopfkommentar):
+//   ki {wegfindung, reihe, abstand} · bemerkt {art, weite, kegel, nurLicht} · ruhig / alarm (Bewegung)
+//   Angriffe sprung · schuss · rammen · stampfen, jeder mit Ankündigung (zielen) · schild · ruestung · gewicht
+//   Tod: teilen · explodiert · signal (auch je Gegner im Raum) · boss {name, phasen}
+const KI_STANDARD = { wegfindung: false, reihe: false, abstand: 'abstossen' };
+const kiVon = g => ({ ...KI_STANDARD, ...(g.v.ki || {}) });
+const tempoVon = g => (g.v.tempo ?? 50) * (g.v.tempoFaktor || 1);
+const pauseVon = (g, at) => zufallIn(at.pause || [1.5, 2.5]) * (g.v.pauseFaktor || 1);
+const winkelAbstand = (a, b) => { const d = Math.abs(((a - b) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI); return d; };
+const NACHBARN8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+
+// Wegfindung: je Spielschritt ein Abstandsfeld vom Feld des Helden aus (Breitensuche über die für Gegner freien
+// Felder, schräg nur ohne Ecken zu schneiden). Dazu, was die Sicht versperrt (Mauern, Hindernisse – Abgründe nicht).
+let WEG = null;
+function berechneWegfeld() {
+  const n = SPALTEN * ZEILEN, frei = new Uint8Array(n), sicht = new Uint8Array(n), dist = new Int16Array(n).fill(-1);
+  for (let r = 0; r < ZEILEN; r++) for (let c = 0; c < SPALTEN; c++) {
+    const kern = { x: c * T + 8, y: r * T + 8, w: 16, h: 16 };
+    frei[r * SPALTEN + c] = S.festGegner.some(f => ueberlappt(f, kern)) ? 0 : 1;
+    sicht[r * SPALTEN + c] = S.fest.some(f => ueberlappt(f, kern)) ? 0 : 1;
+  }
+  WEG = { frei, sicht, dist };
+  const [hc, hr] = feldVon(S.held.x, S.held.y);
+  if (hc < 0 || hr < 0 || hc >= SPALTEN || hr >= ZEILEN) return;
+  const schlange = [hr * SPALTEN + hc];
+  dist[schlange[0]] = 0;
+  for (let i = 0; i < schlange.length; i++) {
+    const k = schlange[i], c = k % SPALTEN, r = (k - c) / SPALTEN;
+    for (const [dx, dy] of NACHBARN8) {
+      const nc = c + dx, nr = r + dy, m = nr * SPALTEN + nc;
+      if (nc < 0 || nr < 0 || nc >= SPALTEN || nr >= ZEILEN || !frei[m] || dist[m] >= 0) continue;
+      if (dx && dy && (!frei[r * SPALTEN + nc] || !frei[nr * SPALTEN + c])) continue;
+      dist[m] = dist[k] + 1; schlange.push(m);
+    }
+  }
+}
+const wegDist = g => { const [c, r] = feldVon(g.x, g.y); return c >= 0 && r >= 0 && c < SPALTEN && r < ZEILEN ? WEG.dist[r * SPALTEN + c] : -1; };
+function sichtlinie(a, b) {   // nichts Undurchsichtiges zwischen a und b (Proben alle 8 px)
+  const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy), n = Math.ceil(l / 8);
+  const [ac, ar] = feldVon(a.x, a.y), [bc, br] = feldVon(b.x, b.y);
+  for (let i = 1; i < n; i++) {
+    const [c, r] = feldVon(a.x + dx * i / n, a.y + dy * i / n);
+    if ((c === ac && r === ar) || (c === bc && r === br)) continue;
+    if (c < 0 || r < 0 || c >= SPALTEN || r >= ZEILEN || !WEG.sicht[r * SPALTEN + c]) return false;
+  }
+  return true;
+}
+function freieLinie(g, ziel) {   // für Gegner begehbar: Mitte und beide Ränder der Fußbox
+  const dx = ziel.x - g.x, dy = ziel.y - g.y, l = Math.hypot(dx, dy) || 1, ox = -dy / l * g.hw, oy = dx / l * g.hw;
+  for (const k of [0, 1, -1]) {
+    const n = Math.ceil(l / 8);
+    for (let i = 1; i < n; i++) {
+      const [c, r] = feldVon(g.x + k * ox + dx * i / n, g.y + k * oy + dy * i / n);
+      if (c < 0 || r < 0 || c >= SPALTEN || r >= ZEILEN) return false;
+      if (!WEG.frei[r * SPALTEN + c] && !(c === feldVon(ziel.x, ziel.y)[0] && r === feldVon(ziel.x, ziel.y)[1])) return false;
+    }
+  }
+  return true;
+}
+function wegRichtung(g, sinn) {   // sinn 1: zum Helden hin, -1: von ihm fort; null, wenn das Feld nichts weiß
+  const [c, r] = feldVon(g.x, g.y), d0 = wegDist(g);
+  if (d0 < 0) return null;
+  let best = null, bestD = d0;
+  for (const [dx, dy] of NACHBARN8) {
+    const nc = c + dx, nr = r + dy;
+    if (nc < 0 || nr < 0 || nc >= SPALTEN || nr >= ZEILEN) continue;
+    const d = WEG.dist[nr * SPALTEN + nc];
+    if (d < 0 || (dx && dy && (!WEG.frei[r * SPALTEN + nc] || !WEG.frei[nr * SPALTEN + c]))) continue;
+    if (sinn > 0 ? d < bestD : d > bestD) { bestD = d; best = [nc, nr]; }
+  }
+  if (!best) return null;
+  const zx = best[0] * T + T / 2 - g.x, zy = best[1] * T + T / 2 - g.y, l = Math.hypot(zx, zy) || 1;
+  return [zx / l, zy / l];
+}
+function zumHelden(g, h, dx, dy, l) {
+  if (!kiVon(g).wegfindung || freieLinie(g, h)) return [dx / l, dy / l];
+  return wegRichtung(g, 1) || [dx / l, dy / l];
+}
+function vomHelden(g, dx, dy, l) { return (kiVon(g).wegfindung && wegRichtung(g, -1)) || [-dx / l, -dy / l]; }
+
+// Angriffs-Reihenfolge: von den Gegnern mit ki.reihe greifen höchstens CFG.gegner.angreiferMax gleichzeitig an
+// (die mit dem kürzesten Weg; wer schon dran ist, bleibt bevorzugt). Die anderen halten Abstand und kreisen.
+function verteileAngriffe() {
+  const reihe = [];
+  for (const g of S.gegner) {
+    if (!kiVon(g).reihe || g.sterbend) { g.angreifer = true; continue; }
+    if (g.alarm && g.warten <= 0 && (g.v.alarm || 'jagen') !== 'fliehen') reihe.push(g); else g.angreifer = false;
+  }
+  const rang = g => { const d = wegDist(g); return (d < 0 ? 99 : d) - (g.angreifer ? 2 : 0) - (g.modus !== 'normal' ? 50 : 0); };
+  reihe.sort((a, b) => rang(a) - rang(b)).forEach((g, i) => { g.angreifer = i < CFG.gegner.angreiferMax; });
+}
+function warteBewegung(g, h, dx, dy, l) {   // wer nicht dran ist: in einem Ring um den Helden bleiben und kreisen
+  const [nah, fern] = CFG.gegner.wartAbstand;
+  if (l < nah) return { v: vomHelden(g, dx, dy, l), f: 0.7 };
+  if (l > fern) return { v: zumHelden(g, h, dx, dy, l), f: 1 };
+  return { v: [-dy / l * g.kreis, dx / l * g.kreis], f: 0.45, kreisen: true };
+}
+
+function bemerkt(g, h, l) {   // Wahrnehmung: wann wird aus ruhig alarmiert?
+  const b = g.v.bemerkt;
+  if (!b || b.art === 'immer') return true;
+  if (b.art === 'beruehrung') return false;   // erst durch Treffer oder Berührung
+  const weite = b.weite || 160;
+  if (b.art === 'geraeusch') return l < 40 || (S.laerm && Math.hypot(S.laerm.x - g.x, S.laerm.y - g.y) < weite);
+  if (l > weite) return false;
+  if (b.nurLicht && raumDunkel(S.raum) && lichtBei(h.x, h.y - 12) < 0.4) return false;
+  if (b.art === 'kegel' && winkelAbstand(Math.atan2(h.y - g.y, h.x - g.x), g.blickW) > (b.kegel || 90) * Math.PI / 360) return false;
+  return sichtlinie(g, h);
+}
+function alarmiere(g) { if (!g.alarm) { g.alarm = true; g.ausruf = 0.7; } }
+const heldSchautAuf = (g, h) => { const w = BLICKWINKEL[h.blick]; return winkelAbstand(Math.atan2(g.y - h.y, g.x - h.x), w) < Math.PI * 0.4; };
+
+function ruhigeBewegung(g, art) {   // ohne Alarm: stehen, pendeln, Wegpunkte ablaufen, umherirren
+  if (art === 'pendeln_w') return [g.richtung, 0];
+  if (art === 'pendeln_s') return [0, g.richtung];
+  if (art === 'patrouille' && g.inst.weg && g.inst.weg.length) {
+    const p = g.inst.weg[g.wegI % g.inst.weg.length], zx = p[0] * T + T / 2 - g.x, zy = p[1] * T + T / 2 - g.y, l = Math.hypot(zx, zy);
+    if (l < 4) { g.wegI++; return null; }
+    return [zx / l, zy / l];
+  }
+  if (art === 'umherirren' || art === 'patrouille') {
+    g.irrUhr -= DT;
+    if (g.irrUhr <= 0) { const w = Math.floor(Math.random() * 8) * Math.PI / 4; g.irrUhr = zufallIn([0.8, 2]); g.irrV = Math.random() < 0.3 ? null : [Math.cos(w), Math.sin(w)]; }
+    return g.irrV;
+  }
+  return null;
+}
+function kannAngreifen(g, k, at, dx, dy, l) {
+  if (l > (at.reichweite || 150)) return false;
+  if (k === 'schuss') return sichtlinie(g, S.held);
+  if (k === 'rammen') return (Math.abs(dx) < 16 || Math.abs(dy) < 16) && sichtlinie(g, S.held);
+  return true;
+}
+function beginneAngriff(g, k, at, dx, dy) {   // Ankündigung: Zittern, „!“, beim Stampfen ein roter Kreis, beim Rammen die Bahn
+  g.modus = 'zielen'; g.angriff = k; g.mt = (at.zielen ?? 0.5); g.spiegeln = dx < 0;
+  if (!g.v.schild) g.blickW = Math.atan2(dy, dx);
+  if (k === 'rammen') g.ramm = Math.abs(dx) < Math.abs(dy) ? [0, Math.sign(dy) || 1] : [Math.sign(dx) || 1, 0];
+  if (k === 'stampfen') { g.gefahr = { art: 'stampf', von: g, x: g.x, y: g.y, radius: at.radius || 60, zeit: g.mt, t: 0, schaden: at.schaden ?? 1 }; S.gefahren.push(g.gefahr); }
+}
+function updateAngriff(g, h, dx, dy, l) {
+  const at = g.v[g.angriff] || {};
+  g.mt -= DT;
+  if (g.modus === 'zielen') {
+    if (g.mt > 0) return;
+    g.pausen[g.angriff] = pauseVon(g, at);
+    if (g.angriff === 'sprung') { g.modus = 'sprung'; g.mt = at.dauer || 0.32; g.vx = dx / l * at.tempo; g.vy = dy / l * at.tempo; g.spiegeln = dx < 0; }
+    else if (g.angriff === 'rammen') { g.modus = 'rammen'; g.mt = at.dauer || 1.2; g.vx = g.ramm[0] * at.tempo; g.vy = g.ramm[1] * at.tempo; }
+    else { if (g.angriff === 'schuss') schiesse(g, at, dx, dy); g.modus = 'normal'; g.gefahr = null; g.letzterAngriff = g.angriff; }
+    return;
+  }
+  // Sprung und Rammen: geradeaus, bis die Zeit um ist oder etwas im Weg steht; Rammen gegen ein Hindernis betäubt
+  const x0 = g.x, y0 = g.y, tempo = Math.hypot(g.vx, g.vy);
+  bewege(g, g.vx * DT, g.vy * DT, S.festGegner);
+  const gestoppt = Math.hypot(g.x - x0, g.y - y0) < tempo * DT * 0.3;
+  if (gestoppt && g.modus === 'rammen' && at) {
+    g.betaeubt = at.betaeubt ?? CFG.gegner.betaeubt; S.stopp = 3;
+    S.effekte.push({ art: 'funke', x: g.x + g.ramm[0] * g.hw, y: g.y - 10 * g.s + g.ramm[1] * g.hh, t: 0 });
+  }
+  if (g.mt <= 0 || gestoppt) { if (g.modus !== 'ausweichen') g.letzterAngriff = g.angriff; g.modus = 'normal'; }
+  g.anim += DT;
+}
+function schiesse(g, at, dx, dy) {
+  const n = at.anzahl || 1, w0 = Math.atan2(dy, dx);
+  for (let i = 0; i < n; i++) {
+    const w = w0 + (i - (n - 1) / 2) * 0.3;
+    S.geschosse.push({ x: g.x + Math.cos(w) * 10, y: g.y + Math.sin(w) * 6, vx: Math.cos(w) * (at.tempo || 160), vy: Math.sin(w) * (at.tempo || 160), schaden: at.schaden ?? 1, von: 'gegner', t: 0 });
+  }
+}
+
 function updateGegner(g, h) {
-  g.blitz = Math.max(0, g.blitz - DT);
-  if (g.faellt !== undefined) { g.faellt -= DT; if (g.faellt <= 0) g.weg = true; return; }
+  g.blitz = Math.max(0, g.blitz - DT); g.ausruf = Math.max(0, g.ausruf - DT);
+  if (g.bossTod !== undefined) {   // Boss zerplatzt wie im Vorbild: Blinken, Explosionen über dem Körper, Wackeln
+    const vorher = g.bossTod; g.bossTod -= DT; S.wackeln = 0.15; g.blitz = 0.1;
+    if (Math.floor(vorher * 9) !== Math.floor(g.bossTod * 9)) {
+      const x = g.x + (Math.random() - 0.5) * 30 * g.s, y = g.y - Math.random() * 26 * g.s;
+      S.effekte.push({ art: 'knall', x, y, t: 0 }); ton('knall', 0.5);
+    }
+    if (g.bossTod <= 0) {
+      g.weg = true; for (let i = 0; i < 6; i++) S.effekte.push({ art: 'puff', x: g.x + Math.cos(i) * 20 * g.s, y: g.y - 10 * g.s + Math.sin(i) * 12 * g.s, t: 0 });
+      ton('knall'); gegnerBesiegt(g, 'treffer');
+    }
+    return;
+  }
+  if (g.faellt !== undefined) { g.faellt -= DT; if (g.faellt <= 0) { g.weg = true; gegnerBesiegt(g, 'sturz'); } return; }
   if (g.rueck > 0) {
     g.rueck -= DT; bewege(g, g.vx * DT, g.vy * DT, S.festRueck); g.vx *= 0.88; g.vy *= 0.88;
     const [c, r] = feldVon(g.x, g.y);
-    if (istLoch(c, r)) { g.faellt = 0.4; g.sterbend = true; return; }   // in den Abgrund gestoßen
-    if (g.rueck <= 0 && g.sterbend) {
-      g.weg = true; S.effekte.push({ art: 'puff', x: g.x, y: g.y - 8, t: 0 });
-      if (Math.random() < ((g.a.beute || {}).herz || 0)) S.beute.push({ x: g.x, y: g.y, t: 0 });
-    }
+    if (istLoch(c, r)) { g.faellt = 0.4; g.sterbend = true; if (g.gefahr) g.gefahr.weg = true; return; }   // in den Abgrund gestoßen
+    if (g.rueck <= 0 && g.sterbend) { g.weg = true; S.effekte.push({ art: 'puff', x: g.x, y: g.y - 8 * g.s, t: 0 }); gegnerBesiegt(g, 'treffer'); }
     return;
   }
   if (g.warten > 0) { g.warten -= DT; return; }
   if (S.zustand !== 'spiel') return;
-  const sp = g.a.sprung, dx = h.x - g.x, dy = h.y - g.y, l = Math.hypot(dx, dy) || 1;
-  if (g.modus === 'zielen') {
-    g.mt -= DT;
-    if (g.mt <= 0) { g.modus = 'sprung'; g.mt = sp.dauer; g.vx = dx / l * sp.tempo; g.vy = dy / l * sp.tempo; g.spiegeln = dx < 0; }
-    return;
+  g.phaseT += DT; g.schutz = Math.max(0, g.schutz - DT); g.ausweichUhr = Math.max(0, g.ausweichUhr - DT);
+  if (g.modus === 'normal') pruefeUebergaenge(g);
+  if (g.betaeubt > 0) { g.betaeubt -= DT; return; }
+  if (g.v.benommen) { g.anim = 0; return; }
+  const dx = h.x - g.x, dy = h.y - g.y, l = Math.hypot(dx, dy) || 1;
+  if (!g.alarm && bemerkt(g, h, l)) alarmiere(g);
+  if (g.modus !== 'normal') { updateAngriff(g, h, dx, dy, l); return; }
+  const aw = g.v.ausweichen;   // Ausweichen: holt der Held nah zum Schlag aus, springt er (manchmal) weg
+  if (aw && g.alarm && g.ausweichUhr <= 0 && ((S.laerm && l < 90) || l < 34)) {
+    g.ausweichUhr = aw.abklingzeit ?? 1.2;
+    if (Math.random() < (aw.chance ?? 0.5)) {
+      const w = Math.atan2(-dy, -dx) + (Math.random() - 0.5) * 1.6, v = aw.tempo || 340;
+      g.modus = 'ausweichen'; g.angriff = null; g.mt = 0.2; g.vx = Math.cos(w) * v; g.vy = Math.sin(w) * v; return;
+    }
   }
-  if (g.modus === 'sprung') {
-    g.mt -= DT;
-    const x0 = g.x, y0 = g.y; bewege(g, g.vx * DT, g.vy * DT, S.festGegner);
-    const gestoppt = Math.hypot(g.x - x0, g.y - y0) < sp.tempo * DT * 0.3;   // gegen Wand, Hindernis oder Abgrundkante
-    if (g.mt <= 0 || gestoppt) { g.modus = 'jagen'; g.sprungPause = zufallIn(sp.pause); }
-    return;
+  if (g.alarm && g.angreifer) for (const k of ANGRIFFE) {
+    const at = g.v[k];
+    if (!at) continue;
+    g.pausen[k] -= DT;
+    if (g.pausen[k] <= 0 && kannAngreifen(g, k, at, dx, dy, l)) { beginneAngriff(g, k, at, dx, dy); return; }
   }
-  if (sp) {
-    g.sprungPause -= DT;
-    if (g.sprungPause <= 0 && l < sp.reichweite) { g.modus = 'zielen'; g.mt = sp.zielen; g.spiegeln = dx < 0; return; }
+  let art = g.alarm ? (g.v.alarm || 'jagen') : (g.v.ruhig || 'stehen');
+  if (art === 'bleiben') art = g.v.ruhig || 'stehen';
+  let v = null, f = 1, kreisen = false;
+  if (art === 'jagen' || art === 'schleichen') {
+    if (art === 'schleichen' && heldSchautAuf(g, h)) v = null;   // bewegt sich nur, wenn der Held wegschaut
+    else if (!g.angreifer) ({ v, f, kreisen } = warteBewegung(g, h, dx, dy, l));
+    else if (l > 2) v = zumHelden(g, h, dx, dy, l);
+  } else if (art === 'fliehen') { if (l < 220) v = vomHelden(g, dx, dy, l); }
+  else v = ruhigeBewegung(g, art);
+  // Blickrichtung: Schildträger drehen sich langsam zum Helden, alle anderen schauen, wohin sie laufen
+  if (g.v.schild && g.alarm) {
+    const ziel = Math.atan2(dy, dx), d = ((ziel - g.blickW + 3 * Math.PI) % (2 * Math.PI)) - Math.PI, max = (g.v.schild.drehtempo || CFG.gegner.drehtempo) * Math.PI / 180 * DT;
+    g.blickW += Math.max(-max, Math.min(max, d));
+  } else if (v) g.blickW = Math.atan2(v[1], v[0]);
+  else if (g.alarm) g.blickW = Math.atan2(dy, dx);
+  const cw = Math.cos(g.blickW); if (Math.abs(cw) > 0.2) g.spiegeln = cw < 0;
+  if (!v) { g.anim = 0; return; }
+  const tempo = tempoVon(g) * f, x0 = g.x, y0 = g.y;
+  bewege(g, v[0] * tempo * DT, v[1] * tempo * DT, S.festGegner);
+  if (Math.hypot(g.x - x0, g.y - y0) < tempo * DT * 0.3) {   // festgelaufen: umdrehen bzw. neu wählen
+    g.richtung = -g.richtung; g.irrUhr = 0; if (kreisen) g.kreis = -g.kreis;
   }
-  if (l < 2) return;
-  bewege(g, dx / l * g.a.tempo * DT, dy / l * g.a.tempo * DT, S.festGegner);
-  if (Math.abs(dx) > 2) g.spiegeln = dx < 0;
   g.anim += DT;
 }
 
-function trenneGegner() {   // Gegner sollen nicht ineinander laufen
-  const lebend = S.gegner.filter(g => !g.sterbend && g.modus !== 'sprung');
+// Treffer am Gegner (Schwert, zurückgeschlagenes Geschoss, Explosion). Schild: von vorn prallt das Schwert ab.
+// Rüstung "schlag": der erste Treffer betäubt nur; "betaeubt": verwundbar nur, wenn betäubt (z. B. nach dem Rammen).
+function treffeGegner(g, qx, qy, schaden = 1, quelle = 'schwert') {
+  const a = g.a, v = g.v, gewicht = v.gewicht ?? 1, wehrlos = g.betaeubt > 0 || !!v.benommen;
+  g.warten = 0; alarmiere(g);
+  let rx = g.x - qx, ry = g.y - qy; const l = Math.hypot(rx, ry) || 1; rx /= l; ry /= l;
+  const stoss = (staerke = 1) => { g.rueck = CFG.gegner.rueckDauer; g.vx = rx * CFG.gegner.rueckTempo * gewicht * staerke; g.vy = ry * CFG.gegner.rueckTempo * gewicht * staerke; };
+  const unterbrich = () => { if (g.modus !== 'normal') { if (g.angriff && v[g.angriff]) g.pausen[g.angriff] = (v[g.angriff].pause || [1.5])[0] * (v.pauseFaktor || 1); g.modus = 'normal'; } if (g.gefahr) { g.gefahr.weg = true; g.gefahr = null; } };
+  const abprall = (staerke = 0.8) => {   // Schwert prallt ab: Funke, „Ting“, Held federt zurück
+    S.effekte.push({ art: 'funke', x: g.x - rx * 14 * g.s, y: g.y - 10 * g.s, t: 0 }); ton('abprall');
+    if (quelle === 'schwert') { const h = S.held; h.modus = 'rueckstoss'; h.t = CFG.held.rueckDauer * 0.5; h.vx = -rx * CFG.held.rueckTempo * staerke; h.vy = -ry * CFG.held.rueckTempo * staerke; }
+    stoss(0.25);
+    return 'abgeprallt';
+  };
+  if ((v.unverwundbar || g.schutz > 0) && quelle !== 'explosion') return abprall(1);
+  if (v.schild && !wehrlos && quelle !== 'explosion' && winkelAbstand(Math.atan2(-ry, -rx), g.blickW) < Math.PI / 3) return abprall();
+  if (v.ruestung && !wehrlos && quelle !== 'explosion') {
+    if (v.ruestung === 'schlag' || quelle === 'geschoss') { g.betaeubt = CFG.gegner.betaeubt; unterbrich(); stoss(0.5); ton('treffer'); return 'betaeubt'; }
+    return abprall(0.4);
+  }
+  g.lp -= schaden; g.blitz = CFG.gegner.blitz; g.betaeubt = 0; ton('treffer');
+  unterbrich(); stoss();
+  g.trefferZeiten = [...g.trefferZeiten.filter(t => S.zeit - t < 5), S.zeit];
+  const sch = v.serienschutz;   // Schutz bei Trefferserie: kurz unverwundbar, auf Wunsch mit Gegenstoß
+  if (sch && g.lp > 0 && g.trefferZeiten.filter(t => S.zeit - t <= (sch.zeit ?? 2)).length >= (sch.treffer ?? 3)) {
+    g.schutz = sch.dauer ?? 1.2; g.trefferZeiten = [];
+    if (sch.konter !== false) { g.gefahr = { art: 'stampf', von: g, x: g.x, y: g.y, radius: sch.radius || 64 * g.s, zeit: 0.45, t: 0, schaden: sch.schaden ?? 1 }; S.gefahren.push(g.gefahr); }
+  }
+  if (g.lp <= 0) { g.sterbend = true; if (a.boss) { g.bossTod = CFG.gegner.bossTod; g.rueck = 0; S.banner = null; ton('wowow'); } }
+  else pruefeUebergaenge(g);
+  return 'treffer';
+}
+function gegnerBesiegt(g, wie) {   // einmal je Gegner: Signal, Beute, Teilen, Explosion
+  if (g.besiegt) return;
+  g.besiegt = true;
+  const a = g.a, sig = g.inst.signal || a.signal;
+  if (sig) S.signale[sig] = true;
+  if (g.key) S.gemerkt.add(g.key);
+  if (wie === 'sturz') return;
+  if (Math.random() < ((a.beute || {}).herz || 0)) S.beute.push({ x: g.x, y: g.y, t: 0 });
+  const gen = (g.gen || 0) + 1;   // Sicherung gegen endloses Teilen (auch über Ketten A → B → A)
+  if (a.teilen && DATEN.gegnerarten[a.teilen.art] && gen <= CFG.gegner.teilenMax) for (let i = 0, n = Math.min(a.teilen.anzahl || 2, 6); i < n; i++) {
+    const w = i / n * 2 * Math.PI + 0.4, k = neuerGegner(a.teilen.art, g.x, g.y);
+    Object.assign(k, { warten: 0.2, alarm: true, rueck: 0.2, vx: Math.cos(w) * 200, vy: Math.sin(w) * 200, gen });
+    S.gegner.push(k);
+  }
+  if (a.explodiert) S.gefahren.push({ art: 'explosion', x: g.x, y: g.y, radius: a.explodiert.radius || 56, zeit: a.explodiert.zeit ?? 1, t: 0, schaden: a.explodiert.schaden ?? 2 });
+}
+
+function updateGeschosse(h) {   // fliegen über Abgründe, nicht durch Mauern, Hindernisse und geschlossene Türen
+  S.geschosse = S.geschosse.filter(p => {
+    p.t += DT; p.x += p.vx * DT; p.y += p.vy * DT;
+    const boden = { x: p.x - 3, y: p.y - 3, w: 6, h: 6 }, k = geschossKoerper(p);
+    if (p.x < 0 || p.y < 0 || p.x > BREITE || p.y > HOEHE || p.t > 6 || S.fest.some(f => ueberlappt(f, boden))) {
+      S.effekte.push({ art: 'funke', x: p.x, y: p.y - 12, t: 0 }); return false;
+    }
+    if (p.von === 'gegner') {
+      if (h.modus !== 'fallen' && ueberlappt(k, heldKoerper(h))) { treffeHeld(p.schaden, p.x - p.vx, p.y - p.vy); return false; }
+    } else {
+      const g = S.gegner.find(g => !g.sterbend && g.warten <= 0 && ueberlappt(k, gegnerKoerper(g)));
+      if (g) { treffeGegner(g, p.x - p.vx, p.y - p.vy, p.schaden || 1, 'geschoss'); S.effekte.push({ art: 'funke', x: p.x, y: p.y - 12, t: 0 }); return false; }
+    }
+    return true;
+  });
+}
+function updateGefahren(h) {   // Stampfen und Explosionen: nach der Ankündigung Schaden im Kreis
+  S.gefahren = S.gefahren.filter(z => {
+    if (z.weg) return false;
+    if (z.von) { z.x = z.von.x; z.y = z.von.y; }
+    z.t += DT;
+    if (z.t < z.zeit) return true;
+    if (Math.hypot(h.x - z.x, h.y - z.y) < z.radius) treffeHeld(z.schaden, z.x, z.y);
+    if (z.art === 'explosion') for (const g of S.gegner) if (!g.sterbend && g.warten <= 0 && Math.hypot(g.x - z.x, g.y - z.y) < z.radius) treffeGegner(g, z.x, z.y, z.schaden, 'explosion');
+    for (let i = 0; i < 6; i++) S.effekte.push({ art: 'puff', x: z.x + Math.cos(i) * z.radius * 0.55, y: z.y + Math.sin(i) * z.radius * 0.4, t: 0 });
+    if (z.art === 'explosion') { S.effekte.push({ art: 'knall', x: z.x, y: z.y - 10, t: 0, gross: true }); S.wackeln = 0.25; ton('knall'); } else ton('stampf');
+    if (z.von) z.von.gefahr = null;
+    S.stopp = 3;
+    return false;
+  });
+}
+
+function trenneGegner() {   // Gegner mit abstand "abstossen" laufen nicht ineinander, "draengen" dürfen sich überlappen
+  const lebend = S.gegner.filter(g => !g.sterbend && g.modus === 'normal' && kiVon(g).abstand !== 'draengen');
   for (let i = 0; i < lebend.length; i++) for (let j = i + 1; j < lebend.length; j++) {
-    const a = lebend[i], b = lebend[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01, min = 24;
+    const a = lebend[i], b = lebend[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01, min = 12 * (a.s + b.s);
     if (d >= min) continue;
     const s = (min - d) / 2;
     bewege(a, -dx / d * s, -dy / d * s, S.festGegner); bewege(b, dx / d * s, dy / d * s, S.festGegner);
   }
 }
 
-function pruefeBeruehrung(h) {
-  if (h.unverwundbar > 0 || S.zustand !== 'spiel' || S.einlauf || h.modus === 'fallen') return;
-  const k = heldKoerper(h);
-  const g = S.gegner.find(g => !g.sterbend && g.warten <= 0 && ueberlappt(k, gegnerKoerper(g)));
-  if (!g) return;
-  h.lp = Math.max(0, h.lp - g.a.schaden);
-  let rx = h.x - g.x, ry = h.y - g.y; const l = Math.hypot(rx, ry) || 1; rx /= l; ry /= l;
+function treffeHeld(schaden, qx, qy) {   // Schaden mit Rückstoß und Schonzeit; false, wenn gerade unverwundbar
+  const h = S.held;
+  if (schaden <= 0 || h.unverwundbar > 0 || S.zustand !== 'spiel' || S.einlauf || h.modus === 'fallen') return false;
+  h.lp = Math.max(0, h.lp - schaden);
+  let rx = h.x - qx, ry = h.y - qy; const l = Math.hypot(rx, ry) || 1; rx /= l; ry /= l;
   h.modus = 'rueckstoss'; h.t = CFG.held.rueckDauer; h.vx = rx * CFG.held.rueckTempo; h.vy = ry * CFG.held.rueckTempo;
   h.unverwundbar = CFG.held.unverwundbar;
   if (h.lp === 0) { S.zustand = 'gameover'; S.endeZeit = S.zeit; }
+  return true;
+}
+function pruefeBeruehrung(h) {   // betäubte Gegner tun nichts; Berührung weckt schlafende
+  if (h.modus === 'fallen') return;
+  const k = heldKoerper(h);
+  for (const g of S.gegner) {
+    if (g.sterbend || g.warten > 0 || g.betaeubt > 0 || g.v.benommen || !ueberlappt(k, gegnerKoerper(g))) continue;
+    alarmiere(g);
+    if (g.bossTod === undefined && treffeHeld(g.v.schaden ?? 1, g.x, g.y)) return;
+  }
 }
 
 function pruefeBeute(h) {   // Herzen: einsammeln heilt ein ganzes Herz, nach einer Weile verschwinden sie
@@ -1672,7 +2421,11 @@ function neustartImRaum() {   // Game Over: Herzen voll, Raum frisch (Fortschrit
 }
 
 function schritt() {
-  if (gedrueckt.has('menue')) { const editor = S.ausEditor; S = null; gedrueckt.clear(); if (editor) ladeEditor(); return; }
+  if (gedrueckt.has('menue')) {   // aus einem Test zurück in den Editor: Protokoll mitgeben (wird dort zum Nachweis)
+    const editor = S.ausEditor;
+    if (editor) LETZTER_TEST = { dungeon: S.dungeonId, protokoll: S.protokoll };
+    S = null; gedrueckt.clear(); if (editor) ladeEditor(); return;
+  }
   if (S.stopp > 0) { S.stopp--; gedrueckt.clear(); return; }   // kurzes Standbild beim Treffer
   S.zeit += DT;
   if (S.wechsel) {
@@ -1687,10 +2440,14 @@ function schritt() {
   if (S.wechsel) { gedrueckt.clear(); return; }   // gerade in den nächsten Raum gegangen
   updateObjekte();
   steuereWellen();
-  if (!S.einlauf) for (const g of S.gegner) updateGegner(g, h);
+  berechneWegfeld();
+  verteileAngriffe();
+  if (!S.einlauf) { for (const g of [...S.gegner]) updateGegner(g, h); updateGeschosse(h); updateGefahren(h); }
   S.gegner = S.gegner.filter(g => !g.weg);
   trenneGegner();
   pruefeBeruehrung(h);
+  if (S.banner && (S.banner.t -= DT) <= 0) S.banner = null;
+  S.laerm = null;
   pruefeBeute(h);
   pruefeGeraeumt();
   aktualisiereSignale();
@@ -1698,6 +2455,7 @@ function schritt() {
   if (!S.einlauf && S.zustand === 'spiel') pruefeEreignisse();
   for (const e of S.effekte) e.t += DT;
   S.effekte = S.effekte.filter(e => e.t < (e.art === 'funke' ? 0.12 : 0.4));
+  S.wackeln = Math.max(0, (S.wackeln || 0) - DT);
   if (S.zustand !== 'spiel' && gedrueckt.has('neustart') && S.zeit - S.endeZeit > 0.8) neustartImRaum();
   gedrueckt.clear();
 }
@@ -1769,20 +2527,68 @@ function zeichneHeld(h) {
   const g = S.text && S.text.gegenstand;   // gefundenen Gegenstand über den Kopf halten
   if (g) ctx.drawImage(g, Math.round(h.x - g.width / 2), Math.round(h.y - 44 - g.height));
 }
+// kleines Schild für Schildträger, Sterne für Betäubte, Geschosse
+const SCHILDCHEN = pixelbild(['.hhhh.', 'hHHHHh', 'hHggHh', 'hHggHh', 'hHHHHh', '.hHHh.', '..hh..'], { h: PAL.fels4, H: PAL.fels2, g: PAL.gold1 }, PAL.schwarz, 2);
+const KUGEL = { gegner: pixelbild(['.ab.', 'abbc', 'bbcc', '.cc.'], { a: PAL.gold2, b: PAL.rot2, c: PAL.rot1 }, PAL.schwarz, 2),
+  held: pixelbild(['.ab.', 'abbc', 'bbcc', '.cc.'], { a: PAL.weiss, b: PAL.blau3, c: PAL.blau1 }, PAL.schwarz, 2) };
 function zeichneGegner(g) {
-  const bild = g.modus === 'sprung' ? 1 : g.rueck > 0 || g.anim === 0 || g.modus === 'zielen' ? 0 : Math.floor(g.anim * 6) % 2;
+  const s = g.s, bild = g.modus === 'sprung' || g.modus === 'rammen' ? 1 : g.rueck > 0 || g.anim === 0 || g.modus === 'zielen' ? 0 : Math.floor(g.anim * 6) % 2;
   const zittern = g.modus === 'zielen' ? (Math.floor(S.zeit * 30) % 2 ? 1 : -1) : 0;
-  const x = Math.round(g.x - 16) + zittern, y = Math.round(g.y + 8 - 32) - (g.modus === 'sprung' ? 3 : 0);
+  const x = Math.round(g.x - 16 * s) + zittern, y = Math.round(g.y + 8 * s - 32 * s) - (g.modus === 'sprung' ? 3 : 0);
   if (g.warten > 0 && g.warten > CFG.gegner.wachAb - 0.4 && Math.floor(g.warten * 16) % 2) return;   // Erscheinen: kurz flackern
   const blitz = g.blitz > 0 && Math.floor(g.blitz * 30) % 2 === 0;
   const b = blitz ? BLITZ[g.a.bild][bild] : GEGNERBILD[g.art][bild];
-  if (g.faellt !== undefined) {   // fällt in den Abgrund
-    const k = Math.max(0, g.faellt / 0.4);
-    ctx.save(); ctx.translate(g.x, g.y); ctx.scale(k, k); zeichneLeinwand(b, -16, -24, g.spiegeln); ctx.restore();
-    return;
+  const mal = (bx, by, k) => { ctx.save(); ctx.translate(bx, by); ctx.scale(k, k); zeichneLeinwand(b, 0, 0, g.spiegeln); ctx.restore(); };
+  if (g.faellt !== undefined) { const k = Math.max(0, g.faellt / 0.4) * s; mal(g.x - 16 * k, g.y - 24 * k, k); return; }   // fällt in den Abgrund
+  const vorn = g.v.schild && Math.sin(g.blickW) > 0.3;   // Schild vor oder hinter dem Körper
+  const schild = () => { const sx = g.x + Math.cos(g.blickW) * 13 * s - 7, sy = g.y - 14 * s + Math.sin(g.blickW) * 6 * s - 7; ctx.drawImage(SCHILDCHEN, Math.round(sx), Math.round(sy)); };
+  if (g.v.schild && !vorn) schild();
+  if (s === 1) zeichneLeinwand(b, x, y, g.spiegeln); else mal(x, y, s);
+  if ((g.v.unverwundbar || g.schutz > 0) && g.bossTod === undefined) {   // unverwundbar: weißer Schimmer
+    ctx.save(); ctx.globalAlpha = 0.3 + 0.25 * Math.sin(S.zeit * 18); const w = BLITZ[g.a.bild][bild];
+    if (s === 1) zeichneLeinwand(w, x, y, g.spiegeln); else { ctx.translate(x, y); ctx.scale(s, s); zeichneLeinwand(w, 0, 0, g.spiegeln); }
+    ctx.restore();
   }
-  zeichneLeinwand(b, x, y, g.spiegeln);
-  if (g.modus === 'zielen') schreibe('!', g.x, y - 14, 2, PAL.gold2);
+  if (g.v.schild && vorn) schild();
+  const kopf = y + 4 - 4 * s;
+  if (g.modus === 'zielen' || g.ausruf > 0) schreibe('!', g.x, kopf - 14, 2, g.modus === 'zielen' ? PAL.rot2 : PAL.gold2);
+  const balken = g.a.balken || (g.a.boss ? 'gross' : 'aus');   // kleiner Lebensbalken über dem Kopf
+  if (balken === 'klein' && g.lp < g.lpMax && g.lp > 0) {
+    const w = 22 * s; ctx.fillStyle = PAL.schwarz; ctx.fillRect(Math.round(g.x - w / 2) - 1, kopf - 9, w + 2, 5);
+    ctx.fillStyle = PAL.rot2; ctx.fillRect(Math.round(g.x - w / 2), kopf - 8, Math.round(w * g.lp / g.lpMax), 3);
+  }
+  if (g.betaeubt > 0 || g.v.benommen) for (let i = 0; i < 3; i++) {   // Sterne kreisen über dem Kopf
+    const w = S.zeit * 5 + i * 2.1; ctx.fillStyle = i % 2 ? PAL.gold2 : PAL.weiss;
+    ctx.fillRect(Math.round(g.x + Math.cos(w) * 10 * s - 2), Math.round(kopf - 4 + Math.sin(w) * 3), 4, 4);
+  }
+}
+function zeichneWarnungen() {   // am Boden: Sichtkegel ruhiger Wächter, Rammbahn, Stampf- und Explosionskreise
+  for (const g of S.gegner) {
+    const b = g.v.bemerkt;
+    if (b && b.art === 'kegel' && !g.alarm && g.warten <= 0 && !g.sterbend) {
+      const w = (b.kegel || 90) * Math.PI / 360;
+      ctx.fillStyle = 'rgba(244,205,94,.2)'; ctx.strokeStyle = 'rgba(244,205,94,.45)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(g.x, g.y); ctx.arc(g.x, g.y, b.weite || 160, g.blickW - w, g.blickW + w); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    if (g.modus === 'zielen' && g.angriff === 'rammen') {
+      const l = (g.v.rammen || {}).reichweite || 300, [rx, ry] = g.ramm, breit = 2 * g.hw + 8;
+      ctx.fillStyle = `rgba(208,87,74,${0.18 + 0.12 * Math.sin(S.zeit * 30)})`;
+      ctx.fillRect(rx ? (rx > 0 ? g.x : g.x - l) : g.x - breit / 2, ry ? (ry > 0 ? g.y - 6 : g.y - l) : g.y - breit / 2, rx ? l : breit, ry ? l + 6 : breit);
+    }
+  }
+  for (const z of S.gefahren) {
+    const k = Math.min(1, z.t / z.zeit), blink = z.zeit - z.t < 0.3 && Math.floor(S.zeit * 20) % 2;
+    ctx.fillStyle = `rgba(208,87,74,${blink ? 0.45 : 0.1 + 0.25 * k})`;
+    ctx.beginPath(); ctx.ellipse(z.x, z.y, z.radius, z.radius * 0.75, 0, 0, 2 * Math.PI); ctx.fill();
+    ctx.strokeStyle = PAL.rot2; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(z.x, z.y, z.radius * k, z.radius * 0.75 * k, 0, 0, 2 * Math.PI); ctx.stroke();
+    if (z.art === 'explosion') { ctx.fillStyle = blink ? PAL.rot2 : PAL.schwarz; ctx.beginPath(); ctx.arc(z.x, z.y - 6, 7, 0, 2 * Math.PI); ctx.fill(); }
+  }
+}
+function zeichneGeschosse() {
+  for (const p of S.geschosse) {
+    ctx.fillStyle = 'rgba(18,13,20,.35)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 2, 5, 2, 0, 0, 2 * Math.PI); ctx.fill();
+    const b = KUGEL[p.von]; ctx.drawImage(b, Math.round(p.x - b.width / 2), Math.round(p.y - 12 - b.height / 2));
+  }
 }
 const flachesObjekt = o => o.typ.platte || (o.typ.pflock && !o.oben);
 function zeichneObjekt(o) {   // Bild nach Eigenschaft und Zustand
@@ -1836,6 +2642,12 @@ function zeichneEffekte() {
         ctx.fillRect(Math.round(e.x + Math.cos(p.a) * p.v * e.t), Math.round(e.y + Math.sin(p.a) * p.v * e.t + 120 * e.t * e.t), 4, 3);
       }
     }
+    else if (e.art === 'knall') {   // Explosion: heller Blitz, Ring, dann Rauch
+      const k = Math.min(1, e.t / 0.4), r = (e.gross ? 34 : 18) * (0.4 + k);
+      ctx.fillStyle = k < 0.3 ? PAL.weiss : k < 0.6 ? PAL.gold2 : PAL.rot2; ctx.globalAlpha = 1 - k;
+      ctx.beginPath(); ctx.arc(e.x, e.y, r * 0.7, 0, 2 * Math.PI); ctx.fill();
+      ctx.strokeStyle = PAL.weiss; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, 2 * Math.PI); ctx.stroke(); ctx.globalAlpha = 1;
+    }
     else { const b = FUNKE[e.t < 0.06 ? 0 : 1]; ctx.drawImage(b, Math.round(e.x - b.width / 2), Math.round(e.y - b.height / 2)); }
   }
 }
@@ -1850,12 +2662,22 @@ function zeichneHud(h) {
   ctx.drawImage(SCHLUESSEL, 40, 27);
   schreibe(String(S.inventar.schluessel || 0), 72, 26, 2, PAL.creme, false);
   if (S.ausEditor) schreibe('TEST - ESC: ZURÜCK ZUM EDITOR', 40, HOEHE - 14, 1, PAL.gold2, false);
+  const boss = S.gegner.find(g => (g.a.balken || (g.a.boss ? 'gross' : '')) === 'gross' && !g.besiegt && g.bossTod === undefined && g.warten <= 0);   // großer Lebensbalken unten
+  if (boss) {
+    const w = 280, x0 = (BREITE - w) / 2, y0 = HOEHE - 28;
+    schreibe((boss.a.boss && boss.a.boss.name) || boss.art.toUpperCase(), BREITE / 2, y0 - 16, 2, PAL.creme);
+    ctx.fillStyle = PAL.schwarz; ctx.fillRect(x0 - 2, y0 - 2, w + 4, 12);
+    ctx.fillStyle = PAL.rot0; ctx.fillRect(x0, y0, w, 8);
+    ctx.fillStyle = PAL.rot2; ctx.fillRect(x0, y0, Math.round(w * Math.max(0, boss.lp) / boss.lpMax), 8);
+  }
   let x = 96;   // dauerhafte Gegenstände (alles außer Verbrauchtem wie Schlüsseln und Herzen) als Bild
   for (const id of S.besitz) { const w = DATEN.gegenstaende[id].wirkung || {}; if (!w.schluessel && !w.maxLp) { ctx.drawImage(GEGENSTANDBILD[id], x, 20, 20, 20); x += 26; } }
 }
 function zeichneBanner() {
+  if (S.zustand !== 'spiel') return;
+  if (S.banner) { schreibe(S.banner.text, BREITE / 2, 200, 3, PAL.rot2); return; }
   const w = S.wellen;
-  if (!w || w.banner <= 0 || S.zustand !== 'spiel') return;
+  if (!w || w.banner <= 0) return;
   schreibe(`WELLE ${w.nr}/${S.raum.def.wellen.length}`, BREITE / 2, 190, 5, PAL.gold2);
 }
 function zeichneText() {
@@ -1885,7 +2707,8 @@ function zeichneWelt() {
   for (const d of Object.keys(r.def.tueren)) if (r.tuerZu[d]) zeichneTuer(d, !!r.def.tueren[d].schloss);
   for (const o of r.objekte) if (flachesObjekt(o)) zeichneObjekt(o);
   for (const b of S.beute) zeichneBeute(b);
-  for (const g of S.gegner) if (g.warten <= 0 && g.faellt === undefined) schatten(g.x, g.y + 6, 22);
+  for (const g of S.gegner) if (g.warten <= 0 && g.faellt === undefined) schatten(g.x, g.y + 6 * g.s, 22 * g.s);
+  zeichneWarnungen();
   if (h.modus !== 'fallen') schatten(h.x, h.y + 6, 18);
   // nach unterer Kante sortiert: Objekte, Gegner und Held verdecken sich richtig
   const liste = [
@@ -1894,6 +2717,7 @@ function zeichneWelt() {
     { y: h.y + h.hh + 0.5, mal: () => zeichneHeld(h) },
   ];
   liste.sort((a, b) => a.y - b.y).forEach(e => e.mal());
+  zeichneGeschosse();
   zeichneEffekte();
 }
 function zeichne() {
@@ -1911,9 +2735,12 @@ function zeichne() {
     zeichneHud(h);
     return;
   }
+  ctx.save();
+  if (S.wackeln > 0) ctx.translate(Math.round((Math.random() - 0.5) * 6), Math.round((Math.random() - 0.5) * 6));   // Bildschirm wackelt
   ctx.drawImage(S.raum.bg, 0, 0);
   zeichneWelt();
   if (raumDunkel(S.raum)) { berechneLicht(); zeichneDunkel(lichtCv); }
+  ctx.restore();
   zeichneHud(h);
   zeichneBanner();
   if (S.text) zeichneText();
