@@ -100,7 +100,8 @@
     "held": { "tempo": 150, "lp": 6, "unverwundbar": 1.0, "rueckTempo": 300, "rueckDauer": 0.18 },
     "schlag": { "dauer": 0.28, "neuAb": 0.20, "aktivBis": 0.22, "phasen": [0.05, 0.10, 0.20] },
     "gegner": { "rueckTempo": 320, "rueckDauer": 0.18, "blitz": 0.25, "wachAb": 1.0, "herzDauer": 9,
-                "angreiferMax": 2, "wartAbstand": [80, 150], "betaeubt": 1.6, "drehtempo": 120, "teilenMax": 3, "bossTod": 2.4 },
+                "angreiferMax": 2, "wartAbstand": [80, 150], "betaeubt": 1.6, "drehtempo": 120, "teilenMax": 3, "bossTod": 2.4,
+                "nachTreffer": 0.7, "schonAbstand": 40 },
     "welle": { "abstand": 0.7, "pause": 1.2, "banner": 1.6, "bannerVorlauf": 0.8, "mindestAbstand": 170 },
     "schieben": { "anlauf": 0.35, "dauer": 0.3 },
     "abgrund": { "schaden": 1, "fallDauer": 0.6 },
@@ -2365,7 +2366,7 @@ function updateGegner(g, h) {
   }
   if (g.warten > 0) { g.warten -= DT; return; }
   if (S.zustand !== 'spiel') return;
-  g.phaseT += DT; g.schutz = Math.max(0, g.schutz - DT); g.ausweichUhr = Math.max(0, g.ausweichUhr - DT);
+  g.phaseT += DT; g.schutz = Math.max(0, g.schutz - DT); g.ausweichUhr = Math.max(0, g.ausweichUhr - DT); g.nachTreffer = Math.max(0, (g.nachTreffer || 0) - DT);
   if (g.modus === 'normal') pruefeUebergaenge(g);
   if (g.betaeubt > 0) { g.betaeubt -= DT; return; }
   if (g.v.benommen) { g.anim = 0; return; }
@@ -2392,6 +2393,7 @@ function updateGegner(g, h) {
   if (art === 'jagen' || art === 'schleichen') {
     if (art === 'schleichen' && heldSchautAuf(g, h)) v = null;   // bewegt sich nur, wenn der Held wegschaut
     else if (!g.angreifer) ({ v, f, kreisen } = warteBewegung(g, h, dx, dy, l));
+    else if (g.nachTreffer > 0 || (h.unverwundbar > 0 && l < CFG.gegner.schonAbstand * g.s)) v = null;   // nach einem Treffer: Abstand lassen
     else if (l > 2) v = zumHelden(g, h, dx, dy, l);
   } else if (art === 'fliehen') { if (l < 220) v = vomHelden(g, dx, dy, l); }
   else v = ruhigeBewegung(g, art);
@@ -2519,7 +2521,13 @@ function pruefeBeruehrung(h) {   // betäubte Gegner tun nichts; Berührung weck
   for (const g of S.gegner) {
     if (g.sterbend || g.warten > 0 || g.betaeubt > 0 || g.v.benommen || !ueberlappt(k, gegnerKoerper(g))) continue;
     alarmiere(g);
-    if (g.bossTod === undefined && treffeHeld(g.v.schaden ?? 1, g.x, g.y)) return;
+    if (g.bossTod === undefined && treffeHeld(g.v.schaden ?? 1, g.x, g.y)) {
+      // Wer trifft, prallt selbst zurück und hält kurz inne – sonst klebt ein schneller Jäger am Helden
+      let rx = g.x - h.x, ry = g.y - h.y; const l = Math.hypot(rx, ry) || 1;
+      if (g.modus === 'normal' && (g.v.gewicht ?? 1) > 0) { g.rueck = CFG.gegner.rueckDauer; g.vx = rx / l * CFG.gegner.rueckTempo * 0.6; g.vy = ry / l * CFG.gegner.rueckTempo * 0.6; }
+      g.nachTreffer = CFG.gegner.nachTreffer;
+      return;
+    }
   }
 }
 
