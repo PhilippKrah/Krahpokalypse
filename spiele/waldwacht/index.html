@@ -208,12 +208,12 @@
     "probe": {
       "titel": "PROBE-DUNGEON",
       "untertitel": "Ein Raum je Mechanik, linear",
-      "start": { "raum": "start", "feld": [9.5, 8.5] },
+      "start": { "raum": "start", "feld": [9.5, 8.5], "waffe": "dolch" },
       "raeume": {
         "start": {
           "nr": "1", "titel": "ERSTE SCHRITTE", "licht": "hell",
           "tueren": { "o": { "ziel": "gestruepp" } },
-          "einstieg": "Willkommen im Probe-Dungeon! Laufen: WASD oder Pfeiltasten, am Handy links wischen. Lesen, öffnen und Schwert: Leertaste, am Handy rechts tippen.",
+          "einstieg": "Willkommen im Probe-Dungeon! Laufen: WASD oder Pfeiltasten, am Handy links wischen. Lesen, öffnen und zustechen: Leertaste, am Handy rechts tippen. Noch hast du nur einen Dolch.",
           "zeichen": { "1": { "objekt": "schild", "text": "Jeder Raum hier prüft eine Sache. Der Weg geht immer weiter nach Osten." } },
           "karte": [
             "####################",
@@ -236,11 +236,13 @@
         "gestruepp": {
           "nr": "2", "titel": "SCHWERT",
           "tueren": { "w": { "ziel": "start" }, "o": { "ziel": "kampf" } },
-          "zeichen": { "1": { "objekt": "schild", "text": "Büsche versperren den Weg. Schlag sie mit dem Schwert weg - manchmal steckt ein Herz darin." } },
+          "einstieg": "In der Truhe liegt ein Schwert! Es reicht weiter als der Dolch und schlägt im Bogen.",
+          "zeichen": { "1": { "objekt": "schild", "text": "Büsche versperren den Weg. Schlag sie weg - manchmal steckt ein Herz darin. Tipp: Taste gedrückt halten, bis das Schwert funkelt, dann loslassen - Rundumschlag!" },
+                       "2": { "objekt": "truhe", "inhalt": "schwert" } },
           "karte": [
             "####################",
             "####################",
-            "#.............b....#",
+            "#......2......b....#",
             "#.............b....#",
             "#.....b.......b....#",
             "#.............b....#",
@@ -1120,39 +1122,32 @@ function pixelbild(zeilen, farben, kontur, massstab = 1) {
 
 // Schwert, waagerecht nach rechts; Drehpunkt mitten im Griff
 const SCHWERT_FARBEN = { o: PAL.gold1, h: PAL.holz0, H: PAL.holz2, g: PAL.gold2, G: PAL.gold0, w: PAL.weiss, b: PAL.fels5, s: PAL.fels3 };
-const SCHWERT_GERADE = pixelbild([
-  '.......g......................',
-  '.......gG.....................',
-  'ohhhhhhgGwwwwwwwwwwwwwwwwwwww.',
-  'oHHHHHhgGbbbbbbbbbbbbbbbbbbbbb',
-  'ohhhhhhgGssssssssssssssssssss.',
-  '.......gG.....................',
-  '.......g......................',
-], SCHWERT_FARBEN, PAL.nacht);
-const SCHWERT_GERADE_DREH = [5, 4];
-// Schwert diagonal nach rechts unten (45°), aus derselben Farbfolge gebaut
-const SCHWERT_SCHRAEG = (() => {
-  const n = 22, z = Array.from({ length: n }, () => Array(n).fill('.'));
-  const setze = (x, y, f) => { if (x >= 0 && y >= 0 && x < n && y < n) z[y][x] = f; };
+// Klingen werden je Länge gebaut, nicht gestreckt: Griff, Parierstange und Spitze bleiben gleich, nur die Klinge
+// dazwischen wird länger oder kürzer. Schwung-Waffen haben ein gerades und ein schräges (45°) Bild, Stich-Waffen nur ein gerades.
+const KLINGEN = {};
+function klinge(wf) {
+  const stich = wf.art === 'stich', L = Math.max(8, Math.round(wf.laenge || 26)), schluessel = (stich ? 's' : 'w') + L;
+  if (KLINGEN[schluessel]) return KLINGEN[schluessel];
+  if (stich) {   // Dolch-Griff (6 Spalten), Klinge n, Spitze 1; Drehpunkt in der Hand
+    const n = Math.max(2, L - 5), leer = '.'.repeat(n + 1);
+    return KLINGEN[schluessel] = { gerade: pixelbild(['....g.' + leer, 'ohhhgG' + 'w'.repeat(n) + '.', 'oHHhgG' + 'b'.repeat(n + 1), 'ohhhgG' + 's'.repeat(n) + '.', '....g.' + leer],
+      SCHWERT_FARBEN, PAL.nacht), dg: [3, 3] };
+  }
+  const n = Math.max(2, L - 6), leer = '.'.repeat(n + 1);   // Schwert-Griff (9 Spalten), Klinge n, Spitze 1
+  const gerade = pixelbild(['.......g.' + leer, '.......gG' + leer, 'ohhhhhhgG' + 'w'.repeat(n) + '.', 'oHHHHHhgG' + 'b'.repeat(n + 1),
+    'ohhhhhhgG' + 's'.repeat(n) + '.', '.......gG' + leer, '.......g.' + leer], SCHWERT_FARBEN, PAL.nacht);
+  const m = Math.max(2, Math.round(L / Math.SQRT2) - 3), g = m + 7, z = Array.from({ length: g }, () => Array(g).fill('.'));   // schräg: m Schritte Klinge
+  const setze = (x, y, f) => { if (x >= 0 && y >= 0 && x < g && y < g) z[y][x] = f; };
   setze(0, 0, 'o');
   for (let i = 1; i <= 3; i++) { setze(i, i, 'H'); setze(i + 1, i, 'h'); setze(i, i + 1, 'h'); }
   for (let k = -2; k <= 2; k++) { setze(4 + k, 4 - k, 'g'); setze(5 + k, 4 - k, 'G'); }
-  for (let i = 5; i <= 19; i++) { setze(i, i, 'b'); setze(i + 1, i, 'w'); setze(i, i + 1, 's'); }
-  setze(20, 20, 'b');
-  return pixelbild(z.map(r => r.join('')), SCHWERT_FARBEN, PAL.nacht);
-})();
-const SCHWERT_SCHRAEG_DREH = [3, 3];
-const DOLCH = pixelbild([
-  '....g...........',
-  'ohhhgGwwwwwwwww.',
-  'oHHhgGbbbbbbbbbb',
-  'ohhhgGsssssssss.',
-  '....g...........',
-], SCHWERT_FARBEN, PAL.nacht);
-const DOLCH_DREH = [3, 3];
-function waffenBild(wf) {   // Waffe schräg als Bild für Truhe, HUD und Editor
-  const b = wf && wf.art === 'stich' ? DOLCH : SCHWERT_GERADE, k = Math.min(1.2, ((wf && wf.laenge) || 26) / (wf && wf.art === 'stich' ? 14 : 26));
-  const [c, g] = leinwand(34, 34); g.translate(17, 17); g.rotate(-Math.PI / 4); g.scale(k, 1); g.drawImage(b, -b.width / 2, -b.height / 2); return c;
+  for (let i = 5; i < 5 + m; i++) { setze(i, i, 'b'); setze(i + 1, i, 'w'); setze(i, i + 1, 's'); }
+  setze(5 + m, 5 + m, 'b');
+  return KLINGEN[schluessel] = { gerade, dg: [5, 4], schraeg: pixelbild(z.map(r => r.join('')), SCHWERT_FARBEN, PAL.nacht), ds: [3, 3] };
+}
+function waffenBild(wf) {   // Waffe schräg als Bild für Truhe, HUD und Editor (lange Waffen gleichmäßig verkleinert, nicht verzerrt)
+  const b = klinge(wf || { art: 'schwung', laenge: 26 }).gerade, k = Math.min(1, 44 / b.width);
+  const [c, g] = leinwand(34, 34); g.translate(17, 17); g.rotate(-Math.PI / 4); g.scale(k, k); g.drawImage(b, -b.width / 2, -b.height / 2); return c;
 }
 
 // Herzen 9×8, doppelt gezeichnet; Herzcontainer mit goldenem Rand
@@ -2692,13 +2687,11 @@ function schatten(x, y, w) {
   ctx.fillStyle = 'rgba(18,13,20,.28)';
   ctx.fillRect(Math.round(x - w / 2 + 2), Math.round(y - 2), w - 4, 5); ctx.fillRect(Math.round(x - w / 2), Math.round(y - 1), w, 3);
 }
-function zeichneSchwert(h) {   // die Waffe in der Hand: Länge skaliert die Klinge, Stichwaffen als Dolch-Bild
-  const wf = waffe(), w = schwertWinkel(h), [gx, gy] = schwertGriff(h, w), stich = wf.art === 'stich';
-  const gerade = stich || h.modus !== 'schlag' || w % 90 === 0, k = (wf.laenge || 26) / (stich ? 14 : 26);
-  const bild = stich ? DOLCH : gerade ? SCHWERT_GERADE : SCHWERT_SCHRAEG, [px, py] = stich ? DOLCH_DREH : gerade ? SCHWERT_GERADE_DREH : SCHWERT_SCHRAEG_DREH;
-  ctx.save(); ctx.translate(gx, gy); ctx.rotate((gerade ? w : w - 45) * Math.PI / 180);
-  if (gerade) ctx.scale(k, 1); else ctx.scale(k, k);   // schräges Bild gleichmäßig strecken
-  ctx.drawImage(bild, -px, -py); ctx.restore();
+function zeichneSchwert(h) {   // die Waffe in der Hand: Klinge passend zur Länge gebaut (klinge), Stichwaffen mit Dolch-Griff
+  const wf = waffe(), w = schwertWinkel(h), [gx, gy] = schwertGriff(h, w), kl = klinge(wf);
+  const gerade = wf.art === 'stich' || h.modus !== 'schlag' || w % 90 === 0 || !kl.schraeg;
+  const bild = gerade ? kl.gerade : kl.schraeg, [px, py] = gerade ? kl.dg : kl.ds;
+  ctx.save(); ctx.translate(gx, gy); ctx.rotate((gerade ? w : w - 45) * Math.PI / 180); ctx.drawImage(bild, -px, -py); ctx.restore();
   if (h.modus === 'laden' && h.bereit && Math.floor(S.zeit * 12) % 2) {   // aufgeladen: Funkeln an der Spitze
     const a = w * Math.PI / 180, L = wf.laenge || 26, sx = gx + Math.cos(a) * L, sy = gy + Math.sin(a) * L;
     ctx.fillStyle = PAL.weiss; ctx.fillRect(Math.round(sx) - 1, Math.round(sy) - 4, 2, 8); ctx.fillRect(Math.round(sx) - 4, Math.round(sy) - 1, 8, 2);
