@@ -158,6 +158,20 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   (Orte = Truhen, Sperren = Bedingungen über Signale/Gegenstände/Schlüssel).
   Nächster Ausbau für den Randomizer: Wege *innerhalb* eines Raums aus den Nachweisen
   ableiten (von welchem Eingang aus welches Ziel erreichbar war).
+  Seit Entwurf 10: Waffen (Daten `waffen`, Grundtyp Stich/Schwung, Länge,
+  Schaden, Dauer, Rückstoß, schneidet/reflektiert, Aufladen → Kreisschwung;
+  jede Waffe ist auch Gegenstand, Startwaffe je Dungeon; Reiter „Waffen“ im
+  Editor; eingebaut: Dolch, Schwert), Türvarianten (großer Schlüssel „gross“,
+  Riegel = nur von der anderen Seite zu öffnen für Abkürzungen, Gegenstandstor
+  `braucht`), Platten mit Zeitschalter (`nachlauf`), Ereignisse als Abläufe mit
+  Schritten (Signal an/aus, warten, warten bis, Text; wiederholbar), Gegnerarten
+  „abgrundfest“, Ton für alle wichtigen Aktionen und einfache Musik (Dungeon,
+  Boss). Bugfix: schnelle Jäger kleben nicht mehr am Helden.
+  Merkposten für später (vom Nutzer so gewünscht): mehrere Etagen (Treppen,
+  Löcher nach unten), Erzählung über die Umgebung, große Räume mit mitlaufender
+  Kamera, die Kernmechanik des Tutorials (nicht „Rückstoß“ – kommt später),
+  weitere Waffen-Grundtypen (Speer, Keule, Peitsche, Wurfwaffe), Kristallzustand
+  in den Test-Vorgaben, Wege innerhalb eines Raums für den Randomizer.
   Plan: weitere Probe-Räume, daraus ein Tutorial; Raum-/Dungeonformen und
   Randomizer danach. Teststart `?dungeon=<id>&raum=<id>`.
   Grafik aus dem Gutsverwalter-Atlas, eingebettet per `atlas_bauen.py`.
