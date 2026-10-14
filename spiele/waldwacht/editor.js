@@ -2,7 +2,7 @@
 // Wird vom Spiel erst geladen, wenn im Menü „EDITOR“ gewählt wird, und nutzt dessen Daten, Grafik und Funktionen
 // (DATEN, baueHintergrund, zeichneBild, Sprites, GEGNERBILD, pruefeDaten, uebernehmeEigene, starteDungeon …).
 // Gespeichert wird im Browser (localStorage, EIGENE_SCHLUESSEL) im selben JSON-Format wie der Block spieldaten:
-//   { format: 1, dungeons: { id: dungeon }, gegnerarten: { id: gegnerart }, kristalltypen: { id: kristalltyp } }
+//   { format: 1, dungeons: { id: dungeon }, gegnerarten: { id: gegnerart }, kristalltypen: { id: kristalltyp }, waffen: { id: waffe } }
 // Räume im Editor-Format: karte nur mit Gelände (# . ~), Objekte und Gegner als Listen mit feld [spalte, zeile],
 // dazu pos [x, y] für die Dungeon-Karte. Eingebaute Dungeons lassen sich als Kopie übernehmen (werden dabei umgewandelt).
 'use strict';
@@ -15,7 +15,7 @@ const Editor = (() => {
     werkzeug: { art: 'kachel', wert: '#' },   // bei Objekten optional vorlage: Einstellungen für neu gesetzte
     form: 'pinsel',                // pinsel | rechteck (Umschalt hält Rechteck)
     auswahl: null,                 // { liste: 'objekte' | 'gegner', i }
-    gegnerArt: null, gPhase: null, kristallTyp: null, vorgaben: {}, vorgabenOffen: false, meldung: null,
+    gegnerArt: null, gPhase: null, kristallTyp: null, waffe: null, vorgaben: {}, vorgabenOffen: false, meldung: null,
     maus: null, malt: false, rechteck: null,
     fuellen: { hindernisse: 'mittel', buesche: true, abgruende: false, gegner: 3, arten: ['fuchs'], auto: true },
   };
@@ -619,6 +619,7 @@ const Editor = (() => {
       </div>
       ${dg() ? `
       <div class="knoepfe"><button data-a="umbenennen">Umbenennen</button><button data-a="dungeonloeschen" class="gefahr">Löschen</button></div>
+      ${feld('Startwaffe', wahlHtml('id="ed-startwaffe"', dg().start.waffe || '', { '': `Standard (${(DATEN.waffen[CFG.held.waffe] || {}).name || CFG.held.waffe})`, ...Object.fromEntries(Object.entries(DATEN.waffen).map(([k, x]) => [k, x.name || k])) }))}
       <h3>Karte <small>(Klick: Raum wählen, + anlegen)</small></h3>
       <div class="kartenrahmen"><canvas id="ed-karte"></canvas></div>
       <div class="knoepfe"><button data-a="testdungeon" class="haupt">▶ Dungeon testen</button></div>
@@ -1191,6 +1192,61 @@ const Editor = (() => {
       <p class="klein">Sie spielt den Dungeon gedanklich durch: Türen je Richtung, Schlüssel (auch in ungünstiger Reihenfolge), Signale von Platten, Gegnern, Kristallen und Ereignissen, Truhen, die erst unter einer Bedingung erscheinen. Sie prüft <b>nicht</b>, ob ein Rätsel innerhalb eines Raums lösbar ist (Blöcke, Pflöcke, Abgründe) – das geht nur durch Testen.</p></div>`;
   }
 
+  // ---------- Waffen ----------
+  // Grundtyp Stich (gerade hinaus und zurück, kurz) oder Schwung (Bogen über die Front), dazu Werte und Aufladen (Kreisschwung).
+  // Jede Waffe ist zugleich ein Gegenstand gleichen Namens: als Truhen-Inhalt, als Startwaffe des Dungeons, als Bedingung „hat …“.
+  function renderWaffen() {
+    const el = $('#ed-waffenansicht'), alle = Object.entries(DATEN.waffen);
+    if (!Z.waffe || !DATEN.waffen[Z.waffe]) Z.waffe = alle[0][0];
+    const id = Z.waffe, wf = DATEN.waffen[id], eigen = !!eigene.waffen[id];
+    const f = (pfad, typ, label, hilfe = '', opt) => {
+      const w = holen(wf, pfad);
+      if (typ === 'haken') return `<label class="klein"><input type="checkbox" data-wp2="${pfad}" data-wt="haken"${w ? ' checked' : ''}> ${label}${hilfe ? ` <span class="erkl-inline">– ${hilfe}</span>` : ''}</label>`;
+      if (typ === 'wahl') return feld(label, wahlHtml(`data-wp2="${pfad}" data-wt="wahl"`, w, opt), hilfe);
+      if (typ === 'text') return feld(label, `<input data-wp2="${pfad}" data-wt="text" value="${esc(w ?? '')}">`, hilfe);
+      return feld(label, `<input type="number" step="${opt || 1}" data-wp2="${pfad}" data-wt="zahl" value="${esc(w ?? '')}">`, hilfe);
+    };
+    el.innerHTML = `
+      <div class="spalte"><h3>Waffen</h3>
+        <div class="liste">${alle.map(([k, x]) => `<button data-waffe="${k}" class="${k === id ? 'an' : ''}"><img class="kbild" src="${bildUrl(GEGENSTANDBILD[k] || waffenBild(x))}" alt=""> ${esc(x.name || k)} <small>${eigene.waffen[k] ? 'eigen' : 'eingebaut'}</small></button>`).join('')}</div>
+        <div class="knoepfe"><button data-a="waffeneu">Neue Waffe</button><button data-a="waffekopie">Kopie</button>${eigen ? '<button data-a="waffeweg" class="gefahr">Löschen</button>' : ''}</div>
+        <p class="klein">Jede Waffe ist auch ein Gegenstand: Leg sie in eine Truhe (Inhalt), wähle sie links als Startwaffe des Dungeons oder frag sie als Bedingung ab („hat …“). Wer eine Waffe findet, hat sie sofort in der Hand.</p></div>
+      <div class="spalte breit"><h3>${esc(wf.name || id)} ${eigen ? '' : '<small>(eingebaut – als Kopie bearbeiten)</small>'}</h3>
+        <div class="vorschau"><img class="waffenbild" src="${bildUrl(GEGENSTANDBILD[id] || waffenBild(wf))}" alt=""></div>
+        <fieldset${eigen ? '' : ' disabled'}>
+        <div class="zeile">${f('name', 'text', 'Name')}${f('art', 'wahl', 'Grundtyp', '', { stich: 'Stich – gerade hinaus und zurück', schwung: 'Schwung – Bogen über die Front' })}</div>
+        <div class="zeile">${f('laenge', 'zahl', 'Länge (px)', 'Reichweite der Klinge; Dolch 14, Schwert 26')}${f('schaden', 'zahl', 'Schaden je Treffer')}</div>
+        <div class="zeile">${f('dauer', 'zahl', 'Dauer eines Schlags (s)', 'kürzer = schneller hintereinander', 0.02)}${f('rueckstoss', 'zahl', 'Rückstoß ×', 'wie weit Gegner fliegen', 0.1)}</div>
+        ${f('schneidet', 'haken', 'schneidet Büsche')}
+        ${f('reflektiert', 'haken', 'schlägt Kugeln zurück', 'ohne Haken werden Kugeln nur abgewehrt')}
+        <div class="modul"><label class="klein kopf"><input type="checkbox" data-wmod="aufladen"${wf.aufladen ? ' checked' : ''}> <b>Aufladen (Kreisschwung)</b></label>
+          <small class="erkl">Nach dem Schlag gedrückt halten: Die Waffe wird vorgestreckt geladen (langsam laufen), funkelt, wenn sie bereit ist – Loslassen löst einen Kreisschwung aus, der rundum trifft.</small>
+          ${wf.aufladen ? `<div class="zeile">${f('aufladen.zeit', 'zahl', 'Ladezeit (s)', '', 0.1)}${f('aufladen.schaden', 'zahl', 'Schaden des Kreisschwungs')}</div>` : ''}</div>
+        </fieldset>
+        <p class="klein">Ideen für weitere Grundtypen (noch nicht eingebaut): Speer (langer Stich), Keule (langsam, großer Rückstoß, zertrümmert), Peitsche (zieht heran), Wurfwaffe.</p></div>`;
+  }
+  function waffenEingabe(e) {
+    const t = e.target, wf = eigene.waffen[Z.waffe];
+    if (!wf) return;
+    merke();
+    if (t.dataset.wmod) { if (t.checked) wf.aufladen = { zeit: 0.8, schaden: 2 }; else delete wf.aufladen; }
+    else if (t.dataset.wp2) {
+      const typ = t.dataset.wt; let wert = typ === 'haken' ? t.checked : typ === 'zahl' ? Math.max(0, Number(t.value) || 0) : t.value;
+      if (t.dataset.wp2 === 'name') wert = String(wert).trim() || Z.waffe;
+      if (t.dataset.wp2 === 'dauer') wert = Math.max(0.1, wert);
+      setzen(wf, t.dataset.wp2, wert);
+    }
+    speichern(); renderWaffen(); renderWerkzeuge();
+  }
+  function neueWaffe(vorlage) {
+    const name = prompt('Name der Waffe:', vorlage ? (DATEN.waffen[vorlage].name || vorlage) + ' 2' : 'Speer');
+    if (!name) return;
+    let id = slug(name); while (DATEN.waffen[id] || DATEN.gegenstaende[id]) id += '2';
+    merke();
+    eigene.waffen[id] = vorlage ? { ...kopie(DATEN.waffen[vorlage]), name } : { name, art: 'stich', laenge: 30, schaden: 1, dauer: 0.3, rueckstoss: 0.8, schneidet: false, reflektiert: false };
+    Z.waffe = id; speichern(); renderWaffen();
+  }
+
   // ---------- Hilfe ----------
   const HILFE = [
     ['Grundidee', `Ein <b>Dungeon</b> besteht aus Räumen auf einem Raster. Jeder Raum ist 20 × 15 Felder groß; der Rand ist Mauer, Türen liegen fest in der Mitte jeder Seite.
@@ -1216,6 +1272,9 @@ const Editor = (() => {
     ['Gegnerarten', `Eine Gegnerart setzt sich aus Bausteinen zusammen: Grundwerte, KI (Wegfindung, Angriffs-Reihenfolge, Abstand), Wahrnehmung, Bewegung,
       Angriffe (Sprung, Schuss, Rammen, Stampfen – jeder mit Ankündigung), Verteidigung (unverwundbar, benommen, Schutz bei Trefferserie, Ausweichen, Schild, Rüstung)
       und was bei der Niederlage passiert (Signal, Teilen, Explodieren). Eingebaute Arten sind schreibgeschützt – „Kopie“ macht eine eigene daraus.`],
+    ['Waffen', `Grundtyp <b>Stich</b> (gerade hinaus und zurück, z. B. Dolch) oder <b>Schwung</b> (Bogen über die Front, z. B. Schwert), dazu Länge, Schaden, Dauer,
+      Rückstoß, ob sie Büsche schneidet und Kugeln zurückschlägt. Mit <b>Aufladen</b>: nach dem Schlag gedrückt halten, bis die Spitze funkelt, loslassen = Kreisschwung.
+      Jede Waffe ist zugleich ein Gegenstand: Truhen-Inhalt, Startwaffe des Dungeons (links), Bedingung „hat …“. Eine gefundene Waffe ist sofort in der Hand.`],
     ['Phasen und Bosse', `Mit <b>Phasen</b> wechselt ein Gegner sein Verhalten: Jede Phase übernimmt das Grundverhalten und ändert nur, was in ihr eingestellt ist.
       <b>Übergänge</b> führen weiter – nach Zeit, nach zufälliger Zeit, unter X % Lebenspunkten, nach einem Angriff, nach einer Trefferserie oder wenn ein Signal gilt.
       <b>Wendepunkte</b> greifen aus jeder Phase heraus, je einmal (z. B. „unter 50 %: Wut-Phase, Banner, Verstärkung“).
@@ -1239,6 +1298,9 @@ const Editor = (() => {
   function aktion(a, el) {
     const d = dg();
     if (a.startsWith('ktyp') || a.startsWith('kfarbe')) { kristallAktion(a, el); return; }
+    if (a === 'waffeneu') { neueWaffe(null); return; }
+    if (a === 'waffekopie') { neueWaffe(Z.waffe); return; }
+    if (a === 'waffeweg') { if (confirm('Waffe löschen? Truhen und Startwaffen, die sie benutzen, zeigen dann einen Hinweis.')) { merke(); delete eigene.waffen[Z.waffe]; Z.waffe = null; speichern(); renderWaffen(); } return; }
     switch (a) {
       case 'neu': neuerDungeon(); break;
       case 'umbenennen': { const t = prompt('Neuer Name:', d.titel); if (t) { merke(); d.titel = t.toUpperCase(); speichern(); renderLinks(); } break; }
@@ -1310,7 +1372,7 @@ const Editor = (() => {
         const doppelt = [...Object.keys(e.dungeons).filter(k => eigene.dungeons[k]), ...Object.keys(e.gegnerarten || {}).filter(k => eigene.gegnerarten[k]), ...Object.keys(e.kristalltypen || {}).filter(k => eigene.kristalltypen[k])];
         if (doppelt.length && !confirm(`${doppelt.length} Einträge gibt es schon und werden überschrieben. Weiter?`)) return;
         merke();
-        Object.assign(eigene.dungeons, e.dungeons); Object.assign(eigene.gegnerarten, e.gegnerarten || {}); Object.assign(eigene.kristalltypen, e.kristalltypen || {});
+        Object.assign(eigene.dungeons, e.dungeons); Object.assign(eigene.gegnerarten, e.gegnerarten || {}); Object.assign(eigene.kristalltypen, e.kristalltypen || {}); Object.assign(eigene.waffen, e.waffen || {});
         for (const d of Object.values(e.dungeons)) for (const r of Object.values(d.raeume)) for (const o of r.objekte || []) migriereObjekt(o);
         if (!dg()) { Z.dungeon = Object.keys(eigene.dungeons)[0] || null; Z.raum = Z.dungeon ? dg().start.raum : null; }
         speichern(); render();
@@ -1374,6 +1436,7 @@ const Editor = (() => {
   #editor .nachweis ul{margin:4px 0;padding-left:4px;list-style:none} #editor .nachweis li.ja{color:#8abd4f} #editor .nachweis li.nein{color:#a9b2b0}
   #editor .nachweisliste li.ok{color:#8abd4f} #editor .nachweisliste li.teil,#editor .nachweisliste li.veraltet{color:#f4cd5e}
   #editor .schritt{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:3px 0} #editor .schritt input{width:auto;flex:1;min-width:60px} #editor .schritt .bedbreit{flex-basis:100%}
+  #editor .waffenbild{width:102px;height:102px;image-rendering:pixelated;background:#2a552c;border:1px solid #2e313b}
   #editor .kfarben{padding-left:20px} #editor .kfarben li{margin:4px 0} #editor .kfarben .knoepfe{display:inline-flex;margin:0 0 0 8px}
   @media (max-width:900px){#editor .ansichten{flex-direction:column} #editor .spalte{flex:none}}`;
   function baue() {
@@ -1381,7 +1444,7 @@ const Editor = (() => {
     wurzel = document.createElement('div'); wurzel.id = 'editor';
     wurzel.innerHTML = `
       <header><h2>Waldwacht-Editor</h2>
-        <button data-ansicht="dungeon">Dungeons &amp; Räume</button><button data-ansicht="gegner">Gegnerarten</button><button data-ansicht="kristalle">Kristalltypen</button><button data-ansicht="logik">Logik</button><button data-ansicht="hilfe">Hilfe</button>
+        <button data-ansicht="dungeon">Dungeons &amp; Räume</button><button data-ansicht="gegner">Gegnerarten</button><button data-ansicht="kristalle">Kristalltypen</button><button data-ansicht="waffen">Waffen</button><button data-ansicht="logik">Logik</button><button data-ansicht="hilfe">Hilfe</button>
         <button id="ed-status" class="status" data-ansicht="logik">–</button>
         <span style="flex:1"></span><button data-a2="zurueck" title="Strg+Z">↶ Rückgängig</button><button data-a2="spiel">Zum Spiel</button></header>
       <div class="ansichten" id="ed-dungeonansicht">
@@ -1392,6 +1455,7 @@ const Editor = (() => {
       </div>
       <div class="ansichten" id="ed-gegneransicht"></div>
       <div class="ansichten" id="ed-kristallansicht"></div>
+      <div class="ansichten" id="ed-waffenansicht"></div>
       <div class="ansichten" id="ed-logikansicht"></div>
       <div class="ansichten" id="ed-hilfeansicht"></div>`;
     document.body.appendChild(wurzel);
@@ -1404,6 +1468,7 @@ const Editor = (() => {
       else if (b.dataset.art) { Z.gegnerArt = b.dataset.art; Z.gPhase = null; renderGegner(); }
       else if (b.dataset.gphase !== undefined) { Z.gPhase = b.dataset.gphase === '' ? null : Number(b.dataset.gphase); renderGegner(); }
       else if (b.dataset.ktyp) { Z.kristallTyp = b.dataset.ktyp; renderKristalle(); }
+      else if (b.dataset.waffe) { Z.waffe = b.dataset.waffe; renderWaffen(); }
       else if (b.dataset.raumwahl) { Z.raum = b.dataset.raumwahl; Z.ansicht = 'dungeon'; Z.auswahl = null; render(); }
       else if (b.dataset.a) aktion(b.dataset.a, b);
     });
@@ -1415,6 +1480,8 @@ const Editor = (() => {
       else if (t.id === 'ed-datei' && t.files[0]) importiere(t.files[0]);
       else if (t.closest('#ed-rechts')) eingabe(e);
       else if (t.closest('#ed-gegneransicht')) gegnerEingabe(e);
+      else if (t.closest('#ed-waffenansicht')) waffenEingabe(e);
+      else if (t.id === 'ed-startwaffe') { merke(); if (t.value) dg().start.waffe = t.value; else delete dg().start.waffe; aenderung(); }
       else if (t.dataset.k === 'name' && eigene.kristalltypen[Z.kristallTyp]) { merke(); eigene.kristalltypen[Z.kristallTyp].name = t.value.trim() || Z.kristallTyp; speichern(); renderKristalle(); }
     });
     // Raum-Leinwand: malen mit Maus/Stift/Finger
@@ -1458,6 +1525,7 @@ const Editor = (() => {
     $('#ed-gegneransicht').style.display = Z.ansicht === 'gegner' ? '' : 'none';
     $('#ed-kristallansicht').style.display = Z.ansicht === 'kristalle' ? '' : 'none';
     $('#ed-logikansicht').style.display = Z.ansicht === 'logik' ? '' : 'none';
+    $('#ed-waffenansicht').style.display = Z.ansicht === 'waffen' ? '' : 'none';
     $('#ed-hilfeansicht').style.display = Z.ansicht === 'hilfe' ? '' : 'none';
     wurzel.querySelectorAll('[data-ansicht]:not(#ed-status)').forEach(b => b.classList.toggle('an', b.dataset.ansicht === Z.ansicht));
     zeigeWarnungen();
@@ -1465,6 +1533,7 @@ const Editor = (() => {
     if (Z.ansicht === 'gegner') { renderGegner(); return; }
     if (Z.ansicht === 'kristalle') { renderKristalle(); return; }
     if (Z.ansicht === 'logik') { renderLogik(); return; }
+    if (Z.ansicht === 'waffen') { renderWaffen(); return; }
     if (Z.ansicht === 'hilfe') { renderHilfe(); return; }
     renderLinks(); renderRechts(); zeichneRaum();
   }

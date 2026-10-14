@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Waldwacht (Arbeitstitel) – Entwurf 9: datengetriebene Engine mit Editor, Gegnern aus Bausteinen und Phasen, Logikprüfung und Nachweisen. Top-Down-Action-Adventure im Stil von „A Link to the Past“.
+  Waldwacht (Arbeitstitel) – Entwurf 10: datengetriebene Engine mit Editor, Gegnern aus Bausteinen und Phasen, Waffen, Logikprüfung und Nachweisen. Top-Down-Action-Adventure im Stil von „A Link to the Past“.
 
   Trennung: Der Code kennt nur allgemeine Bausteine (Kacheln, Objekt-Eigenschaften, Gegner-Verhalten, Bedingungen).
   Alles Konkrete steht als reines JSON im Block <script id="spieldaten">: Einstellungen, Kacheln, Zeichen-Legende,
@@ -15,6 +15,9 @@
                    kristall (kristalltyp; Schwert: nächste Farbe) · pflock (kristalltyp + farbe: oben, wenn der Typ diese
                    Farbe zeigt; sonst oben_wenn) · leuchtet {radius, staerke} (an, an_wenn)
                  Parameter je Objekt: sichtbar_wenn, an_wenn, oben_wenn, merken (einmal wahr = bleibt wahr), spiegeln
+    waffen       { id: {name, art: stich|schwung, laenge (px), schaden, dauer (s), rueckstoss (Faktor), schneidet (Büsche),
+                 reflektiert (Kugeln zurückschlagen), aufladen {zeit, schaden} (halten → Kreisschwung)} } – jede Waffe ist zugleich ein
+                 Gegenstand gleichen Namens (Truhen-Inhalt), Startwaffe: dungeon.start.waffe oder einstellungen.held.waffe
     kristalltypen  { id: {name, farben: [Farbe…]} } – Farben in Schaltreihenfolge, die erste gilt zu Beginn. Der Zustand
                  gilt im ganzen Dungeon: alle Kristalle eines Typs zeigen dieselbe Farbe und schalten gemeinsam weiter.
     gegnerarten  bild, farben (Farbtausch), lp, tempo, schaden, fuss, koerper, beute {herz}, groesse, gewicht (Rückstoß-Faktor,
@@ -97,8 +100,8 @@
 {
   "format": 1,
   "einstellungen": {
-    "held": { "tempo": 150, "lp": 6, "unverwundbar": 1.0, "rueckTempo": 300, "rueckDauer": 0.18 },
-    "schlag": { "dauer": 0.28, "neuAb": 0.20, "aktivBis": 0.22, "phasen": [0.05, 0.10, 0.20] },
+    "held": { "tempo": 150, "lp": 6, "unverwundbar": 1.0, "rueckTempo": 300, "rueckDauer": 0.18, "waffe": "schwert", "ladenTempo": 0.5 },
+    "schlag": { "dauer": 0.28, "neuAb": 0.20, "aktivBis": 0.22, "phasen": [0.05, 0.10, 0.20], "kreis": 0.36 },
     "gegner": { "rueckTempo": 320, "rueckDauer": 0.18, "blitz": 0.25, "wachAb": 1.0, "herzDauer": 9,
                 "angreiferMax": 2, "wartAbstand": [80, 150], "betaeubt": 1.6, "drehtempo": 120, "teilenMax": 3, "bossTod": 2.4,
                 "nachTreffer": 0.7, "schonAbstand": 40 },
@@ -185,6 +188,11 @@
                     "weiter": [ { "wenn": "zufall", "s": [4, 6], "ziel": 3 } ] },
                   { "name": "Erschöpft", "benommen": true, "weiter": [ { "wenn": "zeit", "s": 2.5, "ziel": 2 } ] } ],
                 "wendepunkte": [ { "wenn": "lp", "unter": 0.5, "ziel": 2, "text": "DER KÖNIG WIRD WÜTEND!", "ruft": { "fuchs": 2 } } ] }
+  },
+  "waffen": {
+    "dolch":   { "name": "Dolch", "art": "stich", "laenge": 14, "schaden": 1, "dauer": 0.2, "rueckstoss": 0.6, "schneidet": true, "reflektiert": false },
+    "schwert": { "name": "Schwert", "art": "schwung", "laenge": 26, "schaden": 1, "dauer": 0.28, "rueckstoss": 1, "schneidet": true, "reflektiert": true,
+                 "aufladen": { "zeit": 0.8, "schaden": 2 } }
   },
   "kristalltypen": {
     "kristall": { "name": "Blau/Orange", "farben": ["blau", "orange"] }
@@ -875,6 +883,7 @@ function logikLauf(d, dg, info, schlossWahl) {
     return t.offen_wenn === undefined || moeglich(t.offen_wenn, id);
   };
   let runde = 1;
+  w.besitz.add(dg.start.waffe || CFG.held.waffe);
   w.stufe[dg.start.raum] = 1; merkeVorher(dg.start.raum);
   for (let sicherung = 0; sicherung < 500; sicherung++) {
     const eintrag = { stufe: runde, raeume: [], erhalten: [], geoeffnet: [] };
@@ -1016,6 +1025,7 @@ function pruefeDaten(d, still = false) {
   }
   for (const [did, dg] of Object.entries(d.dungeons)) {
     if (!dg.raeume[dg.start.raum]) w.push(`${did}: Startraum ${dg.start.raum} fehlt`);
+    if (dg.start.waffe && !d.waffen[dg.start.waffe]) w.push(`${did}: unbekannte Startwaffe ${dg.start.waffe}`);
     else {   // jeder Raum vom Start aus über Türen erreichbar?
       const da = new Set([dg.start.raum]), offen = [dg.start.raum];
       while (offen.length) for (const t of Object.values(dg.raeume[offen.pop()].tueren)) if (dg.raeume[t.ziel] && !da.has(t.ziel)) { da.add(t.ziel); offen.push(t.ziel); }
@@ -1044,7 +1054,7 @@ function pruefeDaten(d, still = false) {
       }
     }
     const { quellen, fragen } = dungeonSignale(d, dg);   // abgefragt, aber nie ausgelöst = Tür bleibt für immer zu
-    for (const [name, wo] of Object.entries(fragen)) if (name !== 'geraeumt' && !quellen[name] && !(name.includes('=') && d.kristalltypen[name.split('=')[0]]))
+    for (const [name, wo] of Object.entries(fragen)) if (name !== 'geraeumt' && !name.startsWith('hat:') && !quellen[name] && !(name.includes('=') && d.kristalltypen[name.split('=')[0]]))   // „hat …“ erklärt die Logikprüfung
       w.push(`${did}/${wo[0].raum}: Signal „${name}“ wird abgefragt (${wo[0].art}), aber nirgends ausgelöst`);
   }
   if (!still) for (const m of w) console.warn('Spieldaten:', m);
@@ -1054,20 +1064,24 @@ let WARNUNGEN = [];
 
 // ---------- Eigene Dungeons und Gegnerarten (Editor) ----------
 // Der Editor speichert im Browser (localStorage) im selben Format; beim Start kommen sie zu den eingebauten dazu.
-const EINGEBAUT = { dungeons: { ...DATEN.dungeons }, gegnerarten: { ...DATEN.gegnerarten }, kristalltypen: { ...DATEN.kristalltypen } };
+const EINGEBAUT = { dungeons: { ...DATEN.dungeons }, gegnerarten: { ...DATEN.gegnerarten }, kristalltypen: { ...DATEN.kristalltypen }, waffen: { ...DATEN.waffen }, gegenstaende: { ...DATEN.gegenstaende } };
 const EIGENE_SCHLUESSEL = 'waldwacht.eigene';
 function ladeEigene() {
   try {
     const e = JSON.parse(localStorage.getItem(EIGENE_SCHLUESSEL) || 'null');
-    if (e && e.format === 1) return { dungeons: {}, gegnerarten: {}, kristalltypen: {}, ...e };
+    if (e && e.format === 1) return { dungeons: {}, gegnerarten: {}, kristalltypen: {}, waffen: {}, ...e };
   } catch (err) { console.warn('Eigene Daten nicht lesbar:', err); }
-  return { format: 1, dungeons: {}, gegnerarten: {}, kristalltypen: {} };
+  return { format: 1, dungeons: {}, gegnerarten: {}, kristalltypen: {}, waffen: {} };
 }
 function uebernehmeEigene(e, mitBildern = false) {   // auch vom Editor nach jeder Änderung aufgerufen
   const kopie = o => JSON.parse(JSON.stringify(o));
   DATEN.gegnerarten = { ...EINGEBAUT.gegnerarten, ...kopie(e.gegnerarten) };
   for (const a of Object.values(DATEN.gegnerarten)) migriereGegnerart(a);
   DATEN.kristalltypen = { ...EINGEBAUT.kristalltypen, ...kopie(e.kristalltypen || {}) };
+  DATEN.waffen = { ...EINGEBAUT.waffen, ...kopie(e.waffen || {}) };
+  DATEN.gegenstaende = { ...EINGEBAUT.gegenstaende };
+  for (const [id, wf] of Object.entries(DATEN.waffen)) if (!DATEN.gegenstaende[id])   // jede Waffe ist auch ein Gegenstand (Truhen-Inhalt)
+    DATEN.gegenstaende[id] = { name: wf.name || id, bild: '@waffe:' + id, text: `Du hast ${wf.name ? 'eine neue Waffe gefunden: ' + wf.name : 'eine neue Waffe gefunden'}!`, wirkung: { waffe: id } };
   DATEN.dungeons = { ...EINGEBAUT.dungeons };
   for (const [id, d] of Object.entries(e.dungeons)) {
     DATEN.dungeons[id] = { ...kopie(d), eigen: true };
@@ -1128,6 +1142,18 @@ const SCHWERT_SCHRAEG = (() => {
   return pixelbild(z.map(r => r.join('')), SCHWERT_FARBEN, PAL.nacht);
 })();
 const SCHWERT_SCHRAEG_DREH = [3, 3];
+const DOLCH = pixelbild([
+  '....g...........',
+  'ohhhgGwwwwwwwww.',
+  'oHHhgGbbbbbbbbbb',
+  'ohhhgGsssssssss.',
+  '....g...........',
+], SCHWERT_FARBEN, PAL.nacht);
+const DOLCH_DREH = [3, 3];
+function waffenBild(wf) {   // Waffe schräg als Bild für Truhe, HUD und Editor
+  const b = wf && wf.art === 'stich' ? DOLCH : SCHWERT_GERADE, k = Math.min(1.2, ((wf && wf.laenge) || 26) / (wf && wf.art === 'stich' ? 14 : 26));
+  const [c, g] = leinwand(34, 34); g.translate(17, 17); g.rotate(-Math.PI / 4); g.scale(k, 1); g.drawImage(b, -b.width / 2, -b.height / 2); return c;
+}
 
 // Herzen 9×8, doppelt gezeichnet; Herzcontainer mit goldenem Rand
 const HERZ_FORM = [
@@ -1396,7 +1422,8 @@ function baueDatenbilder() {
     });
   }
   const intern = { '@schluessel': SCHLUESSEL, '@herzcontainer': HERZ.container, '@grosserschluessel': GROSSER_SCHLUESSEL };
-  for (const [id, g] of Object.entries(DATEN.gegenstaende)) GEGENSTANDBILD[id] = intern[g.bild] || atlasKopie(g.bild, 2)[0];
+  for (const [id, g] of Object.entries(DATEN.gegenstaende))
+    GEGENSTANDBILD[id] = g.bild && g.bild.startsWith('@waffe:') ? waffenBild(DATEN.waffen[g.bild.slice(7)]) : intern[g.bild] || atlasKopie(g.bild, 2)[0];
 }
 
 // ---------- Raum: Hintergrund ----------
@@ -1539,7 +1566,7 @@ addEventListener('blur', () => { gehalten.clear(); TOUCH.richtung.clear(); });
 const TOUCH = { aktiv: false, stick: null, schlagId: null, richtung: new Set() };
 const elStick = document.getElementById('stick'), elKnauf = document.getElementById('knauf'), elSchlag = document.getElementById('schlagknopf');
 const STICK = { tot: 14, weg: 44 };   // Totzone und größter Ausschlag in CSS-Pixeln
-const halt = t => gehalten.has(t) || TOUCH.richtung.has(t);
+const halt = t => gehalten.has(t) || TOUCH.richtung.has(t) || (t === 'schlag' && TOUCH.schlagId !== null);
 function touchAn() {
   if (TOUCH.aktiv) return;
   TOUCH.aktiv = true; document.body.classList.add('touch'); skaliere();
@@ -1688,12 +1715,14 @@ function starteDungeon(dungeonId, raumId, vorgaben = null) {
     gegner: [], beute: [], effekte: [], fest: [], festGegner: [], festRueck: [],
     geschosse: [], gefahren: [], banner: null, laerm: null,
     protokoll: {},   // je Raum: erreichte Ziele (für Nachweise aus dem Editor)
+    waffe: dg.start.waffe || CFG.held.waffe,
   };
   if (vorgaben) {   // Teststart aus dem Editor: Signale, Gegenstände und Schlüssel, als hätte man sie schon
     for (const sig of vorgaben.signale || []) S.signale[sig] = true;
     for (const id of vorgaben.besitz || []) {
       const g = DATEN.gegenstaende[id]; if (!g) continue;
       S.besitz.add(id); if ((g.wirkung || {}).maxLp) { S.maxLp += g.wirkung.maxLp; S.held.lp = S.maxLp; }
+      if ((g.wirkung || {}).waffe) S.waffe = g.wirkung.waffe;
     }
     if (vorgaben.schluessel) S.inventar.schluessel = vorgaben.schluessel;
   }
@@ -2002,20 +2031,34 @@ function pruefeGeraeumt() {   // Kampfraum: geräumt bleibt geräumt (Gegner kom
 }
 
 // ---------- Schwert ----------
-// Schwertstellung: vier Winkel je Blickrichtung, von der Seite her über die Front geschwungen (links gespiegelt)
+// ---------- Waffen ----------
+// Schwung: vier Stellungen im 45°-Abstand, von der Seite über die Front (links gespiegelt). Stich: geradeaus hinaus und zurück.
+// Aufladen: nach dem Schlag gedrückt halten → Waffe vorgestreckt laden, beim Loslassen Kreisschwung. Werte aus DATEN.waffen.
+const waffe = () => DATEN.waffen[S && S.waffe] || DATEN.waffen.schwert || Object.values(DATEN.waffen)[0];
+const schlagFaktor = () => (waffe().dauer || CFG.schlag.dauer) / CFG.schlag.dauer;
 function schwertWinkel(h) {
-  const p = CFG.schlag.phasen, stufe = h.t < p[0] ? 0 : h.t < p[1] ? 1 : h.t < p[2] ? 2 : 3;
-  const sinn = h.blick === 'links' ? -1 : 1;
+  const wf = waffe(), sinn = h.blick === 'links' ? -1 : 1;
+  if (h.modus === 'kreis') return ((WINKEL[h.blick] + sinn * 360 * Math.min(1, h.t / CFG.schlag.kreis)) % 360 + 360) % 360;
+  if (wf.art === 'stich' || h.modus === 'laden') return WINKEL[h.blick];
+  const p = CFG.schlag.phasen, t = h.t / schlagFaktor(), stufe = t < p[0] ? 0 : t < p[1] ? 1 : t < p[2] ? 2 : 3;
   return ((WINKEL[h.blick] - 90 * sinn + 45 * stufe * sinn) % 360 + 360) % 360;
 }
-function schwertGriff(h, w) {   // Hand des Helden plus ein Stück in Schwertrichtung
-  const hand = { rechts: [5, -13], links: [-5, -13], runter: [3, -8], hoch: [-2, -17] }[h.blick];
-  const a = w * Math.PI / 180;
-  return [Math.round(h.x + hand[0] + Math.cos(a) * 6), Math.round(h.y + hand[1] + Math.sin(a) * 6)];
+function stichAnteil(h) {   // 0..1: wie weit eine Stichwaffe gerade herausgestoßen ist
+  if (h.modus !== 'schlag' || waffe().art !== 'stich') return 1;
+  const t = h.t / (waffe().dauer || 0.2);
+  return t < 0.35 ? t / 0.35 : t < 0.7 ? 1 : Math.max(0, 1 - (t - 0.7) / 0.3);
 }
-function schwertTrefferfelder(h) {   // drei kleine AABB entlang der Klinge
-  const w = schwertWinkel(h), [gx, gy] = schwertGriff(h, w), a = w * Math.PI / 180;
-  return [10, 18, 26].map(d => ({ x: gx + Math.cos(a) * d - 5, y: gy + Math.sin(a) * d - 5, w: 10, h: 10 }));
+function schwertGriff(h, w) {   // Hand des Helden plus ein Stück in Waffenrichtung (beim Stich je nach Stoß weiter vorn)
+  const hand = { rechts: [5, -13], links: [-5, -13], runter: [3, -8], hoch: [-2, -17] }[h.blick];
+  const a = w * Math.PI / 180, vor = waffe().art === 'stich' && h.modus === 'schlag' ? 2 + 8 * stichAnteil(h) : 6;
+  return [Math.round(h.x + hand[0] + Math.cos(a) * vor), Math.round(h.y + hand[1] + Math.sin(a) * vor)];
+}
+function schwertTrefferfelder(h) {   // kleine AABB entlang der Klinge
+  if (h.modus === 'laden') return [];
+  const wf = waffe(), w = schwertWinkel(h), [gx, gy] = schwertGriff(h, w), a = w * Math.PI / 180, L = wf.laenge || 26;
+  const stich = wf.art === 'stich' && h.modus === 'schlag';
+  if (stich && stichAnteil(h) < 0.3) return [];
+  return (stich ? [0.6, 1] : [0.38, 0.69, 1]).map(k => ({ x: gx + Math.cos(a) * k * L - 5, y: gy + Math.sin(a) * k * L - 5, w: 10, h: 10 }));
 }
 const heldKoerper = h => ({ x: h.x - 9, y: h.y - 22, w: 18, h: 28 });
 const gegnerKoerper = g => ({ x: g.x - g.a.koerper[0] * g.s / 2, y: g.y + g.hh - g.a.koerper[1] * g.s, w: g.a.koerper[0] * g.s, h: g.a.koerper[1] * g.s });
@@ -2046,6 +2089,7 @@ function gibGegenstand(id) {
   S.besitz.add(id);
   for (const [k, v] of Object.entries(g.wirkung || {})) {
     if (k === 'maxLp') S.maxLp += v;
+    else if (k === 'waffe') S.waffe = v;   // neue Waffe gleich in die Hand
     else if (k !== 'heilen') S.inventar[k] = (S.inventar[k] || 0) + v;
   }
   if (g.wirkung && g.wirkung.heilen) S.held.lp = S.maxLp;
@@ -2071,12 +2115,27 @@ function updateHeld(h) {
   }
   if (S.einlauf) { updateEinlauf(h); return; }
   if (h.modus === 'schlag') {
+    const f = schlagFaktor();
     h.t += DT;
-    if (h.t < CFG.schlag.aktivBis) pruefeSchwert(h);
-    if (gedrueckt.has('schlag') && h.t >= CFG.schlag.neuAb) starteSchlag(h);
-    else if (h.t >= CFG.schlag.dauer) h.modus = 'normal';
+    if (h.t < CFG.schlag.aktivBis * f) pruefeSchwert(h);
+    if (gedrueckt.has('schlag') && h.t >= CFG.schlag.neuAb * f) starteSchlag(h);
+    else if (h.t >= CFG.schlag.dauer * f) {   // noch gedrückt und die Waffe kann aufladen: vorgestreckt laden
+      if (waffe().aufladen && halt('schlag')) { h.modus = 'laden'; h.t = 0; h.bereit = false; } else h.modus = 'normal';
+    }
     return;
   }
+  if (h.modus === 'laden') {   // langsam laufen, Blickrichtung bleibt; Loslassen nach der Ladezeit = Kreisschwung
+    h.t += DT;
+    if (!h.bereit && h.t >= waffe().aufladen.zeit) { h.bereit = true; ton('laden'); }
+    if (!halt('schlag')) {
+      if (h.bereit) { h.modus = 'kreis'; h.t = 0; h.schlagNr++; S.laerm = { x: h.x, y: h.y }; ton('kreis'); } else h.modus = 'normal';
+      return;
+    }
+    const dx = halt('rechts') - halt('links'), dy = halt('runter') - halt('hoch'), n = dx && dy ? Math.SQRT1_2 : 1, v = CFG.held.tempo * CFG.held.ladenTempo;
+    if (dx || dy) { bewege(h, dx * n * v * DT, dy * n * v * DT, S.fest); h.anim += DT; if (pruefeAbgrund(h)) return; pruefeAusgang(h); } else h.anim = 0;
+    return;
+  }
+  if (h.modus === 'kreis') { h.t += DT; pruefeSchwert(h); if (h.t >= CFG.schlag.kreis) h.modus = 'normal'; return; }
   if (gedrueckt.has('schlag')) { if (!interagiere(h)) { starteSchlag(h); pruefeSchwert(h); } return; }
   const dx = halt('rechts') - halt('links'), dy = halt('runter') - halt('hoch');
   if (!dx && !dy) { h.anim = 0; h.schieben = 0; return; }
@@ -2113,11 +2172,13 @@ function pruefeSchwert(h) {
     const feld = trifft(gegnerKoerper(g));
     if (!feld) continue;
     g.getroffen = h.schlagNr;
-    treffeGegner(g, h.x, h.y, 1, 'schwert');
+    const wf = waffe();
+    treffeGegner(g, h.x, h.y, h.modus === 'kreis' ? wf.aufladen.schaden : (wf.schaden ?? 1), 'schwert', wf.rueckstoss ?? 1);
     S.effekte.push({ art: 'funke', x: feld.x + feld.w / 2, y: feld.y + feld.h / 2, t: 0 });
     S.stopp = CFG.trefferStopp;
   }
   for (const p of S.geschosse) if (p.von === 'gegner' && trifft(geschossKoerper(p))) {   // zurückschlagen: fliegt jetzt gegen die Gegner
+    if (!waffe().reflektiert) { p.weg = true; S.effekte.push({ art: 'funke', x: p.x, y: p.y - 12, t: 0 }); ton('abprall'); continue; }   // nur abwehren
     const l = Math.hypot(p.x - h.x, p.y - h.y) || 1, v = Math.hypot(p.vx, p.vy) * 1.3;
     p.vx = (p.x - h.x) / l * v; p.vy = (p.y - h.y) / l * v; p.von = 'held';
     S.effekte.push({ art: 'funke', x: p.x, y: p.y - 12, t: 0 }); S.stopp = 2;
@@ -2125,7 +2186,7 @@ function pruefeSchwert(h) {
   for (const o of S.raum.objekte) {
     const f = festVon(o);
     if (!f) continue;
-    if (o.typ.schneidbar && trifft(f)) {   // weg mit Blätterregen, manchmal ein Herz
+    if (o.typ.schneidbar && waffe().schneidet !== false && trifft(f)) {   // weg mit Blätterregen, manchmal ein Herz
       o.weg = true;
       const x = f.x + f.w / 2, y = f.y + f.h / 2;
       S.effekte.push({ art: 'blaetter', x, y, t: 0, teile: Array.from({ length: 8 }, (_, i) => ({ a: i / 8 * Math.PI * 2 + Math.random() * 0.5, v: 50 + Math.random() * 60 })) });
@@ -2415,11 +2476,11 @@ function updateGegner(g, h) {
 
 // Treffer am Gegner (Schwert, zurückgeschlagenes Geschoss, Explosion). Schild: von vorn prallt das Schwert ab.
 // Rüstung "schlag": der erste Treffer betäubt nur; "betaeubt": verwundbar nur, wenn betäubt (z. B. nach dem Rammen).
-function treffeGegner(g, qx, qy, schaden = 1, quelle = 'schwert') {
+function treffeGegner(g, qx, qy, schaden = 1, quelle = 'schwert', wucht = 1) {
   const a = g.a, v = g.v, gewicht = v.gewicht ?? 1, wehrlos = g.betaeubt > 0 || !!v.benommen;
   g.warten = 0; alarmiere(g);
   let rx = g.x - qx, ry = g.y - qy; const l = Math.hypot(rx, ry) || 1; rx /= l; ry /= l;
-  const stoss = (staerke = 1) => { g.rueck = CFG.gegner.rueckDauer; g.vx = rx * CFG.gegner.rueckTempo * gewicht * staerke; g.vy = ry * CFG.gegner.rueckTempo * gewicht * staerke; };
+  const stoss = (staerke = 1) => { g.rueck = CFG.gegner.rueckDauer; g.vx = rx * CFG.gegner.rueckTempo * gewicht * staerke * wucht; g.vy = ry * CFG.gegner.rueckTempo * gewicht * staerke * wucht; };
   const unterbrich = () => { if (g.modus !== 'normal') { if (g.angriff && v[g.angriff]) g.pausen[g.angriff] = (v[g.angriff].pause || [1.5])[0] * (v.pauseFaktor || 1); g.modus = 'normal'; } if (g.gefahr) { g.gefahr.weg = true; g.gefahr = null; } };
   const abprall = (staerke = 0.8) => {   // Schwert prallt ab: Funke, „Ting“, Held federt zurück
     S.effekte.push({ art: 'funke', x: g.x - rx * 14 * g.s, y: g.y - 10 * g.s, t: 0 }); ton('abprall');
@@ -2465,6 +2526,7 @@ function gegnerBesiegt(g, wie) {   // einmal je Gegner: Signal, Beute, Teilen, E
 
 function updateGeschosse(h) {   // fliegen über Abgründe, nicht durch Mauern, Hindernisse und geschlossene Türen
   S.geschosse = S.geschosse.filter(p => {
+    if (p.weg) return false;
     p.t += DT; p.x += p.vx * DT; p.y += p.vy * DT;
     const boden = { x: p.x - 3, y: p.y - 3, w: 6, h: 6 }, k = geschossKoerper(p);
     if (p.x < 0 || p.y < 0 || p.x > BREITE || p.y > HOEHE || p.t > 6 || S.fest.some(f => ueberlappt(f, boden))) {
@@ -2630,10 +2692,17 @@ function schatten(x, y, w) {
   ctx.fillStyle = 'rgba(18,13,20,.28)';
   ctx.fillRect(Math.round(x - w / 2 + 2), Math.round(y - 2), w - 4, 5); ctx.fillRect(Math.round(x - w / 2), Math.round(y - 1), w, 3);
 }
-function zeichneSchwert(h) {
-  const w = schwertWinkel(h), [gx, gy] = schwertGriff(h, w);
-  const gerade = w % 90 === 0, bild = gerade ? SCHWERT_GERADE : SCHWERT_SCHRAEG, [px, py] = gerade ? SCHWERT_GERADE_DREH : SCHWERT_SCHRAEG_DREH;
-  ctx.save(); ctx.translate(gx, gy); ctx.rotate((gerade ? w : w - 45) * Math.PI / 180); ctx.drawImage(bild, -px, -py); ctx.restore();
+function zeichneSchwert(h) {   // die Waffe in der Hand: Länge skaliert die Klinge, Stichwaffen als Dolch-Bild
+  const wf = waffe(), w = schwertWinkel(h), [gx, gy] = schwertGriff(h, w), stich = wf.art === 'stich';
+  const gerade = stich || h.modus !== 'schlag' || w % 90 === 0, k = (wf.laenge || 26) / (stich ? 14 : 26);
+  const bild = stich ? DOLCH : gerade ? SCHWERT_GERADE : SCHWERT_SCHRAEG, [px, py] = stich ? DOLCH_DREH : gerade ? SCHWERT_GERADE_DREH : SCHWERT_SCHRAEG_DREH;
+  ctx.save(); ctx.translate(gx, gy); ctx.rotate((gerade ? w : w - 45) * Math.PI / 180);
+  if (gerade) ctx.scale(k, 1); else ctx.scale(k, k);   // schräges Bild gleichmäßig strecken
+  ctx.drawImage(bild, -px, -py); ctx.restore();
+  if (h.modus === 'laden' && h.bereit && Math.floor(S.zeit * 12) % 2) {   // aufgeladen: Funkeln an der Spitze
+    const a = w * Math.PI / 180, L = wf.laenge || 26, sx = gx + Math.cos(a) * L, sy = gy + Math.sin(a) * L;
+    ctx.fillStyle = PAL.weiss; ctx.fillRect(Math.round(sx) - 1, Math.round(sy) - 4, 2, 8); ctx.fillRect(Math.round(sx) - 4, Math.round(sy) - 1, 8, 2);
+  }
 }
 function zeichneHeld(h) {
   const basis = { runter: 0, rechts: 3, links: 3, hoch: 6 }[h.blick];
@@ -2643,11 +2712,11 @@ function zeichneHeld(h) {
     return;
   }
   if (h.unverwundbar > 0 && Math.floor(h.unverwundbar * 20) % 2) return;   // Blinken in der Schutzzeit
-  const laeuft = (h.modus === 'normal' && h.anim > 0) || S.einlauf || S.wechsel;
+  const laeuft = ((h.modus === 'normal' || h.modus === 'laden') && h.anim > 0) || S.einlauf || S.wechsel;
   const bild = laeuft ? basis + SCHRITTFOLGE[Math.floor((h.anim + S.zeit * (S.wechsel ? 1 : 0)) * 8) % 4] : basis;
-  const schlag = h.modus === 'schlag', hinten = schlag && Math.sin(schwertWinkel(h) * Math.PI / 180) < -0.1;
+  const schlag = h.modus === 'schlag' || h.modus === 'laden' || h.modus === 'kreis', hinten = schlag && Math.sin(schwertWinkel(h) * Math.PI / 180) < -0.1;
   if (hinten) zeichneSchwert(h);
-  zeichneBild(ctx, 'held_' + bild, h.x - 16, h.y + 8 - 48 + (schlag && h.t > CFG.schlag.phasen[1] ? 1 : 0), h.blick === 'links');
+  zeichneBild(ctx, 'held_' + bild, h.x - 16, h.y + 8 - 48 + (h.modus === 'schlag' && h.t > CFG.schlag.phasen[1] * schlagFaktor() ? 1 : 0), h.blick === 'links');
   if (schlag && !hinten) zeichneSchwert(h);
   const g = S.text && S.text.gegenstand;   // gefundenen Gegenstand über den Kopf halten
   if (g) ctx.drawImage(g, Math.round(h.x - g.width / 2), Math.round(h.y - 44 - g.height));
@@ -2809,8 +2878,9 @@ function zeichneHud(h) {
     ctx.fillStyle = PAL.rot0; ctx.fillRect(x0, y0, w, 8);
     ctx.fillStyle = PAL.rot2; ctx.fillRect(x0, y0, Math.round(w * Math.max(0, boss.lp) / boss.lpMax), 8);
   }
-  let x = 96;   // dauerhafte Gegenstände (alles außer Verbrauchtem wie Schlüsseln und Herzen) als Bild
-  for (const id of S.besitz) { const w = DATEN.gegenstaende[id].wirkung || {}; if (!w.schluessel && !w.maxLp) { ctx.drawImage(GEGENSTANDBILD[id], x, 20, 20, 20); x += 26; } }
+  let x = 96;   // Waffe in der Hand, dann dauerhafte Gegenstände (ohne Verbrauchtes wie Schlüssel und Herzen) als Bild
+  if (GEGENSTANDBILD[S.waffe]) { ctx.drawImage(GEGENSTANDBILD[S.waffe], x, 18, 24, 24); x += 30; }
+  for (const id of S.besitz) { const w = DATEN.gegenstaende[id].wirkung || {}; if (!w.schluessel && !w.maxLp && !w.waffe) { ctx.drawImage(GEGENSTANDBILD[id], x, 20, 20, 20); x += 26; } }
 }
 function zeichneBanner() {
   if (S.zustand !== 'spiel') return;
