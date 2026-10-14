@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Waldwacht (Arbeitstitel) – Entwurf 8: datengetriebene Engine mit Editor, Gegnern aus Bausteinen und Phasen, Logikprüfung. Top-Down-Action-Adventure im Stil von „A Link to the Past“.
+  Waldwacht (Arbeitstitel) – Entwurf 9: datengetriebene Engine mit Editor, Gegnern aus Bausteinen und Phasen, Logikprüfung und Nachweisen. Top-Down-Action-Adventure im Stil von „A Link to the Past“.
 
   Trennung: Der Code kennt nur allgemeine Bausteine (Kacheln, Objekt-Eigenschaften, Gegner-Verhalten, Bedingungen).
   Alles Konkrete steht als reines JSON im Block <script id="spieldaten">: Einstellungen, Kacheln, Zeichen-Legende,
@@ -40,6 +40,8 @@
   Signale kommen von Platten (solange belegt, mit merken dauerhaft), Kristallen (siehe oben), Ereignissen (setze),
   besiegten Gegnern (signal an der Art oder am einzelnen Gegner; solche Gegner kommen nicht wieder, Bosse auch nicht).
   Ein Signal gilt im ganzen Dungeon, nur „Platte gerade belegt“ wirkt allein im eigenen Raum.
+  Bedingungen können auch Gegenstände abfragen: "hat:laterne". Nachweise (dungeon.nachweise {raum: {fp, erreicht}}) halten fest,
+  welche Ziele eines Raums (Türen, Truhen) ein Testlauf aus dem Editor erreicht hat (raumZiele, raumFingerabdruck).
   Logik: pruefeLogik(DATEN, dungeonId) spielt einen Dungeon gedanklich durch (Stufen/Sphären, Schlüssel, Signale) und meldet
   unerreichbare Räume mit Grund, Schlüssel-Fallen und Räume ohne Rückweg (der Editor zeigt das als Prüfstatus und Reiter „Logik“).
   Licht: je Feld ein Wert 0..1 aus Raumstufe/Lichtkarte, dazu Lichtquellen (Fackeln, Laterne, eigener Schein); lichtBei(x, y)
@@ -186,9 +188,9 @@
     "kristall": { "name": "Blau/Orange", "farben": ["blau", "orange"] }
   },
   "gegenstaende": {
-    "schluessel":    { "bild": "@schluessel", "text": "Du hast einen kleinen Schlüssel gefunden! Er öffnet eine verschlossene Tür.", "wirkung": { "schluessel": 1 } },
-    "herzcontainer": { "bild": "@herzcontainer", "text": "Ein Herzcontainer! Du hast jetzt ein Herz mehr, und alle Herzen sind wieder voll.", "wirkung": { "maxLp": 2, "heilen": true } },
-    "laterne":       { "bild": "laterne_1", "text": "Du hast eine Laterne gefunden! In dunklen Räumen leuchtet sie dir den Weg.", "wirkung": { "laterne": 1 },
+    "schluessel":    { "name": "Kleiner Schlüssel", "bild": "@schluessel", "text": "Du hast einen kleinen Schlüssel gefunden! Er öffnet eine verschlossene Tür.", "wirkung": { "schluessel": 1 } },
+    "herzcontainer": { "name": "Herzcontainer", "bild": "@herzcontainer", "text": "Ein Herzcontainer! Du hast jetzt ein Herz mehr, und alle Herzen sind wieder voll.", "wirkung": { "maxLp": 2, "heilen": true } },
+    "laterne":       { "name": "Laterne", "bild": "laterne_1", "text": "Du hast eine Laterne gefunden! In dunklen Räumen leuchtet sie dir den Weg.", "wirkung": { "laterne": 1 },
                        "leuchtet": { "radius": 3.2, "staerke": 0.95 } }
   },
   "dungeons": {
@@ -768,6 +770,7 @@ function dungeonSignale(d, dg) {
       const art = d.objektarten[e.objekt] || {};
       if (art.platte && e.signal) neu(quellen, e.signal, { raum: id, art: 'platte', merken: !!e.merken });
       if ((art.kristall || art.pflock) && e.kristalltyp) for (const f of kristallTyp(e.kristalltyp).farben) neu(quellen, e.kristalltyp + '=' + f, { raum: id, art: 'kristall' });
+      if (art.oeffnbar && e.inhalt) neu(quellen, 'hat:' + e.inhalt, { raum: id, art: 'truhe' });
       for (const k of ['sichtbar_wenn', 'an_wenn', 'oben_wenn']) for (const s of bedingungsSignale(e[k])) neu(fragen, s, { raum: id, art: e.objekt });
     }
     for (const e of gegner) {
@@ -783,6 +786,31 @@ function dungeonSignale(d, dg) {
   }
   return { quellen, fragen };
 }
+
+// ---------- Räume: Ziele, Fingerabdruck, Rätselräume (für Nachweise per Testlauf) ----------
+// Ein Nachweis hält fest, welche Ziele eines Raums (Türen, Truhen) ein Testlauf erreicht hat – gültig, solange sich der
+// Raum nicht ändert (Fingerabdruck). So muss man Rätselräume einzeln testen, nicht den ganzen Dungeon.
+function raumFingerabdruck(r) {
+  const t = JSON.stringify([r.karte, r.objekte || [], r.gegner || [], r.zeichen || {}, r.wellen || [], r.ereignisse || [],
+    Object.entries(r.tueren).sort().map(([dir, x]) => [dir, !!x.schloss, x.offen_wenn ?? null])]);
+  let h = 5381;
+  for (let i = 0; i < t.length; i++) h = (Math.imul(h, 33) ^ t.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+function raumObjekte(d, r) {   // Objekte aus Liste und Karten-Legende, mit Feld
+  const legende = { ...d.zeichen, ...(r.zeichen || {}) }, liste = [...(r.objekte || [])];
+  r.karte.forEach((z, y) => [...z].forEach((ch, x) => { if (legende[ch] && legende[ch].objekt) liste.push({ ...legende[ch], feld: [x, y] }); }));
+  return liste;
+}
+function raumZiele(d, r) {
+  return [...Object.keys(r.tueren).sort().map(dir => 'tuer:' + dir),
+    ...raumObjekte(d, r).filter(o => (d.objektarten[o.objekt] || {}).oeffnbar).map(o => 'truhe:' + o.feld.join(','))];
+}
+function istRaetselraum(d, r) {   // alles, was die Logikprüfung nicht von außen beurteilen kann
+  if (r.karte.some(z => [...z].some(ch => d.kacheln[ch] === 'abgrund'))) return true;
+  return raumObjekte(d, r).some(o => { const a = d.objektarten[o.objekt] || {}; return a.schiebbar || a.platte || a.kristall || a.pflock || (a.oeffnbar && o.sichtbar_wenn !== undefined); });
+}
+const ZIEL_NAME = z => z.startsWith('tuer:') ? 'Tür ' + ({ n: 'Nord', o: 'Ost', s: 'Süd', w: 'West' })[z.slice(5)] : 'Truhe auf ' + z.slice(6);
 
 // ---------- Logik: ist der Dungeon lösbar? ----------
 // Spielt den Dungeon gedanklich durch, in Stufen wie die „Sphären“ eines Randomizers: was ist vom Start aus erreichbar,
@@ -809,12 +837,15 @@ function logikInfo(d, dg) {   // je Raum: was es dort zu holen gibt
 }
 function logikLauf(d, dg, info, schlossWahl) {
   const raeume = dg.raeume, w = { signale: new Set(), kristalle: new Set(), besitz: new Set(), truhen: new Set(), schluessel: 0, verbraucht: 0,
-    stufe: {}, offen: new Set(), ablauf: [] };
+    stufe: {}, offen: new Set(), ablauf: [], vorher: {} };
+  // Zustand, mit dem man einen Raum frühestens betritt (für den Teststart mit Vorgaben)
+  const merkeVorher = id => { w.vorher[id] = { signale: [...w.signale], besitz: [...w.besitz], schluessel: w.schluessel - w.verbraucht }; };
   const typFarbe = s => { const k = s.indexOf('='); return k > 0 ? [s.slice(0, k), s.slice(k + 1)] : null; };
   const moeglich = (b, raum) => {
     if (b === undefined || b === null) return true;
     if (typeof b === 'string') {
       if (b === 'geraeumt') return true;
+      if (b.startsWith('hat:')) return w.besitz.has(b.slice(4));
       const tf = typFarbe(b);
       if (tf) return w.kristalle.has(tf[0]) || (kristallTyp(tf[0]).farben[0] === tf[1]);
       return w.signale.has(b) || info[raum].lokal.includes(b);
@@ -827,7 +858,7 @@ function logikLauf(d, dg, info, schlossWahl) {
   w.moeglich = moeglich;
   const tuerFrei = (id, dir) => { const t = raeume[id].tueren[dir]; return (!t.schloss || w.offen.has(id + ':' + dir)) && (t.offen_wenn === undefined || moeglich(t.offen_wenn, id)); };
   let runde = 1;
-  w.stufe[dg.start.raum] = 1;
+  w.stufe[dg.start.raum] = 1; merkeVorher(dg.start.raum);
   for (let sicherung = 0; sicherung < 500; sicherung++) {
     const eintrag = { stufe: runde, raeume: [], erhalten: [], geoeffnet: [] };
     // 1. alles Erreichbare fluten
@@ -837,7 +868,7 @@ function logikLauf(d, dg, info, schlossWahl) {
       for (const [dir, t] of Object.entries(raeume[id].tueren)) {
         if (!raeume[t.ziel] || !tuerFrei(id, dir)) continue;
         w.offen.add(t.ziel + ':' + GEGENUEBER[dir]);   // durch eine Schlosstür gekommen: von innen offen
-        if (w.stufe[t.ziel] === undefined) { w.stufe[t.ziel] = runde; schlange.push(t.ziel); }
+        if (w.stufe[t.ziel] === undefined) { w.stufe[t.ziel] = runde; merkeVorher(t.ziel); schlange.push(t.ziel); }
       }
     }
     eintrag.raeume = Object.keys(w.stufe).filter(id => w.stufe[id] === runde);
@@ -880,7 +911,13 @@ function pruefeLogik(d, dgId) {
   if (!dg || !dg.raeume[dg.start.raum]) return erg;
   const info = logikInfo(d, dg), raeume = dg.raeume, nr = id => (raeume[id].nr || id);
   const w = logikLauf(d, dg, info, k => k[0]), w2 = logikLauf(d, dg, info, k => k[k.length - 1]);
-  Object.assign(erg, { stufe: w.stufe, ablauf: w.ablauf });
+  Object.assign(erg, { stufe: w.stufe, ablauf: w.ablauf, vorher: w.vorher, nachweise: {} });
+  for (const [id, r] of Object.entries(raeume)) {   // Rätselräume: Was hat ein Testlauf schon erreicht?
+    const ziele = raumZiele(d, r), nw = (dg.nachweise || {})[id], gueltig = nw && nw.fp === raumFingerabdruck(r);
+    const erreicht = gueltig ? ziele.filter(z => nw.erreicht.includes(z)) : [];
+    erg.nachweise[id] = { raetsel: istRaetselraum(d, r), ziele, erreicht, veraltet: !!nw && !gueltig,
+      status: erreicht.length === ziele.length && gueltig ? 'ok' : erreicht.length ? 'teil' : nw && !gueltig ? 'veraltet' : 'offen' };
+  }
   const { quellen } = dungeonSignale(d, dg);
   const quelleText = sig => {   // warum ist das Signal nicht zu haben?
     const wo = quellen[sig];
@@ -1548,7 +1585,8 @@ function ton(art, lautstaerke = 1) {
 
 // ---------- Spielstand ----------
 let S = null;   // null = Menü; sonst der gesamte Spielstand eines Dungeons
-function starteDungeon(dungeonId, raumId) {
+let LETZTER_TEST = null;   // Protokoll des letzten Testlaufs aus dem Editor
+function starteDungeon(dungeonId, raumId, vorgaben = null) {
   const dg = DATEN.dungeons[dungeonId];
   S = {
     dungeonId, dungeon: dg,
@@ -1563,13 +1601,23 @@ function starteDungeon(dungeonId, raumId) {
     raum: null, eintritt: null, einlauf: null, wechsel: null, text: null, wellen: null,
     gegner: [], beute: [], effekte: [], fest: [], festGegner: [], festRueck: [],
     geschosse: [], gefahren: [], banner: null, laerm: null,
+    protokoll: {},   // je Raum: erreichte Ziele (für Nachweise aus dem Editor)
   };
-  if (!raumId || !dg.raeume[raumId] || raumId === dg.start.raum) {
-    betreteRaum(dg.start.raum, { x: dg.start.feld[0] * T, y: dg.start.feld[1] * T, blick: 'runter' });
-  } else if (!Object.keys(dg.raeume[raumId].tueren).length) {   // Teststart in einem Raum ohne Türen: in der Mitte
-    betreteRaum(raumId, { x: 9.5 * T, y: 8.5 * T, blick: 'runter' });
-  } else {   // Teststart in einem Raum: durch seine erste Tür hinein
-    const d = Object.keys(dg.raeume[raumId].tueren)[0], [x, y, w, h] = TUER_RECHTECK[d];
+  if (vorgaben) {   // Teststart aus dem Editor: Signale, Gegenstände und Schlüssel, als hätte man sie schon
+    for (const sig of vorgaben.signale || []) S.signale[sig] = true;
+    for (const id of vorgaben.besitz || []) {
+      const g = DATEN.gegenstaende[id]; if (!g) continue;
+      S.besitz.add(id); if ((g.wirkung || {}).maxLp) { S.maxLp += g.wirkung.maxLp; S.held.lp = S.maxLp; }
+    }
+    if (vorgaben.schluessel) S.inventar.schluessel = vorgaben.schluessel;
+  }
+  const eingang = vorgaben && vorgaben.eingang, tueren = raumId && dg.raeume[raumId] ? dg.raeume[raumId].tueren : {};
+  if (!raumId || !dg.raeume[raumId] || (raumId === dg.start.raum && (!eingang || eingang === 'start'))) {
+    betreteRaum(dg.start.raum, { x: dg.start.feld[0] * T, y: dg.start.feld[1] * T, blick: 'runter', seite: 'start' });
+  } else if (eingang === 'mitte' || !Object.keys(tueren).length) {   // Teststart in der Raummitte
+    betreteRaum(raumId, { x: 9.5 * T, y: 8.5 * T, blick: 'runter', seite: 'mitte' });
+  } else {   // Teststart in einem Raum: durch die gewählte (sonst die erste) Tür hinein
+    const d = tueren[eingang] ? eingang : Object.keys(tueren)[0], [x, y, w, h] = TUER_RECHTECK[d];
     betreteRaum(raumId, { x: x + w / 2, y: y + h / 2, blick: BLICK_VON[GEGENUEBER[d]], einlauf: GEGENUEBER[d] });
     durchgangOffen(d);
   }
@@ -1590,6 +1638,8 @@ function betreteRaum(id, eintritt) {
     if (def.wellen) S.wellen = { nr: 0, warteschlange: [], spawnUhr: 0, banner: 0, ruhe: 0.5, fertig: false };
   }
   S.einlauf = eintritt.einlauf || null;
+  const prot = S.protokoll[id] = S.protokoll[id] || { rein: [], raus: [], truhen: [] }, seite = eintritt.einlauf ? GEGENUEBER[eintritt.einlauf] : eintritt.seite;
+  if (seite && !prot.rein.includes(seite)) prot.rein.push(seite);
   for (const o of S.raum.objekte) if (o.typ.pflock) o.oben = pflockSoll(o);
   aktualisiereSignale();
   for (const d of Object.keys(def.tueren)) S.raum.tuerZu[d] = tuerZu(d);
@@ -1668,6 +1718,7 @@ function raumGeraeumt() {
 const kristallFarbe = typ => { const f = kristallTyp(typ).farben; return f[(S.kristalle[typ] || 0) % f.length]; };
 function signal(name) {
   if (name === 'geraeumt') return raumGeraeumt();
+  if (name.startsWith('hat:')) return S.besitz.has(name.slice(4));   // "hat:laterne": Gegenstand im Besitz
   const k = name.indexOf('=');
   if (k > 0) return kristallFarbe(name.slice(0, k)) === name.slice(k + 1);   // "typ=farbe"
   return S.live.has(name) || !!S.signale[name];
@@ -1773,6 +1824,7 @@ function pruefeEreignisse() {   // je Ereignis einmal: wenn die Bedingung gilt, 
 function pruefeAusgang(h) {
   const d = h.y - h.hh < 1 ? 'n' : h.y + h.hh > HOEHE - 1 ? 's' : h.x - h.hw < 1 ? 'w' : h.x + h.hw > BREITE - 1 ? 'o' : null;
   if (!d || !S.raum.def.tueren[d]) return;
+  const prot = S.protokoll[S.raum.id]; if (prot && !prot.raus.includes(d)) prot.raus.push(d);
   const alt = { bg: S.raum.bg, licht: raumDunkel(S.raum) ? lichtKopie() : null }, p0 = { x: h.x, y: h.y };
   const neu = { x: h.x, y: h.y, blick: BLICK_VON[d], einlauf: d };
   if (d === 'o') neu.x = h.hw + 1; else if (d === 'w') neu.x = BREITE - h.hw - 1;
@@ -1862,7 +1914,11 @@ function interagiere(h) {
   for (const o of S.raum.objekte) {
     const f = festVon(o);
     if (!f || !ueberlappt(vorne, f)) continue;
-    if (o.typ.oeffnbar && !S.truhen.has(o.key)) { S.truhen.add(o.key); gibGegenstand(o.p.inhalt); return true; }
+    if (o.typ.oeffnbar && !S.truhen.has(o.key)) {
+      S.truhen.add(o.key); gibGegenstand(o.p.inhalt);
+      const prot = S.protokoll[S.raum.id], z = o.p.feld ? o.p.feld.join(',') : o.c + ',' + o.r; if (prot && !prot.truhen.includes(z)) prot.truhen.push(z);
+      return true;
+    }
     if (o.typ.lesbar) { zeigeText(o.p.text || ''); return true; }
   }
   return false;
@@ -2365,7 +2421,11 @@ function neustartImRaum() {   // Game Over: Herzen voll, Raum frisch (Fortschrit
 }
 
 function schritt() {
-  if (gedrueckt.has('menue')) { const editor = S.ausEditor; S = null; gedrueckt.clear(); if (editor) ladeEditor(); return; }
+  if (gedrueckt.has('menue')) {   // aus einem Test zurück in den Editor: Protokoll mitgeben (wird dort zum Nachweis)
+    const editor = S.ausEditor;
+    if (editor) LETZTER_TEST = { dungeon: S.dungeonId, protokoll: S.protokoll };
+    S = null; gedrueckt.clear(); if (editor) ladeEditor(); return;
+  }
   if (S.stopp > 0) { S.stopp--; gedrueckt.clear(); return; }   // kurzes Standbild beim Treffer
   S.zeit += DT;
   if (S.wechsel) {
