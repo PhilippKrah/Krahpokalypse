@@ -22,7 +22,11 @@ const Editor = (() => {
   try { Object.assign(Z.fuellen, JSON.parse(localStorage.getItem('waldwacht.editor') || '{}')); } catch (e) { /* Voreinstellung */ }
 
   const LICHT = ['hell', 'daemmrig', 'dunkel', 'finster'];
-  const TUERARTEN = { keine: 'keine', offen: 'offen', schloss: 'Schloss', kampf: 'Kampf (offen, wenn geräumt)', bedingung: 'Bedingung' };
+  const SCHRITTARTEN = { signal: 'Signal setzen', warte: 'warten', warteBis: 'warten bis', text: 'Text zeigen' };
+  const TUERARTEN = { keine: 'keine', offen: 'offen', schloss: 'Schloss (kleiner Schlüssel)', gross: 'Großes Schloss (großer Schlüssel)', gegenstand: 'Tor für einen Gegenstand',
+    riegel: 'Riegel (geht nur von der anderen Seite auf)', kampf: 'Kampf (offen, wenn geräumt)', bedingung: 'Bedingung' };
+  const TUERFARBE = { offen: '#cfd6cf', schloss: '#f4cd5e', gross: '#d0574a', gegenstand: '#8abd4f', riegel: '#986438', kampf: '#d0574a', bedingung: '#8098cc' };
+  const TUERZEICHEN = { offen: '', schloss: 'S', gross: 'G', gegenstand: '◆', riegel: 'R', kampf: 'K', bedingung: '?' };
   const RICHTUNGSNAME = { n: 'Norden', o: 'Osten', s: 'Süden', w: 'Westen' };
   const GRUNDBILDER = { fuchs: { fuss: [11, 6], koerper: [26, 20] }, hase: { fuss: [8, 5], koerper: [18, 16] }, huhn: { fuss: [8, 5], koerper: [18, 18] } };
   // Einstellungen je Objekt, abhängig von den Eigenschaften seiner Art: [name, typ, Beschriftung, Erklärung]
@@ -32,8 +36,8 @@ const Editor = (() => {
     platte: [
       ['signal', 'signalname', 'Signal (Name)', 'Unter diesem Namen fragen Türen, Fackeln und Objekte die Platte ab. Mehrere Platten mit demselben Namen: eine genügt.'],
       ['wer', { block: 'nur ein Block', alle: 'Block, Held oder Gegner' }, 'Wer drückt sie?'],
-      ['merken', { '': 'nur solange etwas daraufsteht', '1': 'einmal drücken genügt – bleibt unten' }, 'Wirkung',
-        'Bleibt sie unten, gilt ihr Signal danach im ganzen Dungeon. Sonst nur, solange man im Raum ist und etwas daraufsteht.'],
+      ['merken', 'plattenwirkung', 'Wirkung',
+        'Bleibt sie unten, gilt ihr Signal danach im ganzen Dungeon. Sonst nur, solange man im Raum ist und etwas daraufsteht. Der Zeitschalter hält das Signal nach dem Loslassen noch einige Sekunden (Restzeit über der Platte, Ticken).'],
     ],
     kristall: [['kristalltyp', 'kristalltyp', 'Kristalltyp', 'Ein Schwertschlag schaltet alle Kristalle dieses Typs eine Farbe weiter – im ganzen Dungeon.']],
     pflock: [['kristalltyp', 'kristalltyp', 'Kristalltyp'], ['farbe', 'pflockfarbe', 'Oben bei Farbe', 'Der Pflock steht oben (versperrt den Weg), solange sein Kristalltyp diese Farbe zeigt.']],
@@ -123,7 +127,11 @@ const Editor = (() => {
       neu.s = name;
     }
     aendern && aendern(z);
-    const [bereich, k] = div.dataset.bed.split('.'), r = raum();
+    const [bereich, k, k2] = div.dataset.bed.split('.'), r = raum();
+    if (bereich === 'schritt') {
+      merke(); r.ereignisse[Number(k)].schritte[Number(k2)].wenn = baueBedingung(z) ?? 'geraeumt';
+      aenderung(); renderRechts(); return;
+    }
     if (bereich === 'ereignis') {
       merke(); const ev = r.ereignisse[Number(k)], b = baueBedingung(z);
       if (b === undefined) delete ev.wenn; else ev.wenn = b;
@@ -164,6 +172,12 @@ const Editor = (() => {
   function neueRaumId(d) { let n = 1; while (d.raeume['r' + n]) n++; return 'r' + n; }
   function leererRaum(nr, pos) { return { nr: String(nr), titel: 'RAUM ' + nr, licht: 'hell', pos, tueren: {}, karte: rahmenKarte(), objekte: [], gegner: [] }; }
   function sortiere(r) { const k = (a, b) => a.feld[1] - b.feld[1] || a.feld[0] - b.feld[0]; r.objekte.sort(k); r.gegner.sort(k); }
+  function ereignisseAlsSchritte(r) {   // alte Form {text, setze} → Ablauf mit Schritten
+    for (const ev of r.ereignisse || []) if (!ev.schritte) {
+      ev.schritte = [...(ev.text ? [{ art: 'text', text: ev.text }] : []), ...Object.entries(ev.setze || {}).map(([sig, w]) => ({ art: 'signal', signal: sig, ...(w ? {} : { wert: false }) }))];
+      delete ev.text; delete ev.setze;
+    }
+  }
   function normalisiereRaum(r) {   // Legenden-Zeichen in Listen umwandeln (Editor-Format)
     const legende = { ...DATEN.zeichen, ...(r.zeichen || {}) }, objekte = [], gegner = [];
     r.karte = r.karte.map((zeile, y) => [...zeile].map((ch, x) => {
@@ -174,7 +188,7 @@ const Editor = (() => {
       return '.';
     }).join(''));
     r.objekte = [...objekte, ...(r.objekte || [])]; r.gegner = [...gegner, ...(r.gegner || [])];
-    delete r.zeichen; sortiere(r);
+    delete r.zeichen; sortiere(r); ereignisseAlsSchritte(r);
   }
   function setzePositionen(d) {   // Lage auf der Dungeon-Karte aus den Türen ableiten
     const pos = { [d.start.raum]: [0, 0] }, offen = [d.start.raum];
@@ -235,7 +249,10 @@ const Editor = (() => {
   // ---------- Türen ----------
   function tuerArt(t) {
     if (!t) return 'keine';
+    if (t.schloss === 'gross') return 'gross';
     if (t.schloss) return 'schloss';
+    if (t.riegel) return 'riegel';
+    if (t.braucht) return 'gegenstand';
     if (t.offen_wenn === 'geraeumt') return 'kampf';
     if (t.offen_wenn !== undefined) return 'bedingung';
     return 'offen';
@@ -249,6 +266,9 @@ const Editor = (() => {
     else {
       const t = { ziel: nid };
       if (art === 'schloss') t.schloss = true;
+      if (art === 'gross') t.schloss = 'gross';
+      if (art === 'riegel') t.riegel = true;
+      if (art === 'gegenstand') t.braucht = typeof bedingung === 'string' ? bedingung : Object.keys(DATEN.gegenstaende).find(k => !(DATEN.gegenstaende[k].wirkung || {}).schluessel && k !== 'grosser_schluessel') || 'laterne';
       if (art === 'kampf') t.offen_wenn = 'geraeumt';
       if (art === 'bedingung') {   // ohne Vorgabe: das erste Signal von Platte, Gegner oder Ereignis, sonst „geräumt“ (als Liste,
         // damit es nicht als Kampftür gilt)
@@ -456,9 +476,9 @@ const Editor = (() => {
     g.font = 'bold 12px sans-serif'; g.textAlign = 'center';
     for (const [dir, t] of Object.entries(r.tueren)) {   // Türart beschriften
       const [x, y, w, h] = TUER_RECHTECK[dir], art = tuerArt(t);
-      const farbe = { offen: '#a9b2b0', schloss: '#e0a33a', kampf: '#d0574a', bedingung: '#8098cc' }[art];
+      const farbe = TUERFARBE[art];
       g.fillStyle = farbe; g.globalAlpha = 0.55; g.fillRect(x, y, w, h); g.globalAlpha = 1;
-      g.fillStyle = '#120d14'; g.fillText({ offen: '', schloss: 'S', kampf: 'K', bedingung: '?' }[art], x + w / 2, y + h / 2 + 4);
+      g.fillStyle = '#120d14'; g.fillText(TUERZEICHEN[art], x + w / 2, y + h / 2 + 4);
     }
     g.strokeStyle = 'rgba(255,251,236,.08)'; g.lineWidth = 1;
     for (let c = 1; c < SPALTEN; c++) { g.beginPath(); g.moveTo(c * T + 0.5, 0); g.lineTo(c * T + 0.5, HOEHE); g.stroke(); }
@@ -500,7 +520,7 @@ const Editor = (() => {
       }
       for (const [dir, t] of Object.entries(r.tueren)) {   // Verbindungen
         const [dx, dy] = RICHTUNG[dir], art = tuerArt(t);
-        g.fillStyle = { offen: '#cfd6cf', schloss: '#f4cd5e', kampf: '#d0574a', bedingung: '#8098cc' }[art];
+        g.fillStyle = TUERFARBE[art];
         if (dx) g.fillRect(dx > 0 ? px + KZ.w - 6 : px, py + KZ.h / 2 - 3, 6, 6); else g.fillRect(px + KZ.w / 2 - 3, dy > 0 ? py + KZ.h - 6 : py, 6, 6);
       }
     }
@@ -630,6 +650,8 @@ const Editor = (() => {
     if (typ === 'kristalltyp') return feld(label, auswahlfeld('a.' + name, w, Object.fromEntries(Object.keys(DATEN.kristalltypen).map(k => [k, typText(k)]))) +
       ' <button data-ansicht="kristalle" class="klein">Kristalltypen verwalten …</button>', hilfe);
     if (typ === 'pflockfarbe') return feld(label, auswahlfeld('a.' + name, w, Object.fromEntries(kristallTyp(a.kristalltyp).farben.map(f => [f, farbName(f)]))), hilfe);
+    if (typ === 'plattenwirkung') return feld(label, wahlHtml('data-plattenwirkung', a.merken ? '1' : a.nachlauf ? 'zeit' : '', { '': 'nur solange etwas daraufsteht', '1': 'einmal drücken genügt – bleibt unten', zeit: 'Zeitschalter: hält noch einige Sekunden' }) +
+      (a.nachlauf ? feld('Sekunden', `<input type="number" min="1" step="0.5" data-f="a.nachlauf" value="${a.nachlauf}">`) : ''), hilfe);
     if (typ === 'brennt') return feld(label, bedingungsFormular('a.an_wenn', a.an_wenn, { nie: true, istNie: a.an === false }), hilfe);
     if (typeof typ === 'object') return feld(label, auswahlfeld('a.' + name, w === true ? '1' : w === undefined ? '' : w, typ), hilfe);
     return feld(label, textfeld('a.' + name, w), hilfe);
@@ -650,7 +672,10 @@ const Editor = (() => {
         <select data-tuer="${dir}">${Object.entries(TUERARTEN).map(([k, v]) => `<option value="${k}"${k === art ? ' selected' : ''}>${v}</option>`).join('')}</select>
         ${art === 'bedingung' ? `<div class="klein">offen, solange:</div>${bedingungsFormular('tuer.' + dir, t.offen_wenn)}
           <label class="klein"><input type="checkbox" data-tuermerk="${dir}"${t.merken ? ' checked' : ''}> bleibt offen, wenn einmal erfüllt</label>` : ''}
-        ${art === 'schloss' ? '<div class="klein">braucht einen kleinen Schlüssel (Truhe mit Inhalt „schluessel“)</div>' : ''}</div>`;
+        ${art === 'schloss' ? '<div class="klein">braucht einen kleinen Schlüssel (Truhe mit Inhalt „schluessel“); er wird dabei verbraucht</div>' : ''}
+        ${art === 'gross' ? '<div class="klein">braucht den großen Schlüssel (Truhe mit Inhalt „grosser_schluessel“); er bleibt erhalten – typisch für die Bosstür</div>' : ''}
+        ${art === 'riegel' ? '<div class="klein">Von hier aus verschlossen. Wer von der anderen Seite kommt, schiebt den Riegel auf – danach ist sie von beiden Seiten offen. Ideal als Abkürzung zurück zum Anfang.</div>' : ''}
+        ${art === 'gegenstand' ? `<div class="klein">Gitter mit dem Bild des Gegenstands – geht auf, sobald man ihn hat:</div>${wahlHtml(`data-tuerding="${dir}"`, t.braucht, Object.fromEntries(Object.entries(DATEN.gegenstaende).filter(([, x]) => !(x.wirkung || {}).schluessel).map(([k, x]) => [k, x.name || k])))}` : ''}</div>`;
     }).join('');
     const a = Z.auswahl && r[Z.auswahl.liste][Z.auswahl.i];
     let auswahl = '<p class="klein">Mit „Auswählen“ ein Objekt oder einen Gegner anklicken, um es einzustellen. Frisch gesetzte Objekte sind gleich ausgewählt.</p>';
@@ -693,13 +718,21 @@ const Editor = (() => {
       <div class="knoepfe"><button data-a="befuellen">Raum befüllen</button></div>
       <label class="klein"><input type="checkbox" data-f="f.auto"${f.auto ? ' checked' : ''}> neue Räume automatisch befüllen</label>
       <h3>Ereignisse</h3>
-      <small class="erkl">Passiert einmal, sobald die Bedingung gilt: Text zeigen und/oder ein Signal setzen (gilt dann im ganzen Dungeon). „immer“ = beim ersten Betreten.</small>
+      <small class="erkl">Ein Ereignis läuft ab, sobald seine Bedingung gilt („immer“ = beim ersten Betreten): Schritt für Schritt Signale an- oder ausschalten, warten, auf eine Bedingung warten, Text zeigen.
+        Gesetzte Signale gelten im ganzen Dungeon. Beispiel Zeittor: wenn Platte → Signal „tor“ an → 5 s warten → „tor“ aus, wiederholen.</small>
       ${(r.ereignisse || []).map((ev, i) => `<div class="modul"><b>Ereignis ${i + 1}</b>
         ${feld('wenn', bedingungsFormular('ereignis.' + i, ev.wenn))}
-        ${feld('Text', `<textarea rows="2" data-ev="${i}" data-evf="text">${esc(ev.text || '')}</textarea>`)}
-        ${feld('setzt Signal', `<input data-ev="${i}" data-evf="signal" value="${esc(Object.keys(ev.setze || {})[0] || '')}" placeholder="(keins)">`)}
-        <button data-a="evweg" data-i="${i}">Ereignis entfernen</button></div>`).join('')}
-      <div class="knoepfe"><button data-a="evneu">＋ Ereignis</button></div>
+        <label class="klein"><input type="checkbox" data-ev="${i}" data-evf="wiederholen"${ev.wiederholen ? ' checked' : ''}> wiederholen – läuft erneut ab, wenn die Bedingung wieder eintritt</label>
+        <div class="klein">Ablauf:</div>
+        ${(ev.schritte || []).map((x, k) => `<div class="schritt"><span>${k + 1}.</span>${wahlHtml(`data-ev="${i}" data-sk="${k}" data-sf="art"`, x.art, SCHRITTARTEN)}
+          ${x.art === 'signal' ? `<input data-ev="${i}" data-sk="${k}" data-sf="signal" value="${esc(x.signal || '')}" placeholder="Signal" list="ed-signalliste3">${wahlHtml(`data-ev="${i}" data-sk="${k}" data-sf="wert"`, x.wert === false ? 'aus' : 'an', { an: 'an', aus: 'aus' })}` : ''}
+          ${x.art === 'warte' ? `<input type="number" step="0.5" min="0" data-ev="${i}" data-sk="${k}" data-sf="s" value="${x.s ?? 1}"> s` : ''}
+          ${x.art === 'text' ? `<input data-ev="${i}" data-sk="${k}" data-sf="text" value="${esc(x.text || '')}" placeholder="Text">` : ''}
+          <button data-a="schrittweg" data-i="${i}" data-k="${k}" title="Schritt entfernen">×</button>
+          ${x.art === 'warteBis' ? `<div class="bedbreit">${bedingungsFormular('schritt.' + i + '.' + k, x.wenn)}</div>` : ''}</div>`).join('')}
+        <div class="knoepfe"><button data-a="schrittneu" data-i="${i}">＋ Schritt</button><button data-a="evweg" data-i="${i}">Ereignis entfernen</button></div></div>`).join('')}
+      <datalist id="ed-signalliste3">${Object.keys(dungeonSignale(DATEN, DATEN.dungeons[Z.dungeon]).quellen).filter(n => !n.includes('=') && !n.startsWith('hat:')).map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+      <div class="knoepfe"><button data-a="evneu">＋ Ereignis</button><button data-a="evzeittor">＋ Vorlage Zeittor</button></div>
       <h3>Erweitert</h3>
       <details><summary class="klein">Raum als JSON (Ereignisse, Lichtkarte …)</summary>
         <textarea id="ed-json" rows="12">${esc(JSON.stringify(r, null, 1))}</textarea>
@@ -742,12 +775,19 @@ const Editor = (() => {
     const bed = t.closest('.bed');
     if (bed) { schreibeBedingung(bed); return; }
     if (t.dataset.tuer) { const dir = t.dataset.tuer; setzeTuer(dir, t.value, undefined, r.tueren[dir] && r.tueren[dir].merken); return; }
+    if (t.dataset.tuerding) { setzeTuer(t.dataset.tuerding, 'gegenstand', t.value); return; }
     if (t.dataset.tuermerk) { const dir = t.dataset.tuermerk; setzeTuer(dir, 'bedingung', r.tueren[dir].offen_wenn, t.checked); return; }
     if (t.dataset.welle !== undefined) {
       merke();
       const i = Number(t.dataset.welle), n = Math.max(0, Math.min(12, Math.round(Number(t.value) || 0))), alt = r.wellen[i];
       r.wellen[i] = Object.keys(DATEN.gegnerarten).flatMap(k => Array(k === t.dataset.wart ? n : alt.filter(x => x === k).length).fill(k));
       aenderung(); return;
+    }
+    if (t.dataset.plattenwirkung !== undefined) {
+      merke(); const a = r.objekte[Z.auswahl.i];
+      delete a.merken; delete a.nachlauf;
+      if (t.value === '1') a.merken = true; if (t.value === 'zeit') a.nachlauf = 5;
+      vorlageAus(a); aenderung(); renderRechts(); return;
     }
     if (t.dataset.vg) {   // Test-Vorgaben (nur für diese Sitzung)
       const v = Z.vorgaben[Z.raum] = { ...vorgaben(Z.raum), ausLogik: false }; Z.vorgabenOffen = true;
@@ -756,8 +796,18 @@ const Editor = (() => {
       else { const k = t.dataset.vg === 'signal' ? 'signale' : 'besitz'; v[k] = t.checked ? [...new Set([...v[k], t.dataset.n])] : v[k].filter(x => x !== t.dataset.n); }
       renderRechts(); return;
     }
+    if (t.dataset.sk !== undefined) {   // Schritt eines Ablaufs
+      merke(); const x = r.ereignisse[Number(t.dataset.ev)].schritte[Number(t.dataset.sk)], f = t.dataset.sf;
+      if (f === 'art') { for (const k of Object.keys(x)) delete x[k]; x.art = t.value; if (t.value === 'warte') x.s = 3; if (t.value === 'signal') x.signal = 'tor'; if (t.value === 'warteBis') x.wenn = 'geraeumt'; if (t.value === 'text') x.text = ''; }
+      else if (f === 'signal') { x.signal = signalName(t.value) || 'signal'; }
+      else if (f === 'wert') { if (t.value === 'aus') x.wert = false; else delete x.wert; }
+      else if (f === 's') x.s = Math.max(0, Number(t.value) || 0);
+      else if (f === 'text') x.text = t.value;
+      aenderung(); if (f !== 'text') renderRechts(); return;
+    }
     if (t.dataset.ev !== undefined) {
       merke(); const ev = r.ereignisse[Number(t.dataset.ev)];
+      if (t.dataset.evf === 'wiederholen') { if (t.checked) ev.wiederholen = true; else delete ev.wiederholen; aenderung(); return; }
       if (t.dataset.evf === 'text') { if (t.value.trim()) ev.text = t.value.trim(); else delete ev.text; }
       else { const n = signalName(t.value); if (n) ev.setze = { [n]: true }; else delete ev.setze; t.value = n; }
       aenderung(); return;
@@ -891,7 +941,8 @@ const Editor = (() => {
         ${ph ? '' : `<h3>Grundwerte</h3>
         ${zeilen([['bild', 'wahl', 'Grundbild', '', Object.fromEntries(Object.keys(GRUNDBILDER).map(k => [k, k]))], ['lp', 'zahl', 'Lebenspunkte'],
           ['beute.herz', 'prozent', 'Herz fallen lassen (%)'], ['groesse', 'wahl', 'Größe', '', { 1: 'normal', 1.5: '1,5-fach', 2: 'doppelt' }],
-          ['balken', 'wahl', 'Lebensbalken', '', { '': 'automatisch (Boss: groß)', aus: 'keiner', klein: 'klein über dem Kopf', gross: 'groß unten im Bild' }]])}`}
+          ['balken', 'wahl', 'Lebensbalken', '', { '': 'automatisch (Boss: groß)', aus: 'keiner', klein: 'klein über dem Kopf', gross: 'groß unten im Bild' }],
+          ['abgrundfest', 'haken', 'abgrundfest', 'lässt sich nicht in Abgründe stoßen – bleibt an der Kante stehen (für Bosse meist sinnvoll)']])}`}
         ${ph ? `<div class="modul">${feld('Name der Phase', `<input data-phname value="${esc(ph.name || '')}">`)}
           <b>Übergänge</b> <small class="erkl">Der erste zutreffende gewinnt. Ohne Übergang bleibt er in dieser Phase.</small>
           ${(ph.weiter || []).map((u, i) => uebergangHtml(u, i, 'ue', a, false)).join('')}<button data-a="ueneu">＋ Übergang</button>
@@ -1150,7 +1201,9 @@ const Editor = (() => {
     ['Malen', `Werkzeuge oben: <b>Auswählen</b> (Objekt/Gegner anklicken und rechts einstellen), <b>Pipette</b> (übernimmt ein Feld samt Einstellungen; auch Alt+Klick),
       <b>Radierer</b> (auch rechte Maustaste), <b>Startpunkt</b>. Form <b>Rechteck</b> (oder Umschalt+Ziehen) füllt Flächen. Ein eingestelltes Objekt ist Vorlage für alle weiteren seiner Art.
       Strg+Z macht rückgängig.`],
-    ['Türen', `Je Seite: keine, offen, Schloss (braucht einen kleinen Schlüssel aus einer Truhe), Kampf (offen, wenn der Raum geräumt ist) oder Bedingung.
+    ['Türen', `Je Seite: keine, offen, Schloss (kleiner Schlüssel, wird verbraucht), großes Schloss (großer Schlüssel, bleibt – die Bosstür),
+      Tor für einen Gegenstand (zeigt dessen Bild, öffnet sich, sobald man ihn hat), Riegel (von dieser Seite zu, von der anderen zu öffnen – für Abkürzungen zurück),
+      Kampf (offen, wenn der Raum geräumt ist) oder Bedingung.
       Eine Tür gilt immer für die Seite, auf der sie steht – wer hereinkommt, findet sie von innen offen.`],
     ['Signale und Bedingungen', `<b>Signale</b> sind Namen für Zustände. Sie kommen von Platten (solange etwas daraufsteht, oder dauerhaft mit „bleibt unten“), von Kristallen
       (der Kristalltyp zeigt eine Farbe), von besiegten Gegnern (Signal an der Gegnerart oder am einzelnen Gegner) und von Ereignissen. Dazu immer „Raum geräumt“.
@@ -1210,7 +1263,14 @@ const Editor = (() => {
       }
       case 'bedplus': schreibeBedingung(el.closest('.bed'), z => z.teile.push({ s: z.teile.length ? z.teile[z.teile.length - 1].s : 'geraeumt', nicht: false })); break;
       case 'bedweg': schreibeBedingung(el.closest('.bed'), z => { z.teile.splice(Number(el.dataset.i), 1); if (!z.teile.length) z.modus = 'immer'; }); break;
-      case 'evneu': { merke(); const r = raum(); (r.ereignisse = r.ereignisse || []).push({ wenn: 'geraeumt', text: 'Geschafft!' }); aenderung(); renderRechts(); break; }
+      case 'evneu': { merke(); const r = raum(); (r.ereignisse = r.ereignisse || []).push({ wenn: 'geraeumt', schritte: [{ art: 'text', text: 'Geschafft!' }] }); aenderung(); renderRechts(); break; }
+      case 'evzeittor': {   // Platte → Tor 5 s offen, wiederholbar
+        merke(); const r = raum(), platte = r.objekte.find(o => o.objekt === 'platte'), sig = platte ? platte.signal : 'platte';
+        (r.ereignisse = r.ereignisse || []).push({ wenn: sig, wiederholen: true, schritte: [{ art: 'signal', signal: 'zeittor' }, { art: 'warte', s: 5 }, { art: 'signal', signal: 'zeittor', wert: false }] });
+        aenderung(); renderRechts(); break;
+      }
+      case 'schrittneu': { merke(); const ev = raum().ereignisse[Number(el.dataset.i)]; (ev.schritte = ev.schritte || []).push({ art: 'warte', s: 3 }); aenderung(); renderRechts(); break; }
+      case 'schrittweg': { merke(); const ev = raum().ereignisse[Number(el.dataset.i)]; ev.schritte.splice(Number(el.dataset.k), 1); aenderung(); renderRechts(); break; }
       case 'evweg': { merke(); const r = raum(); r.ereignisse.splice(Number(el.dataset.i), 1); if (!r.ereignisse.length) delete r.ereignisse; aenderung(); renderRechts(); break; }
       case 'welleplus': { merke(); const r = raum(); r.wellen = [...(r.wellen || []), [Object.keys(DATEN.gegnerarten)[0]]]; aenderung(); renderRechts(); break; }
       case 'welleweg': { merke(); const r = raum(); r.wellen.splice(Number(el.dataset.i), 1); if (!r.wellen.length) delete r.wellen; aenderung(); renderRechts(); break; }
@@ -1313,6 +1373,7 @@ const Editor = (() => {
   #editor .nachweis.ok{border-color:#58933b} #editor .nachweis.teil,#editor .nachweis.veraltet{border-color:#e0a33a}
   #editor .nachweis ul{margin:4px 0;padding-left:4px;list-style:none} #editor .nachweis li.ja{color:#8abd4f} #editor .nachweis li.nein{color:#a9b2b0}
   #editor .nachweisliste li.ok{color:#8abd4f} #editor .nachweisliste li.teil,#editor .nachweisliste li.veraltet{color:#f4cd5e}
+  #editor .schritt{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:3px 0} #editor .schritt input{width:auto;flex:1;min-width:60px} #editor .schritt .bedbreit{flex-basis:100%}
   #editor .kfarben{padding-left:20px} #editor .kfarben li{margin:4px 0} #editor .kfarben .knoepfe{display:inline-flex;margin:0 0 0 8px}
   @media (max-width:900px){#editor .ansichten{flex-direction:column} #editor .spalte{flex:none}}`;
   function baue() {
@@ -1430,6 +1491,7 @@ const Editor = (() => {
     eigene = ladeEigene();
     for (const d of Object.values(eigene.dungeons)) for (const r of Object.values(d.raeume)) for (const o of r.objekte || []) migriereObjekt(o);
     for (const a of Object.values(eigene.gegnerarten)) migriereGegnerart(a);
+    for (const d of Object.values(eigene.dungeons)) for (const r of Object.values(d.raeume)) ereignisseAlsSchritte(r);
     werteTestAus();
     if (!Z.dungeon || !dg()) { Z.dungeon = Object.keys(eigene.dungeons)[0] || null; Z.raum = Z.dungeon ? dg().start.raum : null; }
     if (Z.dungeon && !raum()) Z.raum = dg().start.raum;
