@@ -136,6 +136,12 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   Pflöcke je Typ und Farbe), Pipette (Alt+Klick) und Vorlagen, Rechteck-Füllen
   (Umschalt+Ziehen), Wellen per Zahlenfeldern, Platten wahlweise „einmal drücken
   genügt“. Eigenlicht ohne Laterne nur noch ein kleiner Schein.
+  Seit Entwurf 7: Gegner aus Bausteinen (Wegfindung, Angriffs-Reihenfolge,
+  Abstand/Drängen; Wahrnehmung mit Sicht, Sichtkegel, Gehör, Schlaf; Bewegung
+  ruhig/bemerkt inkl. Patrouille mit Wegpunkten je Gegner; Angriffe Sprung,
+  Schuss (zurückschlagbar), Rammen, Stampfen, jeder mit Ankündigung; Schild,
+  Rüstung, Gewicht; Teilen, Explodieren; Signal beim Besiegen; Bosse mit
+  Lebensbalken und Phasen). Dritter eingebauter Dungeon „Gegner-Probe“ zeigt alles.
   Plan: weitere Probe-Räume, daraus ein Tutorial; Raum-/Dungeonformen und
   Randomizer danach. Teststart `?dungeon=<id>&raum=<id>`.
   Grafik aus dem Gutsverwalter-Atlas, eingebettet per `atlas_bauen.py`.

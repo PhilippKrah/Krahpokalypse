@@ -80,10 +80,11 @@ const Editor = (() => {
   // Signale, die in diesem Dungeon ausgelöst werden – zur Auswahl, gruppiert und erklärt
   function signalOptionen(dazu = []) {
     const d = DATEN.dungeons[Z.dungeon], { quellen } = d ? dungeonSignale(DATEN, d) : { quellen: {} }, nrVon = id => (dg().raeume[id] || {}).nr || id;
-    const gruppen = { 'Raum': [['geraeumt', 'Raum geräumt (keine Gegner mehr)']], 'Platten': [], 'Kristalle': [], 'Ereignisse': [], 'Nirgends ausgelöst (Tippfehler?)': [] };
+    const gruppen = { 'Raum': [['geraeumt', 'Raum geräumt (keine Gegner mehr)']], 'Platten': [], 'Kristalle': [], 'Gegner': [], 'Ereignisse': [], 'Nirgends ausgelöst (Tippfehler?)': [] };
     for (const [name, wo] of Object.entries(quellen)) {
       if (wo[0].art === 'platte') gruppen.Platten.push([name, `Platte „${name}“ gedrückt (Raum ${[...new Set(wo.map(w => nrVon(w.raum)))].join(', ')})`]);
       else if (wo[0].art === 'ereignis') gruppen.Ereignisse.push([name, `„${name}“ (von einem Ereignis gesetzt)`]);
+      else if (wo[0].art === 'gegner') gruppen.Gegner.push([name, `„${name}“ besiegt (${[...new Set(wo.map(w => w.gegner))].join(', ')}, Raum ${[...new Set(wo.map(w => nrVon(w.raum)))].join(', ')})`]);
     }
     for (const [id, k] of Object.entries(DATEN.kristalltypen)) for (const f of k.farben) gruppen.Kristalle.push([id + '=' + f, `Kristall ${k.name} zeigt ${farbName(f)}`]);
     const bekannt = new Set(Object.values(gruppen).flat().map(o => o[0]));
@@ -243,9 +244,10 @@ const Editor = (() => {
       const t = { ziel: nid };
       if (art === 'schloss') t.schloss = true;
       if (art === 'kampf') t.offen_wenn = 'geraeumt';
-      if (art === 'bedingung') {   // ohne Vorgabe: die erste Platte des Dungeons, sonst „geräumt“
-        const platte = Object.entries(dungeonSignale(DATEN, DATEN.dungeons[Z.dungeon]).quellen).find(([, wo]) => wo[0].art === 'platte');
-        t.offen_wenn = bedingung === undefined ? (platte ? platte[0] : 'geraeumt') : bedingung; if (merken) t.merken = true;
+      if (art === 'bedingung') {   // ohne Vorgabe: das erste Signal von Platte, Gegner oder Ereignis, sonst „geräumt“ (als Liste,
+        // damit es nicht als Kampftür gilt)
+        const q = Object.entries(dungeonSignale(DATEN, DATEN.dungeons[Z.dungeon]).quellen), erstes = ['platte', 'gegner', 'ereignis'].map(k => q.find(([, wo]) => wo[0].art === k)).find(Boolean);
+        t.offen_wenn = bedingung === undefined ? (erstes ? erstes[0] : { alle: ['geraeumt'] }) : bedingung; if (merken) t.merken = true;
       }
       r.tueren[dir] = t;
       n.tueren[g] = n.tueren[g] ? { ...n.tueren[g], ziel: Z.raum } : { ziel: Z.raum };
@@ -338,6 +340,14 @@ const Editor = (() => {
     const w = rechts ? { art: 'radierer' } : Z.werkzeug;
     const iO = r.objekte.findIndex(o => o.feld[0] === c && o.feld[1] === rr), iG = r.gegner.findIndex(g => g.feld[0] === c && g.feld[1] === rr);
     if (w.art === 'pipette') { if (erster) pipette(c, rr); return; }
+    if (Z.werkzeug.art === 'weg') {   // Wegpunkte für den ausgewählten Gegner; rechts nimmt den letzten weg
+      const g = Z.auswahl && Z.auswahl.liste === 'gegner' && r.gegner[Z.auswahl.i];
+      if (!erster || !g || !innen(c, rr)) return;
+      merke();
+      if (rechts) { if (g.weg) { g.weg.pop(); if (!g.weg.length) delete g.weg; } }
+      else g.weg = [...(g.weg || [g.feld]), [c, rr]];
+      aenderung(); renderRechts(); return;
+    }
     if (w.art === 'auswahl') {
       if (erster) { Z.auswahl = iO >= 0 ? { liste: 'objekte', i: iO } : iG >= 0 ? { liste: 'gegner', i: iG } : null; renderRechts(); zeichneRaum(); }
       return;
@@ -418,10 +428,20 @@ const Editor = (() => {
     }
     g.drawImage(Z.bg, 0, 0);
     for (const o of r.objekte) vorschauObjekt(g, o, r);
+    r.gegner.forEach((e, i) => {   // Wege: alle schwach, der ausgewählte Gegner deutlich
+      if (!e.weg) return;
+      const an = Z.auswahl && Z.auswahl.liste === 'gegner' && Z.auswahl.i === i, m = p => [p[0] * T + T / 2, p[1] * T + T / 2];
+      g.strokeStyle = an ? '#f4cd5e' : 'rgba(244,205,94,.35)'; g.lineWidth = an ? 3 : 2; g.setLineDash([]);
+      g.beginPath(); e.weg.forEach((p, k) => g[k ? 'lineTo' : 'moveTo'](...m(p))); g.stroke();
+      g.setLineDash([5, 5]); g.beginPath(); g.moveTo(...m(e.weg[e.weg.length - 1])); g.lineTo(...m(e.weg[0])); g.stroke(); g.setLineDash([]);
+      if (an) e.weg.forEach((p, k) => { const [x, y] = m(p); g.fillStyle = '#f4cd5e'; g.beginPath(); g.arc(x, y, 7, 0, 7); g.fill(); g.fillStyle = '#120d14'; g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.fillText(k + 1, x, y + 4); });
+    });
     for (const e of r.gegner) {
-      const b = GEGNERBILD[e.gegner];
-      if (b) g.drawImage(b[0], e.feld[0] * T, e.feld[1] * T - 8);
+      const b = GEGNERBILD[e.gegner], art = DATEN.gegnerarten[e.gegner] || {}, k = art.groesse || 1;
+      if (b) g.drawImage(b[0], e.feld[0] * T + 16 - 16 * k, e.feld[1] * T + 16 - 24 * k, 32 * k, 32 * k);
       else { g.fillStyle = '#d0574a'; g.fillRect(e.feld[0] * T + 6, e.feld[1] * T + 6, 20, 20); }
+      const sig = e.signal || art.signal;
+      if (sig || art.boss) { g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#f4cd5e'; g.fillText(art.boss ? 'BOSS ' + (art.boss.name || '') : 'Signal: ' + sig, e.feld[0] * T + 16, e.feld[1] * T - 10 * k); }
     }
     const licht = typeof r.licht === 'number' ? r.licht : (CFG.licht.stufen[r.licht] ?? 1);   // Dunkelheit nur andeuten
     if (licht < 1) { g.fillStyle = `rgba(18,13,20,${(1 - licht) * 0.45})`; g.fillRect(0, 0, BREITE, HOEHE); }
@@ -506,6 +526,7 @@ const Editor = (() => {
   function renderVorlage() {   // Zeile unter der Werkzeugleiste: was gerade gesetzt wird, mit welchen Einstellungen
     const el = $('#ed-vorlage'), w = Z.werkzeug;
     if (!el) return;
+    if (w.art === 'weg') { el.innerHTML = 'Weg zeichnen: Felder anklicken, der Gegner läuft sie der Reihe nach ab und beginnt dann von vorn · rechte Maustaste nimmt den letzten Punkt weg · fertig: anderes Werkzeug wählen'; return; }
     const namen = { auswahl: 'Auswählen: Objekt oder Gegner anklicken, rechts einstellen.', pipette: 'Pipette: Feld anklicken – übernimmt Gelände, Gegner oder Objekt samt Einstellungen.',
       radierer: 'Radierer: entfernt Objekte und Gegner, sonst wird das Feld zu Boden.', start: 'Startpunkt: Feld anklicken, dort beginnt der Dungeon.' };
     let text = namen[w.art];
@@ -597,7 +618,15 @@ const Editor = (() => {
     }).join('');
     const a = Z.auswahl && r[Z.auswahl.liste][Z.auswahl.i];
     let auswahl = '<p class="klein">Mit „Auswählen“ ein Objekt oder einen Gegner anklicken, um es einzustellen. Frisch gesetzte Objekte sind gleich ausgewählt.</p>';
-    if (a && Z.auswahl.liste === 'gegner') auswahl = feld('Gegnerart', auswahlfeld('a.gegner', a.gegner, Object.fromEntries(Object.keys(DATEN.gegnerarten).map(k => [k, k])))) + `<button data-a="auswahlweg" class="gefahr">Entfernen</button>`;
+    if (a && Z.auswahl.liste === 'gegner') {
+      const art = DATEN.gegnerarten[a.gegner] || {}, kegel = art.bemerkt && art.bemerkt.art === 'kegel';
+      auswahl = feld('Gegnerart', auswahlfeld('a.gegner', a.gegner, Object.fromEntries(Object.keys(DATEN.gegnerarten).map(k => [k, k])))) +
+        parameterFeld(a, ['signal', 'signalname', 'Signal beim Besiegen', 'Z. B. für eine Tür, die erst nach diesem Gegner aufgeht. Ein Gegner mit Signal kommt nicht wieder.']) +
+        feld('Blickrichtung zu Beginn', auswahlfeld('a.blick', a.blick || '', { '': 'zum Helden', hoch: 'nach oben', runter: 'nach unten', links: 'nach links', rechts: 'nach rechts' }), kegel ? 'Wichtig für den Sichtkegel.' : '') +
+        feld('Weg (Patrouille)', `<span class="klein">${a.weg ? a.weg.length + ' Punkte' : 'kein Weg'}</span> <button data-a="wegzeichnen">${a.weg ? 'Weg ergänzen' : 'Weg zeichnen'}</button>${a.weg ? ' <button data-a="wegloeschen">Weg löschen</button>' : ''}`,
+          art.ruhig === 'patrouille' ? 'Felder anklicken – er läuft sie der Reihe nach ab und beginnt dann von vorn.' : 'Diese Gegnerart patrouilliert nicht (Bewegung „läuft einen Weg ab“ in der Gegnerart).') +
+        `<button data-a="auswahlweg" class="gefahr">Entfernen</button>`;
+    }
     else if (a) {
       const t = DATEN.objektarten[a.objekt] || {};
       const felder = Object.entries(PARAMETER).filter(([eig]) => t[eig]).flatMap(([, f]) => f);
@@ -662,16 +691,16 @@ const Editor = (() => {
       if (schluessel === 'kampf') renderRechts();
     } else if (bereich === 'a') {
       const a = r[Z.auswahl.liste][Z.auswahl.i];
-      if (t.dataset.signal !== undefined) {   // Signalnamen: klein, ohne Leer- und Sonderzeichen
+      if (t.dataset.signal !== undefined) {   // Signalnamen: klein, ohne Leer- und Sonderzeichen (bei Gegnern darf es leer sein)
         wert = signalName(wert);
-        if (!wert) { alert('Bitte einen Namen eingeben, z. B. tor-offen.'); renderRechts(); return; }
+        if (!wert && Z.auswahl.liste !== 'gegner') { alert('Bitte einen Namen eingeben, z. B. tor-offen.'); renderRechts(); return; }
         t.value = wert;
       }
       if (schluessel === 'merken' && t.tagName === 'SELECT') wert = wert === '1';
       if (wert === undefined || wert === '' || wert === false) delete a[schluessel]; else a[schluessel] = wert;
       if (schluessel === 'kristalltyp' && a.farbe !== undefined && !kristallTyp(wert).farben.includes(a.farbe)) a.farbe = kristallTyp(wert).farben[0];
       if (Z.auswahl.liste === 'objekte') vorlageAus(a);
-      if (['kristalltyp', 'signal', 'merken'].includes(schluessel)) { aenderung(); renderRechts(); return; }
+      if (['kristalltyp', 'signal', 'merken', 'gegner'].includes(schluessel)) { aenderung(); renderRechts(); return; }
     }
     aenderung();
   }
@@ -687,25 +716,95 @@ const Editor = (() => {
     }
     return grundfarben[bild] = Object.entries(zaehler).sort((a, b) => b[1] - a[1]).map(e => e[0]).slice(0, 8);
   }
+  // Formular aus Bausteinen: [Pfad, Typ, Beschriftung, Erklärung, Optionen]. Pfade wie "ki.reihe" oder "schuss.pause.0".
+  const MODUL_VORGABE = {
+    sprung: { reichweite: 150, zielen: 0.5, dauer: 0.32, tempo: 300, pause: [2, 3] },
+    schuss: { reichweite: 300, zielen: 0.6, tempo: 170, schaden: 1, anzahl: 1, pause: [1.6, 2.4] },
+    rammen: { reichweite: 300, zielen: 0.55, tempo: 320, dauer: 1.4, betaeubt: 1.6, pause: [1, 1.6] },
+    stampfen: { reichweite: 80, zielen: 0.8, radius: 70, schaden: 2, pause: [2.5, 3.5] },
+    schild: { drehtempo: 120 }, explodiert: { zeit: 1, radius: 56, schaden: 2 }, boss: { name: 'BOSS', phasen: [] },
+  };
+  const PAUSE = k => [[k + '.pause.0', 'zahl', 'Pause von (s)', '', 0.1], [k + '.pause.1', 'zahl', 'Pause bis (s)', '', 0.1]];
+  const ANKUENDIGUNG = k => [k + '.zielen', 'zahl', 'Ankündigung (s)', 'So lange zittert er mit „!“ vorher – Zeit zum Ausweichen.', 0.05];
+  const MODULE = {
+    sprung: ['Sprungangriff', 'Hält an, zittert, springt dorthin, wo du gerade stehst.', [[ 'sprung.reichweite', 'zahl', 'Reichweite (px)'], ANKUENDIGUNG('sprung'), ['sprung.dauer', 'zahl', 'Sprungdauer (s)', '', 0.02], ['sprung.tempo', 'zahl', 'Sprungtempo'], ...PAUSE('sprung')]],
+    schuss: ['Schuss', 'Wirft Kugeln, die du mit dem Schwert zurückschlagen kannst. Braucht freie Sicht.', [['schuss.reichweite', 'zahl', 'Reichweite (px)'], ANKUENDIGUNG('schuss'), ['schuss.tempo', 'zahl', 'Kugeltempo'], ['schuss.schaden', 'zahl', 'Schaden (½ Herzen)'], ['schuss.anzahl', 'wahl', 'Kugeln', '', { 1: 'eine', 3: 'drei im Fächer' }], ...PAUSE('schuss')]],
+    rammen: ['Rammen', 'Nur wenn du in einer Linie mit ihm stehst. Rennt geradeaus; prallt er gegen ein Hindernis, ist er betäubt.', [['rammen.reichweite', 'zahl', 'Reichweite (px)'], ANKUENDIGUNG('rammen'), ['rammen.tempo', 'zahl', 'Tempo'], ['rammen.dauer', 'zahl', 'höchstens (s)', '', 0.1], ['rammen.betaeubt', 'zahl', 'danach betäubt (s)', '', 0.1], ...PAUSE('rammen')]],
+    stampfen: ['Stampfen', 'Ein roter Kreis kündigt es an, dann tut es im Kreis weh.', [['stampfen.reichweite', 'zahl', 'Auslösen ab Abstand (px)'], ANKUENDIGUNG('stampfen'), ['stampfen.radius', 'zahl', 'Radius (px)'], ['stampfen.schaden', 'zahl', 'Schaden (½ Herzen)'], ...PAUSE('stampfen')]],
+  };
+  const holen = (o, pfad) => pfad.split('.').reduce((x, k) => x == null ? undefined : x[k], o);
+  function setzen(o, pfad, wert) {
+    const teile = pfad.split('.'), letztes = teile.pop();
+    const ziel = teile.reduce((x, k, i) => (x[k] = x[k] ?? (/^\d+$/.test(teile[i + 1] ?? letztes) ? [] : {})), o);
+    if (wert === undefined) delete ziel[letztes]; else ziel[letztes] = wert;
+  }
+  function gFeld([pfad, typ, label, hilfe = '', opt]) {
+    const w = holen(eigeneArt() || DATEN.gegnerarten[Z.gegnerArt], pfad);
+    if (typ === 'haken') return `<label class="klein"><input type="checkbox" data-gp="${pfad}" data-gt="haken"${w ? ' checked' : ''}> ${label}${hilfe ? ` <span class="erkl-inline">– ${hilfe}</span>` : ''}</label>`;
+    let inhalt;
+    if (typ === 'wahl') inhalt = `<select data-gp="${pfad}" data-gt="wahl">${Object.entries(opt).map(([k, v]) => `<option value="${esc(k)}"${String(w ?? '') === k ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select>`;
+    else if (typ === 'prozent') inhalt = `<input type="number" min="0" max="100" data-gp="${pfad}" data-gt="prozent" value="${Math.round((w || 0) * 100)}">`;
+    else if (typ === 'text' || typ === 'signal') inhalt = `<input data-gp="${pfad}" data-gt="${typ}" value="${esc(w ?? '')}">`;
+    else inhalt = `<input type="number" step="${opt || 1}" data-gp="${pfad}" data-gt="zahl" value="${esc(w ?? '')}">`;
+    return feld(label, inhalt, hilfe);
+  }
+  const zeilen = felder => { let html = '', paar = []; for (const f of felder) { if (f[1] === 'haken') { html += gFeld(f); continue; } paar.push(gFeld(f)); if (paar.length === 2) { html += `<div class="zeile">${paar.join('')}</div>`; paar = []; } } return html + (paar.length ? `<div class="zeile">${paar[0]}<div></div></div>` : ''); };
+  const eigeneArt = () => eigene.gegnerarten[Z.gegnerArt];
   function renderGegner() {
     const el = $('#ed-gegneransicht'), alle = Object.entries(DATEN.gegnerarten);
     if (!Z.gegnerArt || !DATEN.gegnerarten[Z.gegnerArt]) Z.gegnerArt = alle[0][0];
-    const id = Z.gegnerArt, a = DATEN.gegnerarten[id], eigen = !!eigene.gegnerarten[id], sp = a.sprung;
-    const aus = eigen ? '' : ' disabled';
+    const id = Z.gegnerArt, a = DATEN.gegnerarten[id], eigen = !!eigeneArt();
+    const artWahl = (ohne = false) => ({ ...(ohne ? { '': '– keine –' } : {}), ...Object.fromEntries(Object.keys(DATEN.gegnerarten).filter(k => k !== id).map(k => [k, k])) });
+    const b = a.bemerkt || {}, bArt = b.art || 'immer';
+    const modul = (k, titel, erkl, felder) => `<div class="modul"><label class="klein kopf"><input type="checkbox" data-gmod="${k}"${a[k] ? ' checked' : ''}> <b>${titel}</b></label>
+      <small class="erkl">${erkl}</small>${a[k] ? zeilen(felder) : ''}</div>`;
+    const phasen = ((a.boss || {}).phasen || []).map((p, i) => {
+      const [rArt, rN] = Object.entries(p.ruft || {})[0] || ['', 0];
+      return `<div class="phase"><b>Phase ${i + 2}</b>
+        <div class="zeile">${feld('ab LP (%)', `<input type="number" min="1" max="99" data-phase="${i}" data-pf="ab" value="${Math.round(p.ab * 100)}">`)}${feld('Tempo ×', `<input type="number" step="0.05" data-phase="${i}" data-pf="tempo" value="${p.tempo ?? 1}">`)}</div>
+        <div class="zeile">${feld('Pausen ×', `<input type="number" step="0.05" data-phase="${i}" data-pf="pause" value="${p.pause ?? 1}">`)}${feld('ruft Verstärkung', `<select data-phase="${i}" data-pf="ruftArt">${Object.entries({ '': '– keine –', ...Object.fromEntries(Object.keys(DATEN.gegnerarten).filter(k => k !== id).map(k => [k, k])) }).map(([k, v]) => `<option value="${k}"${k === rArt ? ' selected' : ''}>${v}</option>`).join('')}</select>`)}</div>
+        <div class="zeile">${feld('Anzahl', `<input type="number" min="0" max="8" data-phase="${i}" data-pf="ruftN" value="${rN}">`)}${feld('Banner-Text', `<input data-phase="${i}" data-pf="text" value="${esc(p.text || '')}">`)}</div>
+        <button data-a="phaseweg" data-i="${i}">Phase entfernen</button></div>`;
+    }).join('');
     el.innerHTML = `
       <div class="spalte"><h3>Gegnerarten</h3>
-        <div class="liste">${alle.map(([k, g]) => `<button data-art="${k}" class="${k === id ? 'an' : ''}">${esc(k)} <small>${eigene.gegnerarten[k] ? 'eigen' : 'eingebaut'}</small></button>`).join('')}</div>
+        <div class="liste">${alle.map(([k, g]) => `<button data-art="${k}" class="${k === id ? 'an' : ''}"><img class="kbild" src="${bildUrl(GEGNERBILD[k][0])}" alt=""> ${esc(k)} <small>${eigene.gegnerarten[k] ? 'eigen' : 'eingebaut'}${g.boss ? ' · Boss' : ''}</small></button>`).join('')}</div>
         <div class="knoepfe"><button data-a="artneu">Neue Art</button><button data-a="artkopie">Kopie</button>${eigen ? '<button data-a="artloeschen" class="gefahr">Löschen</button>' : ''}</div></div>
       <div class="spalte breit"><h3>${esc(id)} ${eigen ? '' : '<small>(eingebaut – als Kopie bearbeiten)</small>'}</h3>
         <div class="vorschau"><canvas id="ed-gvorschau" width="128" height="128"></canvas></div>
-        <fieldset${aus}>
-        <div class="zeile">${feld('Grundbild', auswahlfeld('g.bild', a.bild, Object.fromEntries(Object.keys(GRUNDBILDER).map(k => [k, k]))))}${feld('Lebenspunkte', zahlfeld('g.lp', a.lp))}</div>
-        <div class="zeile">${feld('Tempo (px/s)', zahlfeld('g.tempo', a.tempo))}${feld('Schaden (½ Herzen)', zahlfeld('g.schaden', a.schaden))}</div>
-        ${feld('Herz fallen lassen (%)', zahlfeld('g.herz', Math.round(((a.beute || {}).herz || 0) * 100)))}
-        <label class="klein"><input type="checkbox" data-g="sprung"${sp ? ' checked' : ''}> Sprungangriff (hält an, zittert, springt)</label>
-        ${sp ? `<div class="zeile">${feld('Reichweite (px)', zahlfeld('s.reichweite', sp.reichweite))}${feld('Warnung (s)', zahlfeld('s.zielen', sp.zielen, 0.05))}</div>
-        <div class="zeile">${feld('Sprungdauer (s)', zahlfeld('s.dauer', sp.dauer, 0.02))}${feld('Sprungtempo', zahlfeld('s.tempo', sp.tempo))}</div>
-        <div class="zeile">${feld('Pause von (s)', zahlfeld('s.pause0', sp.pause[0], 0.1))}${feld('Pause bis (s)', zahlfeld('s.pause1', sp.pause[1], 0.1))}</div>` : ''}
+        <fieldset${eigen ? '' : ' disabled'}>
+        <h3>Grundwerte</h3>
+        ${zeilen([['bild', 'wahl', 'Grundbild', '', Object.fromEntries(Object.keys(GRUNDBILDER).map(k => [k, k]))], ['lp', 'zahl', 'Lebenspunkte'],
+          ['tempo', 'zahl', 'Tempo (px/s)'], ['schaden', 'zahl', 'Schaden bei Berührung (½ Herzen)'],
+          ['beute.herz', 'prozent', 'Herz fallen lassen (%)'], ['groesse', 'wahl', 'Größe', '', { 1: 'normal', 1.5: '1,5-fach', 2: 'doppelt' }],
+          ['gewicht', 'zahl', 'Gewicht', '1 normal · 0 rührt sich nicht · 2 fliegt weit (in Abgründe)', 0.1]])}
+        <h3>KI</h3>
+        ${zeilen([['ki.wegfindung', 'haken', 'Wegfindung', 'läuft um Hindernisse und Abgründe herum statt geradeaus'],
+          ['ki.reihe', 'haken', 'Angriffs-Reihenfolge', `höchstens ${CFG.gegner.angreiferMax} greifen gleichzeitig an, die anderen warten im Kreis`],
+          ['ki.abstand', 'wahl', 'Untereinander', '', { abstossen: 'halten Abstand', draengen: 'drängen sich (dürfen überlappen)' }]])}
+        <p class="klein">Ohne Haken: einfacher Gegner, läuft geradewegs auf dich zu.</p>
+        <h3>Wahrnehmung und Bewegung</h3>
+        ${zeilen([['bemerkt.art', 'wahl', 'Bemerkt dich', '', { immer: 'sofort', sicht: 'wenn er dich sieht', kegel: 'nur im Sichtkegel (nach vorn)', geraeusch: 'wenn er Schwerthiebe hört', beruehrung: 'schläft, bis er getroffen oder berührt wird' }],
+          ...(['sicht', 'kegel', 'geraeusch'].includes(bArt) ? [['bemerkt.weite', 'zahl', bArt === 'geraeusch' ? 'Hörweite (px)' : 'Sichtweite (px)']] : []),
+          ...(bArt === 'kegel' ? [['bemerkt.kegel', 'zahl', 'Kegelbreite (Grad)']] : []),
+          ...(['sicht', 'kegel'].includes(bArt) ? [['bemerkt.nurLicht', 'haken', 'sieht dich im Dunkeln nur im Licht (Laterne verrät dich)']] : []),
+          ['ruhig', 'wahl', 'Bewegung, solange ruhig', '', { stehen: 'steht', pendeln_w: 'pendelt waagerecht', pendeln_s: 'pendelt senkrecht', patrouille: 'läuft einen Weg ab (je Gegner im Raum)', umherirren: 'irrt umher' }],
+          ['alarm', 'wahl', 'Bewegung, wenn bemerkt', '', { jagen: 'jagt dich', fliehen: 'flieht', bleiben: 'macht weiter wie bisher (greift aber an)', schleichen: 'kommt nur, wenn du wegschaust' }]])}
+        <h3>Angriffe</h3>
+        <p class="klein">Berührung schadet immer (Schaden oben). Dazu beliebig viele Angriffe, jeder mit Ankündigung.</p>
+        ${Object.entries(MODULE).map(([k, [t, e, f]]) => modul(k, t, e, f)).join('')}
+        <h3>Verteidigung</h3>
+        ${modul('schild', 'Schild', 'Treffer von vorn prallen ab. Er dreht sich langsam zu dir – lauf um ihn herum.', [['schild.drehtempo', 'zahl', 'Drehtempo (Grad/s)']])}
+        ${zeilen([['ruestung', 'wahl', 'Rüstung', '', { '': 'keine', schlag: 'erster Treffer betäubt nur, dann verwundbar', betaeubt: 'nur verwundbar, wenn betäubt (Rammen, Kugel)' }]])}
+        <h3>Bei Niederlage</h3>
+        ${zeilen([['signal', 'signal', 'Signal auslösen', 'Alle Gegner dieser Art lösen es aus und kommen dann nicht wieder. Für einzelne Gegner: im Raum anklicken.']])}
+        <div class="modul"><label class="klein kopf"><input type="checkbox" data-gmod="teilen"${a.teilen ? ' checked' : ''}> <b>Teilt sich</b></label>
+          ${a.teilen ? `<div class="zeile">${feld('in', `<select data-gp="teilen.art" data-gt="wahl">${Object.entries(artWahl()).map(([k, v]) => `<option value="${k}"${k === a.teilen.art ? ' selected' : ''}>${v}</option>`).join('')}</select>`)}${gFeld(['teilen.anzahl', 'zahl', 'Anzahl'])}</div>` : ''}</div>
+        ${modul('explodiert', 'Explodiert', 'Nach der Niederlage blinkt ein roter Kreis, dann explodiert er – trifft auch andere Gegner.', [['explodiert.zeit', 'zahl', 'Zeit bis zur Explosion (s)', '', 0.1], ['explodiert.radius', 'zahl', 'Radius (px)'], ['explodiert.schaden', 'zahl', 'Schaden (½ Herzen)']])}
+        <h3>Boss</h3>
+        <div class="modul"><label class="klein kopf"><input type="checkbox" data-gmod="boss"${a.boss ? ' checked' : ''}> <b>Ist ein Boss</b></label>
+          <small class="erkl">Lebensbalken unten im Bild, kommt nach dem Sieg nicht wieder. Phasen: unter einem Anteil der Lebenspunkte wird er schneller, greift öfter an oder ruft Verstärkung.</small>
+          ${a.boss ? `${gFeld(['boss.name', 'text', 'Name im Lebensbalken'])}${phasen}<button data-a="phaseplus">＋ Phase</button>` : ''}</div>
         <h3>Farben</h3><div class="farben">${farbenVon(a.bild).map(f => `<label title="${f}"><input type="color" data-farbe="${f}" value="${(a.farben || {})[f] || f}"></label>`).join('')}
         <button data-a="farbenzurueck">Original</button></div>
         </fieldset>
@@ -721,18 +820,44 @@ const Editor = (() => {
     requestAnimationFrame(zeichneGegnerVorschau);
   }
   function gegnerEingabe(e) {
-    const t = e.target, id = Z.gegnerArt, a = eigene.gegnerarten[id];
+    const t = e.target, a = eigeneArt();
     if (!a) return;
     merke();
     if (t.dataset.farbe) { a.farben = { ...(a.farben || {}) }; if (t.value === t.dataset.farbe) delete a.farben[t.dataset.farbe]; else a.farben[t.dataset.farbe] = t.value; if (!Object.keys(a.farben).length) delete a.farben; }
-    else if (t.dataset.g === 'sprung') { if (t.checked) a.sprung = { reichweite: 150, zielen: 0.5, dauer: 0.32, tempo: 300, pause: [2, 3] }; else delete a.sprung; speichern(); renderGegner(); return; }
-    else if (t.dataset.f) {
-      const [bereich, k] = t.dataset.f.split('.'), wert = t.type === 'number' ? Number(t.value) : t.value;
-      if (bereich === 'g' && k === 'bild') { a.bild = wert; Object.assign(a, kopie(GRUNDBILDER[wert])); delete a.farben; speichern(); renderGegner(); return; }
-      if (bereich === 'g' && k === 'herz') a.beute = { herz: Math.max(0, Math.min(100, wert)) / 100 };
-      else if (bereich === 'g') a[k] = wert;
-      else if (bereich === 's' && k.startsWith('pause')) a.sprung.pause[Number(k.slice(-1))] = wert;
-      else if (bereich === 's') a.sprung[k] = wert;
+    else if (t.dataset.gmod) {   // Baustein an/aus
+      const k = t.dataset.gmod;
+      if (!t.checked) delete a[k];
+      else a[k] = k === 'teilen' ? { art: Object.keys(DATEN.gegnerarten).find(x => x !== Z.gegnerArt), anzahl: 2 } : kopie(MODUL_VORGABE[k]);
+      speichern(); renderGegner(); return;
+    }
+    else if (t.dataset.phase !== undefined) {
+      const p = a.boss.phasen[Number(t.dataset.phase)], f = t.dataset.pf;
+      if (f === 'ab') p.ab = Math.max(1, Math.min(99, Number(t.value))) / 100;
+      else if (f === 'tempo' || f === 'pause') p[f] = Number(t.value) || 1;
+      else if (f === 'text') { if (t.value.trim()) p.text = t.value.trim().toUpperCase(); else delete p.text; }
+      else {
+        const [art, n] = Object.entries(p.ruft || {})[0] || ['', 0], neuArt = f === 'ruftArt' ? t.value : art, neuN = f === 'ruftN' ? Number(t.value) : (n || 1);
+        if (neuArt && neuN > 0) p.ruft = { [neuArt]: neuN }; else delete p.ruft;
+      }
+      a.boss.phasen.sort((x, y) => y.ab - x.ab);
+      speichern(); renderGegner(); return;
+    }
+    else if (t.dataset.gp) {
+      const pfad = t.dataset.gp, typ = t.dataset.gt;
+      let wert = typ === 'haken' ? t.checked : typ === 'zahl' ? Number(t.value) : typ === 'prozent' ? Math.max(0, Math.min(100, Number(t.value))) / 100 : t.value;
+      if (typ === 'wahl' && /^[\d.]+$/.test(wert)) wert = Number(wert);
+      if (typ === 'signal') wert = signalName(wert) || undefined;
+      if (pfad === 'bild') { a.bild = wert; Object.assign(a, kopie(GRUNDBILDER[wert])); delete a.farben; speichern(); renderGegner(); return; }
+      if (pfad === 'bemerkt.art' && wert === 'immer') { delete a.bemerkt; speichern(); renderGegner(); return; }
+      if (pfad === 'bemerkt.art' && !a.bemerkt) a.bemerkt = { weite: 200, kegel: 80 };
+      if (pfad === 'ruestung' && !wert) wert = undefined;
+      if ((pfad === 'groesse' && wert === 1) || (pfad === 'gewicht' && wert === 1)) wert = undefined;
+      if (typ === 'haken' && !wert && !pfad.startsWith('ki.')) wert = undefined;
+      setzen(a, pfad, wert);
+      if (pfad === 'boss.name' && a.boss) a.boss.name = String(a.boss.name || '').toUpperCase();
+      speichern();
+      if (typ === 'wahl' || typ === 'haken' || typ === 'signal') renderGegner();
+      return;
     }
     speichern();
   }
@@ -742,7 +867,7 @@ const Editor = (() => {
     let id = slug(name);
     while (DATEN.gegnerarten[id]) id += '2';
     merke();
-    eigene.gegnerarten[id] = vorlage ? kopie(DATEN.gegnerarten[vorlage]) : { bild: 'fuchs', lp: 2, tempo: 55, schaden: 1, ...kopie(GRUNDBILDER.fuchs), beute: { herz: 0.2 } };
+    eigene.gegnerarten[id] = vorlage ? kopie(DATEN.gegnerarten[vorlage]) : { bild: 'fuchs', lp: 2, tempo: 55, schaden: 1, ...kopie(GRUNDBILDER.fuchs), beute: { herz: 0.2 }, ki: { wegfindung: true, reihe: true } };
     Z.gegnerArt = id; speichern(); renderGegner(); renderWerkzeuge();
   }
 
@@ -845,6 +970,10 @@ const Editor = (() => {
         if (!confirm(benutzt ? 'Diese Art wird in eigenen Dungeons benutzt. Trotzdem löschen?' : 'Gegnerart löschen?')) break;
         merke(); delete eigene.gegnerarten[Z.gegnerArt]; Z.gegnerArt = null; speichern(); renderGegner(); renderWerkzeuge(); break;
       }
+      case 'phaseplus': { const a = eigeneArt(); if (!a) break; merke(); const letzte = a.boss.phasen[a.boss.phasen.length - 1]; a.boss.phasen.push({ ab: letzte ? Math.max(0.1, letzte.ab - 0.25) : 0.5, tempo: 1.2, pause: 0.8 }); speichern(); renderGegner(); break; }
+      case 'phaseweg': { const a = eigeneArt(); if (!a) break; merke(); a.boss.phasen.splice(Number(el.dataset.i), 1); speichern(); renderGegner(); break; }
+      case 'wegzeichnen': Z.werkzeug = { art: 'weg' }; renderWerkzeuge(); break;
+      case 'wegloeschen': { merke(); delete raum().gegner[Z.auswahl.i].weg; aenderung(); renderRechts(); break; }
       case 'farbenzurueck': if (eigene.gegnerarten[Z.gegnerArt]) { merke(); delete eigene.gegnerarten[Z.gegnerArt].farben; speichern(); renderGegner(); } break;
     }
   }
@@ -905,6 +1034,8 @@ const Editor = (() => {
   #editor .welle{display:flex;gap:4px;align-items:center;margin:3px 0} #editor .welle label{display:flex;align-items:center}
   #editor .welle img{width:22px;height:22px;image-rendering:pixelated} #editor .welle input{width:42px;padding:2px}
   #editor .kbild{width:24px;height:24px;image-rendering:pixelated;vertical-align:middle;object-fit:contain}
+  #editor .modul{margin:6px 0;padding:6px 8px;background:#1c1e26;border-radius:4px} #editor .modul .kopf{margin:0}
+  #editor .phase{margin:6px 0;padding:6px;border:1px solid #2e313b;border-radius:4px} #editor .erkl-inline{color:#848e92}
   #editor .kfarben{padding-left:20px} #editor .kfarben li{margin:4px 0} #editor .kfarben .knoepfe{display:inline-flex;margin:0 0 0 8px}
   @media (max-width:900px){#editor .ansichten{flex-direction:column} #editor .spalte{flex:none}}`;
   function baue() {
@@ -949,7 +1080,7 @@ const Editor = (() => {
       e.preventDefault(); cvRaum.setPointerCapture(e.pointerId);
       const f = feldUnter(e), rechts = e.button === 2;
       if (e.altKey) { pipette(...f); return; }
-      if ((Z.form === 'rechteck' || e.shiftKey) && (rechts || ['kachel', 'objekt', 'gegner', 'radierer'].includes(Z.werkzeug.art))) { Z.rechteck = { a: f, b: f, rechts }; zeichneRaum(); return; }
+      if ((Z.form === 'rechteck' || e.shiftKey) && Z.werkzeug.art !== 'weg' && (rechts || ['kachel', 'objekt', 'gegner', 'radierer'].includes(Z.werkzeug.art))) { Z.rechteck = { a: f, b: f, rechts }; zeichneRaum(); return; }
       Z.malt = { rechts, letztes: f.join() }; anwenden(...f, true, rechts);
     });
     cvRaum.addEventListener('pointermove', e => {

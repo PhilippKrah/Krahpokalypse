@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Waldwacht (Arbeitstitel) – Entwurf 6: datengetriebene Engine mit Editor. Top-Down-Action-Adventure im Stil von „A Link to the Past“.
+  Waldwacht (Arbeitstitel) – Entwurf 7: datengetriebene Engine mit Editor und Gegnern aus Bausteinen. Top-Down-Action-Adventure im Stil von „A Link to the Past“.
 
   Trennung: Der Code kennt nur allgemeine Bausteine (Kacheln, Objekt-Eigenschaften, Gegner-Verhalten, Bedingungen).
   Alles Konkrete steht als reines JSON im Block <script id="spieldaten">: Einstellungen, Kacheln, Zeichen-Legende,
@@ -17,16 +17,25 @@
                  Parameter je Objekt: sichtbar_wenn, an_wenn, oben_wenn, merken (einmal wahr = bleibt wahr), spiegeln
     kristalltypen  { id: {name, farben: [Farbe…]} } – Farben in Schaltreihenfolge, die erste gilt zu Beginn. Der Zustand
                  gilt im ganzen Dungeon: alle Kristalle eines Typs zeigen dieselbe Farbe und schalten gemeinsam weiter.
-    gegnerarten  bild, farben (Farbtausch), lp, tempo, schaden, fuss, koerper, beute {herz}, sprung {…} (Verhalten)
+    gegnerarten  bild, farben (Farbtausch), lp, tempo, schaden, fuss, koerper, beute {herz}, groesse, gewicht (Rückstoß-Faktor,
+                 0 = unbeweglich). Verhalten aus Bausteinen, alle optional:
+                   ki {wegfindung, reihe (Angriffs-Reihenfolge), abstand: abstossen|draengen}
+                   bemerkt {art: immer|sicht|kegel|geraeusch|beruehrung, weite, kegel (Grad), nurLicht}
+                   ruhig: stehen|pendeln_w|pendeln_s|patrouille|umherirren · alarm: jagen|fliehen|bleiben|schleichen
+                   Angriffe sprung|schuss|rammen|stampfen {reichweite, zielen (Ankündigung), pause [von, bis], …}
+                   schild {drehtempo} · ruestung: schlag|betaeubt · teilen {art, anzahl} · explodiert {zeit, radius, schaden}
+                   signal (beim Besiegen) · boss {name, phasen [{ab (Anteil LP), tempo, pause, ruft {art: n}, text}]}
     gegenstaende bild, text, wirkung {schluessel|laterne|…: Anzahl, maxLp, heilen}, leuchtet (Held trägt Licht)
     dungeons     titel, start {raum, feld}, raeume { id: raum }
     raum         nr, titel, licht (Stufe oder 0..1), lichtkarte (Ziffern 0–9 je Feld), kampf (geräumt bleibt geräumt),
                  karte (15 Zeilen × 20 Zeichen), zeichen, objekte [{objekt, feld:[c,r], …}], gegner [{gegner, feld}],
+                 gegner [{gegner, feld, signal, weg [[c,r]…], blick}],
                  tueren {n|o|s|w: {ziel, schloss, offen_wenn, merken}}, wellen [[gegnerart…]…], einstieg (Text),
                  ereignisse [{wenn, text, setze {signal: wert}}] (je einmal)
   Bedingungen: "signal" · {"alle": [...]} · {"eine": [...]} · {"nicht": ...}. Eingebaut: "geraeumt" (keine Gegner mehr, Wellen fertig),
                "<kristalltyp>=<farbe>" (z. B. "kristall=orange": der Typ zeigt gerade diese Farbe).
-  Signale kommen von Platten (solange belegt, mit merken dauerhaft), Kristallen (siehe oben), Ereignissen (setze).
+  Signale kommen von Platten (solange belegt, mit merken dauerhaft), Kristallen (siehe oben), Ereignissen (setze),
+  besiegten Gegnern (signal an der Art oder am einzelnen Gegner; solche Gegner kommen nicht wieder, Bosse auch nicht).
   Ein Signal gilt im ganzen Dungeon, nur „Platte gerade belegt“ wirkt allein im eigenen Raum.
   Licht: je Feld ein Wert 0..1 aus Raumstufe/Lichtkarte, dazu Lichtquellen (Fackeln, Laterne, eigener Schein); lichtBei(x, y)
   liefert ihn für spätere Spielregeln – bisher wirkt Dunkelheit nur auf die Darstellung.
@@ -82,7 +91,8 @@
   "einstellungen": {
     "held": { "tempo": 150, "lp": 6, "unverwundbar": 1.0, "rueckTempo": 300, "rueckDauer": 0.18 },
     "schlag": { "dauer": 0.28, "neuAb": 0.20, "aktivBis": 0.22, "phasen": [0.05, 0.10, 0.20] },
-    "gegner": { "rueckTempo": 320, "rueckDauer": 0.18, "blitz": 0.25, "wachAb": 1.0, "herzDauer": 9 },
+    "gegner": { "rueckTempo": 320, "rueckDauer": 0.18, "blitz": 0.25, "wachAb": 1.0, "herzDauer": 9,
+                "angreiferMax": 2, "wartAbstand": [80, 150], "betaeubt": 1.6, "drehtempo": 120 },
     "welle": { "abstand": 0.7, "pause": 1.2, "banner": 1.6, "bannerVorlauf": 0.8, "mindestAbstand": 170 },
     "schieben": { "anlauf": 0.35, "dauer": 0.3 },
     "abgrund": { "schaden": 1, "fallDauer": 0.6 },
@@ -118,13 +128,49 @@
     "fackel":      { "bild": "@fackel", "fest": [10, 16, 12, 14], "leuchtet": { "radius": 3.5, "staerke": 1 } }
   },
   "gegnerarten": {
-    "fuchs":  { "bild": "fuchs", "lp": 2, "tempo": 55, "schaden": 1, "fuss": [11, 6], "koerper": [26, 20], "beute": { "herz": 0.2 } },
+    "fuchs":  { "bild": "fuchs", "lp": 2, "tempo": 55, "schaden": 1, "fuss": [11, 6], "koerper": [26, 20], "beute": { "herz": 0.2 },
+                "ki": { "wegfindung": true, "reihe": true } },
     "silber": { "bild": "fuchs", "farben": { "#b88250": "#a9b2b0", "#4a2a2a": "#454a55", "#ece8d6": "#fffbec" },
                 "lp": 3, "tempo": 62, "schaden": 1, "fuss": [11, 6], "koerper": [26, 20], "beute": { "herz": 0.2 },
+                "ki": { "wegfindung": true, "reihe": true },
                 "sprung": { "reichweite": 150, "zielen": 0.5, "dauer": 0.32, "tempo": 300, "pause": [2.0, 3.2] } },
     "glut":   { "bild": "fuchs", "farben": { "#b88250": "#a3343a", "#4a2a2a": "#3e1420", "#ece8d6": "#f4cd5e" },
                 "lp": 4, "tempo": 58, "schaden": 2, "fuss": [11, 6], "koerper": [26, 20], "beute": { "herz": 0.2 },
-                "sprung": { "reichweite": 190, "zielen": 0.4, "dauer": 0.36, "tempo": 340, "pause": [1.4, 2.4] } }
+                "ki": { "wegfindung": true, "reihe": true },
+                "sprung": { "reichweite": 190, "zielen": 0.4, "dauer": 0.36, "tempo": 340, "pause": [1.4, 2.4] } },
+    "schuetze": { "bild": "huhn", "farben": { "#ece8d6": "#7fbcdc", "#b88250": "#3f5190", "#d0574a": "#f4cd5e" },
+                "lp": 2, "tempo": 40, "schaden": 1, "fuss": [8, 5], "koerper": [18, 18], "beute": { "herz": 0.3 },
+                "bemerkt": { "art": "sicht", "weite": 330 }, "ruhig": "pendeln_w", "alarm": "bleiben",
+                "schuss": { "reichweite": 340, "zielen": 0.6, "tempo": 170, "schaden": 1, "anzahl": 1, "pause": [1.6, 2.4] } },
+    "schildfuchs": { "bild": "fuchs", "farben": { "#b88250": "#626a72", "#4a2a2a": "#2e313b", "#ece8d6": "#cfd6cf" },
+                "lp": 3, "tempo": 45, "schaden": 1, "fuss": [11, 6], "koerper": [26, 20], "beute": { "herz": 0.3 },
+                "ki": { "wegfindung": true, "reihe": true }, "schild": { "drehtempo": 100 }, "gewicht": 0.6 },
+    "rammler": { "bild": "hase", "farben": { "#6f6463": "#986438", "#848e92": "#5e3826" },
+                "lp": 2, "tempo": 35, "schaden": 2, "fuss": [8, 5], "koerper": [18, 16], "beute": { "herz": 0.4 },
+                "ki": { "wegfindung": true }, "bemerkt": { "art": "sicht", "weite": 240 }, "ruhig": "umherirren", "alarm": "jagen",
+                "rammen": { "reichweite": 320, "zielen": 0.55, "tempo": 330, "dauer": 1.4, "betaeubt": 1.8, "pause": [0.8, 1.4] },
+                "ruestung": "betaeubt" },
+    "waechter": { "bild": "fuchs", "farben": { "#b88250": "#5a70b0", "#4a2a2a": "#1c1e26", "#ece8d6": "#7fbcdc" },
+                "lp": 2, "tempo": 75, "schaden": 1, "fuss": [11, 6], "koerper": [26, 20], "beute": { "herz": 0.2 },
+                "ki": { "wegfindung": true, "reihe": true }, "bemerkt": { "art": "kegel", "weite": 190, "kegel": 70 },
+                "ruhig": "patrouille", "alarm": "jagen" },
+    "teiler": { "bild": "hase", "farben": { "#6f6463": "#467f36", "#848e92": "#2a552c" },
+                "lp": 2, "tempo": 45, "schaden": 1, "fuss": [8, 5], "koerper": [18, 16],
+                "ki": { "wegfindung": true, "abstand": "draengen" }, "teilen": { "art": "sproessling", "anzahl": 2 } },
+    "sproessling": { "bild": "hase", "farben": { "#6f6463": "#8abd4f", "#848e92": "#467f36" },
+                "lp": 1, "tempo": 80, "schaden": 1, "fuss": [8, 5], "koerper": [18, 16], "beute": { "herz": 0.15 }, "gewicht": 1.6,
+                "ki": { "abstand": "draengen" } },
+    "knaller": { "bild": "huhn", "farben": { "#ece8d6": "#d0574a", "#b88250": "#3e1420" },
+                "lp": 1, "tempo": 62, "schaden": 1, "fuss": [8, 5], "koerper": [18, 18],
+                "ki": { "wegfindung": true }, "explodiert": { "zeit": 1.0, "radius": 60, "schaden": 2 } },
+    "fuchskoenig": { "bild": "fuchs", "farben": { "#b88250": "#e0a33a", "#4a2a2a": "#5e3826", "#ece8d6": "#fffbec" },
+                "lp": 14, "tempo": 48, "schaden": 2, "fuss": [11, 6], "koerper": [26, 20], "groesse": 2, "gewicht": 0.25,
+                "beute": { "herz": 1 }, "ki": { "wegfindung": true },
+                "sprung": { "reichweite": 230, "zielen": 0.65, "dauer": 0.42, "tempo": 320, "pause": [2.4, 3.4] },
+                "stampfen": { "reichweite": 80, "zielen": 0.8, "radius": 76, "schaden": 2, "pause": [2.6, 3.6] },
+                "boss": { "name": "FUCHSKÖNIG", "phasen": [
+                  { "ab": 0.6, "tempo": 1.25, "pause": 0.8, "ruft": { "fuchs": 2 }, "text": "DER KÖNIG RUFT HILFE!" },
+                  { "ab": 0.3, "tempo": 1.25, "pause": 0.7, "text": "DER KÖNIG WIRD WÜTEND!" } ] } }
   },
   "kristalltypen": {
     "kristall": { "name": "Blau/Orange", "farben": ["blau", "orange"] }
@@ -545,6 +591,77 @@
           ]
         }
       }
+    },
+    "gegner": {
+      "titel": "GEGNER-PROBE", "untertitel": "Schützen, Schilde, Rammler, Wächter, Boss",
+      "start": { "raum": "schuetzen", "feld": [9.5, 12.5] },
+      "raeume": {
+        "schuetzen": {
+          "nr": "1", "titel": "SCHÜTZEN", "licht": "hell",
+          "tueren": { "n": { "ziel": "rammler", "offen_wenn": "geraeumt" } },
+          "einstieg": "Schlag die Kugeln der Schützen zurück! Der Schildfuchs pariert von vorn - geh um ihn herum.",
+          "karte": [
+            "####################", "####################", "#..................#", "#..................#",
+            "#..SSS........SSS..#", "#..................#", "#..................#", "#..................#",
+            "#..................#", "#..................#", "#..................#", "#..................#",
+            "#..................#", "#..................#", "####################" ],
+          "objekte": [], "gegner": [
+            { "gegner": "schuetze", "feld": [4, 3] }, { "gegner": "schuetze", "feld": [15, 3] },
+            { "gegner": "schildfuchs", "feld": [10, 7] } ]
+        },
+        "rammler": {
+          "nr": "2", "titel": "RAMMLER", "licht": "hell",
+          "tueren": { "s": { "ziel": "schuetzen" }, "n": { "ziel": "waechter", "offen_wenn": "geraeumt" } },
+          "einstieg": "Rammler sind gepanzert. Weich aus - wenn sie gegen eine Wand krachen, sind sie kurz verwundbar.",
+          "karte": [
+            "####################", "####################", "#..................#", "#..................#",
+            "#....S........S....#", "#..................#", "#..................#", "#..................#",
+            "#..................#", "#..................#", "#....S........S....#", "#..................#",
+            "#..................#", "#..................#", "####################" ],
+          "objekte": [], "gegner": [ { "gegner": "rammler", "feld": [9, 5] }, { "gegner": "rammler", "feld": [11, 9] } ]
+        },
+        "waechter": {
+          "nr": "3", "titel": "WACHGANG", "licht": "daemmrig",
+          "tueren": { "s": { "ziel": "rammler" }, "n": { "ziel": "gewimmel", "offen_wenn": "hauptmann", "merken": true } },
+          "einstieg": "Wächter sehen nur nach vorn. Besiege den Hauptmann, der oben patrouilliert - dann öffnet sich das Tor.",
+          "karte": [
+            "####################", "####################", "#..................#", "#..................#",
+            "#..................#", "#..................#", "#...SS...SS...SS...#", "#..................#",
+            "#..................#", "#...SS...SS...SS...#", "#..................#", "#..................#",
+            "#..................#", "#..................#", "####################" ],
+          "objekte": [], "gegner": [
+            { "gegner": "waechter", "feld": [3, 3], "signal": "hauptmann", "weg": [[3, 3], [16, 3], [16, 4], [3, 4]] },
+            { "gegner": "waechter", "feld": [16, 7], "weg": [[16, 7], [16, 8], [3, 8], [3, 7]] },
+            { "gegner": "waechter", "feld": [9, 11], "blick": "links", "weg": [[3, 11], [16, 11]] } ]
+        },
+        "gewimmel": {
+          "nr": "4", "titel": "GEWIMMEL", "licht": "hell",
+          "tueren": { "s": { "ziel": "waechter" }, "n": { "ziel": "thron", "offen_wenn": "geraeumt" } },
+          "einstieg": "Teiler zerfallen in zwei, Knaller explodieren kurz nach dem Treffer - Abstand halten!",
+          "karte": [
+            "####################", "####################", "#..................#", "#..................#",
+            "#..................#", "#...~~........~~...#", "#...~~........~~...#", "#..................#",
+            "#..................#", "#..................#", "#..................#", "#..................#",
+            "#..................#", "#..................#", "####################" ],
+          "objekte": [], "gegner": [
+            { "gegner": "teiler", "feld": [6, 4] }, { "gegner": "teiler", "feld": [13, 4] },
+            { "gegner": "knaller", "feld": [3, 9] }, { "gegner": "knaller", "feld": [16, 9] } ]
+        },
+        "thron": {
+          "nr": "5", "titel": "THRONSAAL", "licht": "daemmrig", "kampf": true,
+          "tueren": { "s": { "ziel": "gewimmel", "offen_wenn": "geraeumt" } },
+          "einstieg": "Der Fuchskönig! Weiche seinem Stampfen aus - der rote Kreis zeigt, wo es gleich wehtut.",
+          "ereignisse": [ { "wenn": "geraeumt", "text": "Der Fuchskönig ist besiegt! Das war die Gegner-Probe." } ],
+          "karte": [
+            "####################", "####################", "#..................#", "#..................#",
+            "#.~~............~~.#", "#.~~............~~.#", "#..................#", "#..................#",
+            "#..................#", "#..................#", "#.~~............~~.#", "#.~~............~~.#",
+            "#..................#", "#..................#", "####################" ],
+          "objekte": [ { "objekt": "truhe", "feld": [9, 7], "inhalt": "herzcontainer", "sichtbar_wenn": "geraeumt" },
+                       { "objekt": "fackel", "feld": [4, 2] }, { "objekt": "fackel", "feld": [15, 2] } ],
+          "gegner": [ { "gegner": "fuchskoenig", "feld": [9, 5] } ]
+        }
+      }
     }
   }
 }
@@ -626,14 +743,19 @@ function bedingungsSignale(b, liste = []) {
 function dungeonSignale(d, dg) {
   const quellen = {}, fragen = {}, neu = (tab, name, wo) => (tab[name] = tab[name] || []).push(wo);
   for (const [id, r] of Object.entries(dg.raeume)) {
-    const legende = { ...d.zeichen, ...(r.zeichen || {}) }, eintraege = [...(r.objekte || [])];
-    for (const z of r.karte) for (const ch of z) if (legende[ch] && legende[ch].objekt) eintraege.push(legende[ch]);
+    const legende = { ...d.zeichen, ...(r.zeichen || {}) }, eintraege = [...(r.objekte || [])], gegner = [...(r.gegner || [])];
+    for (const z of r.karte) for (const ch of z) if (legende[ch]) (legende[ch].gegner ? gegner : eintraege).push(legende[ch]);
     for (const e of eintraege) {
       const art = d.objektarten[e.objekt] || {};
       if (art.platte && e.signal) neu(quellen, e.signal, { raum: id, art: 'platte', merken: !!e.merken });
       if ((art.kristall || art.pflock) && e.kristalltyp) for (const f of kristallTyp(e.kristalltyp).farben) neu(quellen, e.kristalltyp + '=' + f, { raum: id, art: 'kristall' });
       for (const k of ['sichtbar_wenn', 'an_wenn', 'oben_wenn']) for (const s of bedingungsSignale(e[k])) neu(fragen, s, { raum: id, art: e.objekt });
     }
+    for (const e of gegner) {
+      const sig = e.signal || (d.gegnerarten[e.gegner] || {}).signal;
+      if (sig) neu(quellen, sig, { raum: id, art: 'gegner', gegner: e.gegner });
+    }
+    for (const art of (r.wellen || []).flat()) { const sig = (d.gegnerarten[art] || {}).signal; if (sig) neu(quellen, sig, { raum: id, art: 'gegner', gegner: art }); }
     for (const [dir, t] of Object.entries(r.tueren)) for (const s of bedingungsSignale(t.offen_wenn)) neu(fragen, s, { raum: id, art: 'tür ' + dir });
     for (const e of r.ereignisse || []) {
       for (const s of Object.keys(e.setze || {})) neu(quellen, s, { raum: id, art: 'ereignis' });
@@ -648,6 +770,12 @@ function dungeonSignale(d, dg) {
 function pruefeDaten(d, still = false) {
   const w = [], bekannt = ch => d.kacheln[ch] !== undefined;
   for (const [ch, e] of Object.entries(d.zeichen)) if (e.objekt && !d.objektarten[e.objekt]) w.push(`Zeichen ${ch}: unbekannte Objektart ${e.objekt}`);
+  for (const [id, a] of Object.entries(d.gegnerarten)) {
+    if (a.teilen && !d.gegnerarten[a.teilen.art]) w.push(`Gegnerart ${id}: teilt sich in unbekannte Art ${a.teilen.art}`);
+    if (a.teilen && a.teilen.art === id) w.push(`Gegnerart ${id}: teilt sich in sich selbst (endlos)`);
+    for (const p of (a.boss && a.boss.phasen) || []) for (const art of Object.keys(p.ruft || {})) if (!d.gegnerarten[art]) w.push(`Gegnerart ${id}: Boss ruft unbekannte Art ${art}`);
+    if (a.ruestung === 'betaeubt' && !a.rammen) w.push(`Gegnerart ${id}: Rüstung „nur betäubt verwundbar“ ohne Rammen – nur zurückgeschlagene Geschosse betäuben ihn`);
+  }
   for (const [did, dg] of Object.entries(d.dungeons)) {
     if (!dg.raeume[dg.start.raum]) w.push(`${did}: Startraum ${dg.start.raum} fehlt`);
     else {   // jeder Raum vom Start aus über Türen erreichbar?
@@ -671,6 +799,7 @@ function pruefeDaten(d, still = false) {
       }
       for (const welle of r.wellen || []) for (const g of welle) if (!d.gegnerarten[g]) w.push(`${wo}: Welle mit unbekannter Gegnerart ${g}`);
       (r.wellen || []).forEach((welle, i) => { if (!welle.length) w.push(`${wo}: Welle ${i + 1} ist leer`); });
+      for (const e of r.gegner || []) if (e.weg && !e.weg.length) w.push(`${wo}: Gegner auf ${e.feld} hat einen leeren Weg`);
       for (const [dir, t] of Object.entries(r.tueren)) {
         const gegen = dg.raeume[t.ziel] && dg.raeume[t.ziel].tueren[GEGENUEBER[dir]];
         if (!gegen || gegen.ziel !== id) w.push(`${wo}: Tür ${dir} → ${t.ziel} hat keine passende Gegentür`);
@@ -1116,7 +1245,7 @@ function baueRaum(id) {
       const ch = def.karte[r][c], e = legende[ch];
       raum.kachel[r].push(DATEN.kacheln[ch] || 'boden');
       if (!e) continue;
-      if (e.gegner) raum.gegner.push({ art: e.gegner, x: c * T + T / 2, y: r * T + T / 2 });
+      if (e.gegner) raum.gegner.push({ art: e.gegner, x: c * T + T / 2, y: r * T + T / 2, p: {} });
       else if (e.objekt && DATEN.objektarten[e.objekt]) {
         const vorher = raum.objekte[raum.objekte.length - 1];
         if (DATEN.objektarten[e.objekt].kette && vorher && vorher.quelle === e && vorher.r === r && vorher.c + vorher.laenge === c) vorher.laenge++;
@@ -1130,7 +1259,7 @@ function baueRaum(id) {
     if (typ.kette && v && v.art === e.objekt && v.quelle === v.p && v.r === e.feld[1] && v.c + v.laenge === e.feld[0]) v.laenge++;
     else neu(e);
   }
-  for (const e of def.gegner || []) if (DATEN.gegnerarten[e.gegner]) raum.gegner.push({ art: e.gegner, x: e.feld[0] * T + T / 2, y: e.feld[1] * T + T / 2 });
+  for (const e of def.gegner || []) if (DATEN.gegnerarten[e.gegner]) raum.gegner.push({ art: e.gegner, x: e.feld[0] * T + T / 2, y: e.feld[1] * T + T / 2, p: e });
   for (const d of Object.keys(def.tueren)) {
     const [x, y, w, h] = TUER_RECHTECK[d];
     for (let r = y / T; r < (y + h) / T; r++) for (let c = x / T; c < (x + w) / T; c++) raum.kachel[r][c] = 'boden';
@@ -1217,6 +1346,7 @@ function starteDungeon(dungeonId, raumId) {
       unverwundbar: 0, anim: 0, schlagNr: 0, schieben: 0 },
     raum: null, eintritt: null, einlauf: null, wechsel: null, text: null, wellen: null,
     gegner: [], beute: [], effekte: [], fest: [], festGegner: [], festRueck: [],
+    geschosse: [], gefahren: [], banner: null, laerm: null,
   };
   if (!raumId || !dg.raeume[raumId] || raumId === dg.start.raum) {
     betreteRaum(dg.start.raum, { x: dg.start.feld[0] * T, y: dg.start.feld[1] * T, blick: 'runter' });
@@ -1234,9 +1364,13 @@ function betreteRaum(id, eintritt) {
   S.raum = baueRaum(id);
   const h = S.held, def = S.raum.def;
   Object.assign(h, { x: eintritt.x, y: eintritt.y, blick: eintritt.blick, modus: 'normal', t: 0, anim: 0, schieben: 0 });
-  S.gegner = []; S.beute = []; S.effekte = []; S.wellen = null; S.live = new Set();
+  S.gegner = []; S.beute = []; S.effekte = []; S.wellen = null; S.live = new Set(); S.geschosse = []; S.gefahren = []; S.banner = null;
   if (!(def.kampf && S.geraeumt.has(S.raum.schluessel))) {
-    for (const g of S.raum.gegner) if (DATEN.gegnerarten[g.art]) S.gegner.push(neuerGegner(g.art, g.x, g.y));
+    S.raum.gegner.forEach((e, i) => {   // benannte Gegner (mit Signal) und Bosse bleiben besiegt
+      const a = DATEN.gegnerarten[e.art], key = `${S.raum.schluessel}:g${i}`, benannt = a && (e.p.signal || a.signal || a.boss);
+      if (!a || (benannt && S.gemerkt.has(key))) return;
+      S.gegner.push(neuerGegner(e.art, e.x, e.y, { ...e.p, key: benannt ? key : null }));
+    });
     if (def.wellen) S.wellen = { nr: 0, warteschlange: [], spawnUhr: 0, banner: 0, ruhe: 0.5, fertig: false };
   }
   S.einlauf = eintritt.einlauf || null;
@@ -1251,11 +1385,17 @@ function nachEinlauf() {   // der Held steht im Raum: Eintrittspunkt merken (fü
   S.eintritt = { x: h.x, y: h.y, blick: h.blick };
   if (!S.besucht.has(k)) { S.besucht.add(k); if (S.raum.def.einstieg) zeigeText(S.raum.def.einstieg); }
 }
-function neuerGegner(art, x, y) {
-  const a = DATEN.gegnerarten[art];
-  return { art, a, x, y, hw: a.fuss[0], hh: a.fuss[1], lp: a.lp, rueck: 0, vx: 0, vy: 0, blitz: 0, anim: 0,
-    spiegeln: x > S.held.x, getroffen: -1, warten: CFG.gegner.wachAb, sterbend: false, modus: 'jagen', mt: 0,
-    sprungPause: a.sprung ? zufallIn(a.sprung.pause) : 0 };
+const ANGRIFFE = ['sprung', 'schuss', 'rammen', 'stampfen'];
+const BLICKWINKEL = { rechts: 0, runter: Math.PI / 2, links: Math.PI, hoch: -Math.PI / 2 };
+function neuerGegner(art, x, y, inst = {}) {   // inst: Angaben aus dem Raum (signal, weg, blick, key)
+  const a = DATEN.gegnerarten[art], s = a.groesse || 1;
+  const g = { art, a, x, y, s, hw: a.fuss[0] * s, hh: a.fuss[1] * s, lp: a.lp, lpMax: a.lp, rueck: 0, vx: 0, vy: 0, blitz: 0, anim: 0,
+    spiegeln: x > S.held.x, getroffen: -1, warten: CFG.gegner.wachAb, sterbend: false, modus: 'normal', mt: 0, angriff: null,
+    inst, key: inst.key || null, alarm: !a.bemerkt || a.bemerkt.art === 'immer', ausruf: 0, angreifer: true,
+    blickW: BLICKWINKEL[inst.blick] ?? (x > S.held.x ? Math.PI : 0), betaeubt: 0, tempoF: 1, pauseF: 1, phase: 0,
+    pausen: {}, wegI: 0, richtung: 1, irrUhr: 0, irrV: null, kreis: Math.random() < 0.5 ? 1 : -1, gefahr: null };
+  for (const k of ANGRIFFE) if (a[k]) g.pausen[k] = zufallIn(a[k].pause || [1.5, 2.5]);
+  return g;
 }
 
 // ---------- Signale und Bedingungen ----------
@@ -1447,9 +1587,10 @@ function schwertTrefferfelder(h) {   // drei kleine AABB entlang der Klinge
   return [10, 18, 26].map(d => ({ x: gx + Math.cos(a) * d - 5, y: gy + Math.sin(a) * d - 5, w: 10, h: 10 }));
 }
 const heldKoerper = h => ({ x: h.x - 9, y: h.y - 22, w: 18, h: 28 });
-const gegnerKoerper = g => ({ x: g.x - g.a.koerper[0] / 2, y: g.y + g.hh - g.a.koerper[1], w: g.a.koerper[0], h: g.a.koerper[1] });
+const gegnerKoerper = g => ({ x: g.x - g.a.koerper[0] * g.s / 2, y: g.y + g.hh - g.a.koerper[1] * g.s, w: g.a.koerper[0] * g.s, h: g.a.koerper[1] * g.s });
+const geschossKoerper = p => ({ x: p.x - 6, y: p.y - 18, w: 12, h: 12 });   // fliegt etwa in Brusthöhe über dem Schatten
 
-function starteSchlag(h) { h.modus = 'schlag'; h.t = 0; h.schlagNr++; h.anim = 0; }
+function starteSchlag(h) { h.modus = 'schlag'; h.t = 0; h.schlagNr++; h.anim = 0; S.laerm = { x: h.x, y: h.y }; }
 
 // Leertaste vor etwas Lesbarem oder Öffenbarem: lesen bzw. öffnen statt zuschlagen
 function interagiere(h) {
@@ -1536,13 +1677,15 @@ function pruefeSchwert(h) {
     if (g.sterbend || g.getroffen === h.schlagNr) continue;
     const feld = trifft(gegnerKoerper(g));
     if (!feld) continue;
-    g.getroffen = h.schlagNr; g.lp--; g.blitz = CFG.gegner.blitz; g.rueck = CFG.gegner.rueckDauer; g.warten = 0;
-    if (g.modus !== 'jagen') { g.modus = 'jagen'; g.sprungPause = g.a.sprung.pause[0]; }   // Treffer unterbricht den Sprung
-    let rx = g.x - h.x, ry = g.y - h.y; const l = Math.hypot(rx, ry) || 1; rx /= l; ry /= l;
-    g.vx = rx * CFG.gegner.rueckTempo; g.vy = ry * CFG.gegner.rueckTempo;
-    if (g.lp <= 0) g.sterbend = true;
+    g.getroffen = h.schlagNr;
+    treffeGegner(g, h.x, h.y, 1, 'schwert');
     S.effekte.push({ art: 'funke', x: feld.x + feld.w / 2, y: feld.y + feld.h / 2, t: 0 });
     S.stopp = CFG.trefferStopp;
+  }
+  for (const p of S.geschosse) if (p.von === 'gegner' && trifft(geschossKoerper(p))) {   // zurückschlagen: fliegt jetzt gegen die Gegner
+    const l = Math.hypot(p.x - h.x, p.y - h.y) || 1, v = Math.hypot(p.vx, p.vy) * 1.3;
+    p.vx = (p.x - h.x) / l * v; p.vy = (p.y - h.y) / l * v; p.von = 'held';
+    S.effekte.push({ art: 'funke', x: p.x, y: p.y - 12, t: 0 }); S.stopp = 2;
   }
   for (const o of S.raum.objekte) {
     const f = festVon(o);
@@ -1595,66 +1738,331 @@ function updateObjekte() {
 }
 
 // ---------- Gegner ----------
-// jagen: langsam auf den Helden zu. Mit sprung (Daten): in Reichweite kurz anhalten und zittern (zielen,
-// das ist die Warnung), dann geradeaus dorthin springen, wo der Held beim Absprung stand.
+// Eine Gegnerart setzt sich aus Bausteinen zusammen (alle optional, Werte im Kopfkommentar):
+//   ki {wegfindung, reihe, abstand} · bemerkt {art, weite, kegel, nurLicht} · ruhig / alarm (Bewegung)
+//   Angriffe sprung · schuss · rammen · stampfen, jeder mit Ankündigung (zielen) · schild · ruestung · gewicht
+//   Tod: teilen · explodiert · signal (auch je Gegner im Raum) · boss {name, phasen}
+const KI_STANDARD = { wegfindung: false, reihe: false, abstand: 'abstossen' };
+const kiVon = g => ({ ...KI_STANDARD, ...(g.a.ki || {}) });
+const winkelAbstand = (a, b) => { const d = Math.abs(((a - b) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI); return d; };
+const NACHBARN8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+
+// Wegfindung: je Spielschritt ein Abstandsfeld vom Feld des Helden aus (Breitensuche über die für Gegner freien
+// Felder, schräg nur ohne Ecken zu schneiden). Dazu, was die Sicht versperrt (Mauern, Hindernisse – Abgründe nicht).
+let WEG = null;
+function berechneWegfeld() {
+  const n = SPALTEN * ZEILEN, frei = new Uint8Array(n), sicht = new Uint8Array(n), dist = new Int16Array(n).fill(-1);
+  for (let r = 0; r < ZEILEN; r++) for (let c = 0; c < SPALTEN; c++) {
+    const kern = { x: c * T + 8, y: r * T + 8, w: 16, h: 16 };
+    frei[r * SPALTEN + c] = S.festGegner.some(f => ueberlappt(f, kern)) ? 0 : 1;
+    sicht[r * SPALTEN + c] = S.fest.some(f => ueberlappt(f, kern)) ? 0 : 1;
+  }
+  WEG = { frei, sicht, dist };
+  const [hc, hr] = feldVon(S.held.x, S.held.y);
+  if (hc < 0 || hr < 0 || hc >= SPALTEN || hr >= ZEILEN) return;
+  const schlange = [hr * SPALTEN + hc];
+  dist[schlange[0]] = 0;
+  for (let i = 0; i < schlange.length; i++) {
+    const k = schlange[i], c = k % SPALTEN, r = (k - c) / SPALTEN;
+    for (const [dx, dy] of NACHBARN8) {
+      const nc = c + dx, nr = r + dy, m = nr * SPALTEN + nc;
+      if (nc < 0 || nr < 0 || nc >= SPALTEN || nr >= ZEILEN || !frei[m] || dist[m] >= 0) continue;
+      if (dx && dy && (!frei[r * SPALTEN + nc] || !frei[nr * SPALTEN + c])) continue;
+      dist[m] = dist[k] + 1; schlange.push(m);
+    }
+  }
+}
+const wegDist = g => { const [c, r] = feldVon(g.x, g.y); return c >= 0 && r >= 0 && c < SPALTEN && r < ZEILEN ? WEG.dist[r * SPALTEN + c] : -1; };
+function sichtlinie(a, b) {   // nichts Undurchsichtiges zwischen a und b (Proben alle 8 px)
+  const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy), n = Math.ceil(l / 8);
+  const [ac, ar] = feldVon(a.x, a.y), [bc, br] = feldVon(b.x, b.y);
+  for (let i = 1; i < n; i++) {
+    const [c, r] = feldVon(a.x + dx * i / n, a.y + dy * i / n);
+    if ((c === ac && r === ar) || (c === bc && r === br)) continue;
+    if (c < 0 || r < 0 || c >= SPALTEN || r >= ZEILEN || !WEG.sicht[r * SPALTEN + c]) return false;
+  }
+  return true;
+}
+function freieLinie(g, ziel) {   // für Gegner begehbar: Mitte und beide Ränder der Fußbox
+  const dx = ziel.x - g.x, dy = ziel.y - g.y, l = Math.hypot(dx, dy) || 1, ox = -dy / l * g.hw, oy = dx / l * g.hw;
+  for (const k of [0, 1, -1]) {
+    const n = Math.ceil(l / 8);
+    for (let i = 1; i < n; i++) {
+      const [c, r] = feldVon(g.x + k * ox + dx * i / n, g.y + k * oy + dy * i / n);
+      if (c < 0 || r < 0 || c >= SPALTEN || r >= ZEILEN) return false;
+      if (!WEG.frei[r * SPALTEN + c] && !(c === feldVon(ziel.x, ziel.y)[0] && r === feldVon(ziel.x, ziel.y)[1])) return false;
+    }
+  }
+  return true;
+}
+function wegRichtung(g, sinn) {   // sinn 1: zum Helden hin, -1: von ihm fort; null, wenn das Feld nichts weiß
+  const [c, r] = feldVon(g.x, g.y), d0 = wegDist(g);
+  if (d0 < 0) return null;
+  let best = null, bestD = d0;
+  for (const [dx, dy] of NACHBARN8) {
+    const nc = c + dx, nr = r + dy;
+    if (nc < 0 || nr < 0 || nc >= SPALTEN || nr >= ZEILEN) continue;
+    const d = WEG.dist[nr * SPALTEN + nc];
+    if (d < 0 || (dx && dy && (!WEG.frei[r * SPALTEN + nc] || !WEG.frei[nr * SPALTEN + c]))) continue;
+    if (sinn > 0 ? d < bestD : d > bestD) { bestD = d; best = [nc, nr]; }
+  }
+  if (!best) return null;
+  const zx = best[0] * T + T / 2 - g.x, zy = best[1] * T + T / 2 - g.y, l = Math.hypot(zx, zy) || 1;
+  return [zx / l, zy / l];
+}
+function zumHelden(g, h, dx, dy, l) {
+  if (!kiVon(g).wegfindung || freieLinie(g, h)) return [dx / l, dy / l];
+  return wegRichtung(g, 1) || [dx / l, dy / l];
+}
+function vomHelden(g, dx, dy, l) { return (kiVon(g).wegfindung && wegRichtung(g, -1)) || [-dx / l, -dy / l]; }
+
+// Angriffs-Reihenfolge: von den Gegnern mit ki.reihe greifen höchstens CFG.gegner.angreiferMax gleichzeitig an
+// (die mit dem kürzesten Weg; wer schon dran ist, bleibt bevorzugt). Die anderen halten Abstand und kreisen.
+function verteileAngriffe() {
+  const reihe = [];
+  for (const g of S.gegner) {
+    if (!kiVon(g).reihe || g.sterbend) { g.angreifer = true; continue; }
+    if (g.alarm && g.warten <= 0 && (g.a.alarm || 'jagen') !== 'fliehen') reihe.push(g); else g.angreifer = false;
+  }
+  const rang = g => { const d = wegDist(g); return (d < 0 ? 99 : d) - (g.angreifer ? 2 : 0) - (g.modus !== 'normal' ? 50 : 0); };
+  reihe.sort((a, b) => rang(a) - rang(b)).forEach((g, i) => { g.angreifer = i < CFG.gegner.angreiferMax; });
+}
+function warteBewegung(g, h, dx, dy, l) {   // wer nicht dran ist: in einem Ring um den Helden bleiben und kreisen
+  const [nah, fern] = CFG.gegner.wartAbstand;
+  if (l < nah) return { v: vomHelden(g, dx, dy, l), f: 0.7 };
+  if (l > fern) return { v: zumHelden(g, h, dx, dy, l), f: 1 };
+  return { v: [-dy / l * g.kreis, dx / l * g.kreis], f: 0.45, kreisen: true };
+}
+
+function bemerkt(g, h, l) {   // Wahrnehmung: wann wird aus ruhig alarmiert?
+  const b = g.a.bemerkt;
+  if (!b || b.art === 'immer') return true;
+  if (b.art === 'beruehrung') return false;   // erst durch Treffer oder Berührung
+  const weite = b.weite || 160;
+  if (b.art === 'geraeusch') return l < 40 || (S.laerm && Math.hypot(S.laerm.x - g.x, S.laerm.y - g.y) < weite);
+  if (l > weite) return false;
+  if (b.nurLicht && raumDunkel(S.raum) && lichtBei(h.x, h.y - 12) < 0.4) return false;
+  if (b.art === 'kegel' && winkelAbstand(Math.atan2(h.y - g.y, h.x - g.x), g.blickW) > (b.kegel || 90) * Math.PI / 360) return false;
+  return sichtlinie(g, h);
+}
+function alarmiere(g) { if (!g.alarm) { g.alarm = true; g.ausruf = 0.7; } }
+const heldSchautAuf = (g, h) => { const w = BLICKWINKEL[h.blick]; return winkelAbstand(Math.atan2(g.y - h.y, g.x - h.x), w) < Math.PI * 0.4; };
+
+function ruhigeBewegung(g, art) {   // ohne Alarm: stehen, pendeln, Wegpunkte ablaufen, umherirren
+  if (art === 'pendeln_w') return [g.richtung, 0];
+  if (art === 'pendeln_s') return [0, g.richtung];
+  if (art === 'patrouille' && g.inst.weg && g.inst.weg.length) {
+    const p = g.inst.weg[g.wegI % g.inst.weg.length], zx = p[0] * T + T / 2 - g.x, zy = p[1] * T + T / 2 - g.y, l = Math.hypot(zx, zy);
+    if (l < 4) { g.wegI++; return null; }
+    return [zx / l, zy / l];
+  }
+  if (art === 'umherirren' || art === 'patrouille') {
+    g.irrUhr -= DT;
+    if (g.irrUhr <= 0) { const w = Math.floor(Math.random() * 8) * Math.PI / 4; g.irrUhr = zufallIn([0.8, 2]); g.irrV = Math.random() < 0.3 ? null : [Math.cos(w), Math.sin(w)]; }
+    return g.irrV;
+  }
+  return null;
+}
+function kannAngreifen(g, k, at, dx, dy, l) {
+  if (l > (at.reichweite || 150)) return false;
+  if (k === 'schuss') return sichtlinie(g, S.held);
+  if (k === 'rammen') return (Math.abs(dx) < 16 || Math.abs(dy) < 16) && sichtlinie(g, S.held);
+  return true;
+}
+function beginneAngriff(g, k, at, dx, dy) {   // Ankündigung: Zittern, „!“, beim Stampfen ein roter Kreis, beim Rammen die Bahn
+  g.modus = 'zielen'; g.angriff = k; g.mt = (at.zielen ?? 0.5); g.spiegeln = dx < 0;
+  if (!g.a.schild) g.blickW = Math.atan2(dy, dx);
+  if (k === 'rammen') g.ramm = Math.abs(dx) < Math.abs(dy) ? [0, Math.sign(dy) || 1] : [Math.sign(dx) || 1, 0];
+  if (k === 'stampfen') { g.gefahr = { art: 'stampf', von: g, x: g.x, y: g.y, radius: at.radius || 60, zeit: g.mt, t: 0, schaden: at.schaden ?? 1 }; S.gefahren.push(g.gefahr); }
+}
+function updateAngriff(g, h, dx, dy, l) {
+  const at = g.a[g.angriff];
+  g.mt -= DT;
+  if (g.modus === 'zielen') {
+    if (g.mt > 0) return;
+    g.pausen[g.angriff] = zufallIn(at.pause || [1.5, 2.5]) * g.pauseF;
+    if (g.angriff === 'sprung') { g.modus = 'sprung'; g.mt = at.dauer || 0.32; g.vx = dx / l * at.tempo; g.vy = dy / l * at.tempo; g.spiegeln = dx < 0; }
+    else if (g.angriff === 'rammen') { g.modus = 'rammen'; g.mt = at.dauer || 1.2; g.vx = g.ramm[0] * at.tempo; g.vy = g.ramm[1] * at.tempo; }
+    else { if (g.angriff === 'schuss') schiesse(g, at, dx, dy); g.modus = 'normal'; g.gefahr = null; }
+    return;
+  }
+  // Sprung und Rammen: geradeaus, bis die Zeit um ist oder etwas im Weg steht; Rammen gegen ein Hindernis betäubt
+  const x0 = g.x, y0 = g.y, tempo = Math.hypot(g.vx, g.vy);
+  bewege(g, g.vx * DT, g.vy * DT, S.festGegner);
+  const gestoppt = Math.hypot(g.x - x0, g.y - y0) < tempo * DT * 0.3;
+  if (gestoppt && g.modus === 'rammen') {
+    g.betaeubt = at.betaeubt ?? CFG.gegner.betaeubt; S.stopp = 3;
+    S.effekte.push({ art: 'funke', x: g.x + g.ramm[0] * g.hw, y: g.y - 10 * g.s + g.ramm[1] * g.hh, t: 0 });
+  }
+  if (g.mt <= 0 || gestoppt) g.modus = 'normal';
+  g.anim += DT;
+}
+function schiesse(g, at, dx, dy) {
+  const n = at.anzahl || 1, w0 = Math.atan2(dy, dx);
+  for (let i = 0; i < n; i++) {
+    const w = w0 + (i - (n - 1) / 2) * 0.3;
+    S.geschosse.push({ x: g.x + Math.cos(w) * 10, y: g.y + Math.sin(w) * 6, vx: Math.cos(w) * (at.tempo || 160), vy: Math.sin(w) * (at.tempo || 160), schaden: at.schaden ?? 1, von: 'gegner', t: 0 });
+  }
+}
+
 function updateGegner(g, h) {
-  g.blitz = Math.max(0, g.blitz - DT);
-  if (g.faellt !== undefined) { g.faellt -= DT; if (g.faellt <= 0) g.weg = true; return; }
+  g.blitz = Math.max(0, g.blitz - DT); g.ausruf = Math.max(0, g.ausruf - DT);
+  if (g.faellt !== undefined) { g.faellt -= DT; if (g.faellt <= 0) { g.weg = true; gegnerBesiegt(g, 'sturz'); } return; }
   if (g.rueck > 0) {
     g.rueck -= DT; bewege(g, g.vx * DT, g.vy * DT, S.festRueck); g.vx *= 0.88; g.vy *= 0.88;
     const [c, r] = feldVon(g.x, g.y);
-    if (istLoch(c, r)) { g.faellt = 0.4; g.sterbend = true; return; }   // in den Abgrund gestoßen
-    if (g.rueck <= 0 && g.sterbend) {
-      g.weg = true; S.effekte.push({ art: 'puff', x: g.x, y: g.y - 8, t: 0 });
-      if (Math.random() < ((g.a.beute || {}).herz || 0)) S.beute.push({ x: g.x, y: g.y, t: 0 });
-    }
+    if (istLoch(c, r)) { g.faellt = 0.4; g.sterbend = true; if (g.gefahr) g.gefahr.weg = true; return; }   // in den Abgrund gestoßen
+    if (g.rueck <= 0 && g.sterbend) { g.weg = true; S.effekte.push({ art: 'puff', x: g.x, y: g.y - 8 * g.s, t: 0 }); gegnerBesiegt(g, 'treffer'); }
     return;
   }
   if (g.warten > 0) { g.warten -= DT; return; }
   if (S.zustand !== 'spiel') return;
-  const sp = g.a.sprung, dx = h.x - g.x, dy = h.y - g.y, l = Math.hypot(dx, dy) || 1;
-  if (g.modus === 'zielen') {
-    g.mt -= DT;
-    if (g.mt <= 0) { g.modus = 'sprung'; g.mt = sp.dauer; g.vx = dx / l * sp.tempo; g.vy = dy / l * sp.tempo; g.spiegeln = dx < 0; }
-    return;
+  if (g.betaeubt > 0) { g.betaeubt -= DT; return; }
+  const dx = h.x - g.x, dy = h.y - g.y, l = Math.hypot(dx, dy) || 1;
+  if (!g.alarm && bemerkt(g, h, l)) alarmiere(g);
+  if (g.modus !== 'normal') { updateAngriff(g, h, dx, dy, l); return; }
+  if (g.alarm && g.angreifer) for (const k of ANGRIFFE) {
+    const at = g.a[k];
+    if (!at) continue;
+    g.pausen[k] -= DT;
+    if (g.pausen[k] <= 0 && kannAngreifen(g, k, at, dx, dy, l)) { beginneAngriff(g, k, at, dx, dy); return; }
   }
-  if (g.modus === 'sprung') {
-    g.mt -= DT;
-    const x0 = g.x, y0 = g.y; bewege(g, g.vx * DT, g.vy * DT, S.festGegner);
-    const gestoppt = Math.hypot(g.x - x0, g.y - y0) < sp.tempo * DT * 0.3;   // gegen Wand, Hindernis oder Abgrundkante
-    if (g.mt <= 0 || gestoppt) { g.modus = 'jagen'; g.sprungPause = zufallIn(sp.pause); }
-    return;
+  let art = g.alarm ? (g.a.alarm || 'jagen') : (g.a.ruhig || 'stehen');
+  if (art === 'bleiben') art = g.a.ruhig || 'stehen';
+  let v = null, f = 1, kreisen = false;
+  if (art === 'jagen' || art === 'schleichen') {
+    if (art === 'schleichen' && heldSchautAuf(g, h)) v = null;   // bewegt sich nur, wenn der Held wegschaut
+    else if (!g.angreifer) ({ v, f, kreisen } = warteBewegung(g, h, dx, dy, l));
+    else if (l > 2) v = zumHelden(g, h, dx, dy, l);
+  } else if (art === 'fliehen') { if (l < 220) v = vomHelden(g, dx, dy, l); }
+  else v = ruhigeBewegung(g, art);
+  // Blickrichtung: Schildträger drehen sich langsam zum Helden, alle anderen schauen, wohin sie laufen
+  if (g.a.schild && g.alarm) {
+    const ziel = Math.atan2(dy, dx), d = ((ziel - g.blickW + 3 * Math.PI) % (2 * Math.PI)) - Math.PI, max = (g.a.schild.drehtempo || CFG.gegner.drehtempo) * Math.PI / 180 * DT;
+    g.blickW += Math.max(-max, Math.min(max, d));
+  } else if (v) g.blickW = Math.atan2(v[1], v[0]);
+  else if (g.alarm) g.blickW = Math.atan2(dy, dx);
+  const cw = Math.cos(g.blickW); if (Math.abs(cw) > 0.2) g.spiegeln = cw < 0;
+  if (!v) { g.anim = 0; return; }
+  const tempo = g.a.tempo * g.tempoF * f, x0 = g.x, y0 = g.y;
+  bewege(g, v[0] * tempo * DT, v[1] * tempo * DT, S.festGegner);
+  if (Math.hypot(g.x - x0, g.y - y0) < tempo * DT * 0.3) {   // festgelaufen: umdrehen bzw. neu wählen
+    g.richtung = -g.richtung; g.irrUhr = 0; if (kreisen) g.kreis = -g.kreis;
   }
-  if (sp) {
-    g.sprungPause -= DT;
-    if (g.sprungPause <= 0 && l < sp.reichweite) { g.modus = 'zielen'; g.mt = sp.zielen; g.spiegeln = dx < 0; return; }
-  }
-  if (l < 2) return;
-  bewege(g, dx / l * g.a.tempo * DT, dy / l * g.a.tempo * DT, S.festGegner);
-  if (Math.abs(dx) > 2) g.spiegeln = dx < 0;
   g.anim += DT;
 }
 
-function trenneGegner() {   // Gegner sollen nicht ineinander laufen
-  const lebend = S.gegner.filter(g => !g.sterbend && g.modus !== 'sprung');
+// Treffer am Gegner (Schwert, zurückgeschlagenes Geschoss, Explosion). Schild: von vorn prallt das Schwert ab.
+// Rüstung "schlag": der erste Treffer betäubt nur; "betaeubt": verwundbar nur, wenn betäubt (z. B. nach dem Rammen).
+function treffeGegner(g, qx, qy, schaden = 1, quelle = 'schwert') {
+  const a = g.a, gewicht = a.gewicht ?? 1;
+  g.warten = 0; alarmiere(g);
+  let rx = g.x - qx, ry = g.y - qy; const l = Math.hypot(rx, ry) || 1; rx /= l; ry /= l;
+  const stoss = (staerke = 1) => { g.rueck = CFG.gegner.rueckDauer; g.vx = rx * CFG.gegner.rueckTempo * gewicht * staerke; g.vy = ry * CFG.gegner.rueckTempo * gewicht * staerke; };
+  const unterbrich = () => { if (g.modus !== 'normal') { if (g.angriff) g.pausen[g.angriff] = (a[g.angriff].pause || [1.5])[0] * g.pauseF; g.modus = 'normal'; } if (g.gefahr) { g.gefahr.weg = true; g.gefahr = null; } };
+  if (a.schild && g.betaeubt <= 0 && quelle !== 'explosion' && winkelAbstand(Math.atan2(-ry, -rx), g.blickW) < Math.PI / 3) {
+    S.effekte.push({ art: 'funke', x: g.x - rx * 14 * g.s, y: g.y - 10 * g.s, t: 0 });
+    if (quelle === 'schwert') { const h = S.held; h.modus = 'rueckstoss'; h.t = CFG.held.rueckDauer * 0.5; h.vx = -rx * CFG.held.rueckTempo * 0.8; h.vy = -ry * CFG.held.rueckTempo * 0.8; }
+    stoss(0.25);
+    return 'abgeprallt';
+  }
+  if (a.ruestung && g.betaeubt <= 0 && quelle !== 'explosion') {
+    if (a.ruestung === 'schlag' || quelle === 'geschoss') { g.betaeubt = CFG.gegner.betaeubt; unterbrich(); stoss(0.5); return 'betaeubt'; }
+    S.effekte.push({ art: 'funke', x: g.x - rx * 10, y: g.y - 10 * g.s, t: 0 }); stoss(0.3);
+    return 'abgeprallt';
+  }
+  g.lp -= schaden; g.blitz = CFG.gegner.blitz; g.betaeubt = 0;
+  unterbrich(); stoss();
+  if (g.lp <= 0) g.sterbend = true; else pruefePhase(g);
+  return 'treffer';
+}
+function pruefePhase(g) {   // Boss: unter einem Anteil der Lebenspunkte schneller, kürzere Pausen, Verstärkung, Banner
+  const b = g.a.boss;
+  if (!b || !b.phasen) return;
+  while (g.phase < b.phasen.length && g.lp / g.lpMax <= b.phasen[g.phase].ab) {
+    const p = b.phasen[g.phase++];
+    g.tempoF *= p.tempo || 1; g.pauseF *= p.pause || 1;
+    for (const [art, n] of Object.entries(p.ruft || {})) for (let i = 0; i < n && DATEN.gegnerarten[art]; i++) {
+      const q = freierPlatz(11, 6); S.gegner.push(neuerGegner(art, q.x, q.y)); S.effekte.push({ art: 'puff', x: q.x, y: q.y - 8, t: 0 });
+    }
+    S.banner = { text: p.text || (b.name || 'BOSS') + ' WIRD WÜTEND!', t: CFG.welle.banner };
+  }
+}
+function gegnerBesiegt(g, wie) {   // einmal je Gegner: Signal, Beute, Teilen, Explosion
+  if (g.besiegt) return;
+  g.besiegt = true;
+  const a = g.a, sig = g.inst.signal || a.signal;
+  if (sig) S.signale[sig] = true;
+  if (g.key) S.gemerkt.add(g.key);
+  if (wie === 'sturz') return;
+  if (Math.random() < ((a.beute || {}).herz || 0)) S.beute.push({ x: g.x, y: g.y, t: 0 });
+  if (a.teilen && DATEN.gegnerarten[a.teilen.art]) for (let i = 0, n = a.teilen.anzahl || 2; i < n; i++) {
+    const w = i / n * 2 * Math.PI + 0.4, k = neuerGegner(a.teilen.art, g.x, g.y);
+    Object.assign(k, { warten: 0.2, alarm: true, rueck: 0.2, vx: Math.cos(w) * 200, vy: Math.sin(w) * 200 });
+    S.gegner.push(k);
+  }
+  if (a.explodiert) S.gefahren.push({ art: 'explosion', x: g.x, y: g.y, radius: a.explodiert.radius || 56, zeit: a.explodiert.zeit ?? 1, t: 0, schaden: a.explodiert.schaden ?? 2 });
+}
+
+function updateGeschosse(h) {   // fliegen über Abgründe, nicht durch Mauern, Hindernisse und geschlossene Türen
+  S.geschosse = S.geschosse.filter(p => {
+    p.t += DT; p.x += p.vx * DT; p.y += p.vy * DT;
+    const boden = { x: p.x - 3, y: p.y - 3, w: 6, h: 6 }, k = geschossKoerper(p);
+    if (p.x < 0 || p.y < 0 || p.x > BREITE || p.y > HOEHE || p.t > 6 || S.fest.some(f => ueberlappt(f, boden))) {
+      S.effekte.push({ art: 'funke', x: p.x, y: p.y - 12, t: 0 }); return false;
+    }
+    if (p.von === 'gegner') {
+      if (h.modus !== 'fallen' && ueberlappt(k, heldKoerper(h))) { treffeHeld(p.schaden, p.x - p.vx, p.y - p.vy); return false; }
+    } else {
+      const g = S.gegner.find(g => !g.sterbend && g.warten <= 0 && ueberlappt(k, gegnerKoerper(g)));
+      if (g) { treffeGegner(g, p.x - p.vx, p.y - p.vy, p.schaden || 1, 'geschoss'); S.effekte.push({ art: 'funke', x: p.x, y: p.y - 12, t: 0 }); return false; }
+    }
+    return true;
+  });
+}
+function updateGefahren(h) {   // Stampfen und Explosionen: nach der Ankündigung Schaden im Kreis
+  S.gefahren = S.gefahren.filter(z => {
+    if (z.weg) return false;
+    if (z.von) { z.x = z.von.x; z.y = z.von.y; }
+    z.t += DT;
+    if (z.t < z.zeit) return true;
+    if (Math.hypot(h.x - z.x, h.y - z.y) < z.radius) treffeHeld(z.schaden, z.x, z.y);
+    if (z.art === 'explosion') for (const g of S.gegner) if (!g.sterbend && g.warten <= 0 && Math.hypot(g.x - z.x, g.y - z.y) < z.radius) treffeGegner(g, z.x, z.y, z.schaden, 'explosion');
+    for (let i = 0; i < 6; i++) S.effekte.push({ art: 'puff', x: z.x + Math.cos(i) * z.radius * 0.55, y: z.y + Math.sin(i) * z.radius * 0.4, t: 0 });
+    if (z.von) z.von.gefahr = null;
+    S.stopp = 3;
+    return false;
+  });
+}
+
+function trenneGegner() {   // Gegner mit abstand "abstossen" laufen nicht ineinander, "draengen" dürfen sich überlappen
+  const lebend = S.gegner.filter(g => !g.sterbend && g.modus === 'normal' && kiVon(g).abstand !== 'draengen');
   for (let i = 0; i < lebend.length; i++) for (let j = i + 1; j < lebend.length; j++) {
-    const a = lebend[i], b = lebend[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01, min = 24;
+    const a = lebend[i], b = lebend[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01, min = 12 * (a.s + b.s);
     if (d >= min) continue;
     const s = (min - d) / 2;
     bewege(a, -dx / d * s, -dy / d * s, S.festGegner); bewege(b, dx / d * s, dy / d * s, S.festGegner);
   }
 }
 
-function pruefeBeruehrung(h) {
-  if (h.unverwundbar > 0 || S.zustand !== 'spiel' || S.einlauf || h.modus === 'fallen') return;
-  const k = heldKoerper(h);
-  const g = S.gegner.find(g => !g.sterbend && g.warten <= 0 && ueberlappt(k, gegnerKoerper(g)));
-  if (!g) return;
-  h.lp = Math.max(0, h.lp - g.a.schaden);
-  let rx = h.x - g.x, ry = h.y - g.y; const l = Math.hypot(rx, ry) || 1; rx /= l; ry /= l;
+function treffeHeld(schaden, qx, qy) {   // Schaden mit Rückstoß und Schonzeit; false, wenn gerade unverwundbar
+  const h = S.held;
+  if (schaden <= 0 || h.unverwundbar > 0 || S.zustand !== 'spiel' || S.einlauf || h.modus === 'fallen') return false;
+  h.lp = Math.max(0, h.lp - schaden);
+  let rx = h.x - qx, ry = h.y - qy; const l = Math.hypot(rx, ry) || 1; rx /= l; ry /= l;
   h.modus = 'rueckstoss'; h.t = CFG.held.rueckDauer; h.vx = rx * CFG.held.rueckTempo; h.vy = ry * CFG.held.rueckTempo;
   h.unverwundbar = CFG.held.unverwundbar;
   if (h.lp === 0) { S.zustand = 'gameover'; S.endeZeit = S.zeit; }
+  return true;
+}
+function pruefeBeruehrung(h) {   // betäubte Gegner tun nichts; Berührung weckt schlafende
+  if (h.modus === 'fallen') return;
+  const k = heldKoerper(h);
+  for (const g of S.gegner) {
+    if (g.sterbend || g.warten > 0 || g.betaeubt > 0 || !ueberlappt(k, gegnerKoerper(g))) continue;
+    alarmiere(g);
+    if (treffeHeld(g.a.schaden, g.x, g.y)) return;
+  }
 }
 
 function pruefeBeute(h) {   // Herzen: einsammeln heilt ein ganzes Herz, nach einer Weile verschwinden sie
@@ -1687,10 +2095,14 @@ function schritt() {
   if (S.wechsel) { gedrueckt.clear(); return; }   // gerade in den nächsten Raum gegangen
   updateObjekte();
   steuereWellen();
-  if (!S.einlauf) for (const g of S.gegner) updateGegner(g, h);
+  berechneWegfeld();
+  verteileAngriffe();
+  if (!S.einlauf) { for (const g of [...S.gegner]) updateGegner(g, h); updateGeschosse(h); updateGefahren(h); }
   S.gegner = S.gegner.filter(g => !g.weg);
   trenneGegner();
   pruefeBeruehrung(h);
+  if (S.banner && (S.banner.t -= DT) <= 0) S.banner = null;
+  S.laerm = null;
   pruefeBeute(h);
   pruefeGeraeumt();
   aktualisiereSignale();
@@ -1769,20 +2181,58 @@ function zeichneHeld(h) {
   const g = S.text && S.text.gegenstand;   // gefundenen Gegenstand über den Kopf halten
   if (g) ctx.drawImage(g, Math.round(h.x - g.width / 2), Math.round(h.y - 44 - g.height));
 }
+// kleines Schild für Schildträger, Sterne für Betäubte, Geschosse
+const SCHILDCHEN = pixelbild(['.hhhh.', 'hHHHHh', 'hHggHh', 'hHggHh', 'hHHHHh', '.hHHh.', '..hh..'], { h: PAL.fels4, H: PAL.fels2, g: PAL.gold1 }, PAL.schwarz, 2);
+const KUGEL = { gegner: pixelbild(['.ab.', 'abbc', 'bbcc', '.cc.'], { a: PAL.gold2, b: PAL.rot2, c: PAL.rot1 }, PAL.schwarz, 2),
+  held: pixelbild(['.ab.', 'abbc', 'bbcc', '.cc.'], { a: PAL.weiss, b: PAL.blau3, c: PAL.blau1 }, PAL.schwarz, 2) };
 function zeichneGegner(g) {
-  const bild = g.modus === 'sprung' ? 1 : g.rueck > 0 || g.anim === 0 || g.modus === 'zielen' ? 0 : Math.floor(g.anim * 6) % 2;
+  const s = g.s, bild = g.modus === 'sprung' || g.modus === 'rammen' ? 1 : g.rueck > 0 || g.anim === 0 || g.modus === 'zielen' ? 0 : Math.floor(g.anim * 6) % 2;
   const zittern = g.modus === 'zielen' ? (Math.floor(S.zeit * 30) % 2 ? 1 : -1) : 0;
-  const x = Math.round(g.x - 16) + zittern, y = Math.round(g.y + 8 - 32) - (g.modus === 'sprung' ? 3 : 0);
+  const x = Math.round(g.x - 16 * s) + zittern, y = Math.round(g.y + 8 * s - 32 * s) - (g.modus === 'sprung' ? 3 : 0);
   if (g.warten > 0 && g.warten > CFG.gegner.wachAb - 0.4 && Math.floor(g.warten * 16) % 2) return;   // Erscheinen: kurz flackern
   const blitz = g.blitz > 0 && Math.floor(g.blitz * 30) % 2 === 0;
   const b = blitz ? BLITZ[g.a.bild][bild] : GEGNERBILD[g.art][bild];
-  if (g.faellt !== undefined) {   // fällt in den Abgrund
-    const k = Math.max(0, g.faellt / 0.4);
-    ctx.save(); ctx.translate(g.x, g.y); ctx.scale(k, k); zeichneLeinwand(b, -16, -24, g.spiegeln); ctx.restore();
-    return;
+  const mal = (bx, by, k) => { ctx.save(); ctx.translate(bx, by); ctx.scale(k, k); zeichneLeinwand(b, 0, 0, g.spiegeln); ctx.restore(); };
+  if (g.faellt !== undefined) { const k = Math.max(0, g.faellt / 0.4) * s; mal(g.x - 16 * k, g.y - 24 * k, k); return; }   // fällt in den Abgrund
+  const vorn = g.a.schild && Math.sin(g.blickW) > 0.3;   // Schild vor oder hinter dem Körper
+  const schild = () => { const sx = g.x + Math.cos(g.blickW) * 13 * s - 7, sy = g.y - 14 * s + Math.sin(g.blickW) * 6 * s - 7; ctx.drawImage(SCHILDCHEN, Math.round(sx), Math.round(sy)); };
+  if (g.a.schild && !vorn) schild();
+  if (s === 1) zeichneLeinwand(b, x, y, g.spiegeln); else mal(x, y, s);
+  if (g.a.schild && vorn) schild();
+  const kopf = y + 4 - 4 * s;
+  if (g.modus === 'zielen' || g.ausruf > 0) schreibe('!', g.x, kopf - 14, 2, g.modus === 'zielen' ? PAL.rot2 : PAL.gold2);
+  if (g.betaeubt > 0) for (let i = 0; i < 3; i++) {   // Sterne kreisen über dem Kopf
+    const w = S.zeit * 5 + i * 2.1; ctx.fillStyle = i % 2 ? PAL.gold2 : PAL.weiss;
+    ctx.fillRect(Math.round(g.x + Math.cos(w) * 10 * s - 2), Math.round(kopf - 4 + Math.sin(w) * 3), 4, 4);
   }
-  zeichneLeinwand(b, x, y, g.spiegeln);
-  if (g.modus === 'zielen') schreibe('!', g.x, y - 14, 2, PAL.gold2);
+}
+function zeichneWarnungen() {   // am Boden: Sichtkegel ruhiger Wächter, Rammbahn, Stampf- und Explosionskreise
+  for (const g of S.gegner) {
+    const b = g.a.bemerkt;
+    if (b && b.art === 'kegel' && !g.alarm && g.warten <= 0 && !g.sterbend) {
+      const w = (b.kegel || 90) * Math.PI / 360;
+      ctx.fillStyle = 'rgba(244,205,94,.2)'; ctx.strokeStyle = 'rgba(244,205,94,.45)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(g.x, g.y); ctx.arc(g.x, g.y, b.weite || 160, g.blickW - w, g.blickW + w); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    if (g.modus === 'zielen' && g.angriff === 'rammen') {
+      const l = g.a.rammen.reichweite || 300, [rx, ry] = g.ramm, breit = 2 * g.hw + 8;
+      ctx.fillStyle = `rgba(208,87,74,${0.18 + 0.12 * Math.sin(S.zeit * 30)})`;
+      ctx.fillRect(rx ? (rx > 0 ? g.x : g.x - l) : g.x - breit / 2, ry ? (ry > 0 ? g.y - 6 : g.y - l) : g.y - breit / 2, rx ? l : breit, ry ? l + 6 : breit);
+    }
+  }
+  for (const z of S.gefahren) {
+    const k = Math.min(1, z.t / z.zeit), blink = z.zeit - z.t < 0.3 && Math.floor(S.zeit * 20) % 2;
+    ctx.fillStyle = `rgba(208,87,74,${blink ? 0.45 : 0.1 + 0.25 * k})`;
+    ctx.beginPath(); ctx.ellipse(z.x, z.y, z.radius, z.radius * 0.75, 0, 0, 2 * Math.PI); ctx.fill();
+    ctx.strokeStyle = PAL.rot2; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(z.x, z.y, z.radius * k, z.radius * 0.75 * k, 0, 0, 2 * Math.PI); ctx.stroke();
+    if (z.art === 'explosion') { ctx.fillStyle = blink ? PAL.rot2 : PAL.schwarz; ctx.beginPath(); ctx.arc(z.x, z.y - 6, 7, 0, 2 * Math.PI); ctx.fill(); }
+  }
+}
+function zeichneGeschosse() {
+  for (const p of S.geschosse) {
+    ctx.fillStyle = 'rgba(18,13,20,.35)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + 2, 5, 2, 0, 0, 2 * Math.PI); ctx.fill();
+    const b = KUGEL[p.von]; ctx.drawImage(b, Math.round(p.x - b.width / 2), Math.round(p.y - 12 - b.height / 2));
+  }
 }
 const flachesObjekt = o => o.typ.platte || (o.typ.pflock && !o.oben);
 function zeichneObjekt(o) {   // Bild nach Eigenschaft und Zustand
@@ -1850,12 +2300,22 @@ function zeichneHud(h) {
   ctx.drawImage(SCHLUESSEL, 40, 27);
   schreibe(String(S.inventar.schluessel || 0), 72, 26, 2, PAL.creme, false);
   if (S.ausEditor) schreibe('TEST - ESC: ZURÜCK ZUM EDITOR', 40, HOEHE - 14, 1, PAL.gold2, false);
+  const boss = S.gegner.find(g => g.a.boss && !g.besiegt && g.warten <= 0);   // Lebensbalken des Bosses unten
+  if (boss) {
+    const w = 280, x0 = (BREITE - w) / 2, y0 = HOEHE - 28;
+    schreibe(boss.a.boss.name || boss.art, BREITE / 2, y0 - 16, 2, PAL.creme);
+    ctx.fillStyle = PAL.schwarz; ctx.fillRect(x0 - 2, y0 - 2, w + 4, 12);
+    ctx.fillStyle = PAL.rot0; ctx.fillRect(x0, y0, w, 8);
+    ctx.fillStyle = PAL.rot2; ctx.fillRect(x0, y0, Math.round(w * Math.max(0, boss.lp) / boss.lpMax), 8);
+  }
   let x = 96;   // dauerhafte Gegenstände (alles außer Verbrauchtem wie Schlüsseln und Herzen) als Bild
   for (const id of S.besitz) { const w = DATEN.gegenstaende[id].wirkung || {}; if (!w.schluessel && !w.maxLp) { ctx.drawImage(GEGENSTANDBILD[id], x, 20, 20, 20); x += 26; } }
 }
 function zeichneBanner() {
+  if (S.zustand !== 'spiel') return;
+  if (S.banner) { schreibe(S.banner.text, BREITE / 2, 200, 3, PAL.rot2); return; }
   const w = S.wellen;
-  if (!w || w.banner <= 0 || S.zustand !== 'spiel') return;
+  if (!w || w.banner <= 0) return;
   schreibe(`WELLE ${w.nr}/${S.raum.def.wellen.length}`, BREITE / 2, 190, 5, PAL.gold2);
 }
 function zeichneText() {
@@ -1885,7 +2345,8 @@ function zeichneWelt() {
   for (const d of Object.keys(r.def.tueren)) if (r.tuerZu[d]) zeichneTuer(d, !!r.def.tueren[d].schloss);
   for (const o of r.objekte) if (flachesObjekt(o)) zeichneObjekt(o);
   for (const b of S.beute) zeichneBeute(b);
-  for (const g of S.gegner) if (g.warten <= 0 && g.faellt === undefined) schatten(g.x, g.y + 6, 22);
+  for (const g of S.gegner) if (g.warten <= 0 && g.faellt === undefined) schatten(g.x, g.y + 6 * g.s, 22 * g.s);
+  zeichneWarnungen();
   if (h.modus !== 'fallen') schatten(h.x, h.y + 6, 18);
   // nach unterer Kante sortiert: Objekte, Gegner und Held verdecken sich richtig
   const liste = [
@@ -1894,6 +2355,7 @@ function zeichneWelt() {
     { y: h.y + h.hh + 0.5, mal: () => zeichneHeld(h) },
   ];
   liste.sort((a, b) => a.y - b.y).forEach(e => e.mal());
+  zeichneGeschosse();
   zeichneEffekte();
 }
 function zeichne() {
