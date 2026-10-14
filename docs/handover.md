@@ -142,6 +142,14 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   Schuss (zurückschlagbar), Rammen, Stampfen, jeder mit Ankündigung; Schild,
   Rüstung, Gewicht; Teilen, Explodieren; Signal beim Besiegen; Bosse mit
   Lebensbalken und Phasen). Dritter eingebauter Dungeon „Gegner-Probe“ zeigt alles.
+  Seit Entwurf 8: Gegner-Phasen als Zustandsautomat (je Phase eigenes Verhalten,
+  Übergänge nach Zeit/Zufall/LP/Angriff/Trefferserie/Signal, Wendepunkte),
+  neue Bausteine unverwundbar, benommen, Schutz bei Trefferserie, Ausweichen;
+  Lebensbalken wählbar; Boss zerplatzt mit Explosionen und „WOWOWOW“ (erster Ton
+  über WebAudio, M schaltet stumm). Logikprüfung `pruefeLogik()` mit Prüfstatus
+  rot/gelb/grün, Stufen auf der Karte und Reiter „Logik“ im Editor; Ereignisse
+  per Formular; Hilfe-Reiter. Offen: Lösbarkeit von Rätseln *innerhalb* eines
+  Raums (Blöcke) – Ideen dazu siehe Gesprächsverlauf/nächster Schritt.
   Plan: weitere Probe-Räume, daraus ein Tutorial; Raum-/Dungeonformen und
   Randomizer danach. Teststart `?dungeon=<id>&raum=<id>`.
   Grafik aus dem Gutsverwalter-Atlas, eingebettet per `atlas_bauen.py`.
