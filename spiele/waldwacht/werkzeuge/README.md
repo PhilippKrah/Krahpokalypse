@@ -20,6 +20,7 @@ cd spiele/waldwacht/werkzeuge
 python3 kristallgruft.py              # Räume bauen, Türen prüfen (schnell)
 python3 kristallgruft.py --sokoban    # Schieberätsel: lösbar? wie viele Schübe?
 python3 kristallgruft.py --weg        # Löser: kürzester Weg und Sackgassen (ca. 1 Minute)
+python3 kristallgruft.py --fallen     # kann man sich mit Blöcken einsperren? (einige Minuten)
 python3 kristallgruft.py --schreiben  # Löser, dann in ../index.html eintragen
 python3 sokoban_suche.py 8 6 3 3000 0.25
 ```
@@ -44,3 +45,14 @@ Ob diese Aktionen wirklich gehen, prüfen `--sokoban` und Testläufe im Spiel.
 Ergebnis: Ist das Ziel erreichbar? Welcher Weg ist der kürzeste? Gibt es
 **Sackgassen** – Zustände, aus denen man das Ziel nie mehr erreicht (z. B. weil
 ein Schlüssel an der falschen Tür verbraucht wurde)?
+
+## Fallen in Schieberätseln
+
+`--fallen` (Funktion `fallen` in `gruft_kern.py`) geht jede Blockstellung durch,
+die man von den Türen aus erschieben kann, und meldet die, in denen der Held
+eingesperrt ist: keine Tür und kein Abgrund mehr erreichbar. Ein Sturz in einen
+Abgrund kostet ein halbes Herz und bringt ihn zum Raumeingang; raus und wieder
+rein setzt die Blöcke zurück. Deshalb haben die Schiebe-Gehege einen Grubenrand
+(`grubenrand()` im Generator) statt einer Außenmauer – am Rätsel ändert das
+nichts, ein Block, der hineinfällt, wäre ohnehin verloren. Jedes neue
+Schieberätsel mit `--fallen` prüfen: das Ergebnis muss überall „Fallen: 0“ sein.

@@ -203,6 +203,13 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   Schieberätsel und Zeitläufe zusätzlich per Bot im Spiel nachgespielt.
   Generator, Löser und Sokoban-Werkzeuge liegen in `spiele/waldwacht/werkzeuge/`
   (README dort); Änderungen an Fuchsfeste und Kristallgruft dort machen.
+  Nachbesserung nach dem Anspielen: In Gebeinkammer und Stauwehr konnte man
+  sich mit den Blöcken im Gehege einsperren (Sackgasse ohne Ausweg). Die Gehege
+  haben jetzt einen Grubenrand statt der Außenmauer – reinspringen, am Eingang
+  landen, raus und wieder rein setzt die Blöcke zurück; in der Brunnenkammer ist
+  ein Stein weg, der eine Ecke abriegeln konnte. `kristallgruft.py --fallen`
+  prüft das für jede erschiebbare Blockstellung (überall 0 Fallen; in allen
+  anderen Dungeons gab es keine).
   Merkposten für später (vom Nutzer so gewünscht): mehrere Etagen (Treppen,
   Löcher nach unten), Erzählung über die Umgebung, große Räume mit mitlaufender
   Kamera, die Kernmechanik des Tutorials (nicht „Rückstoß“ – kommt später),
