@@ -179,8 +179,7 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   Turmeule auf einer Insel im Abgrund), Dreifarb-Kristalle, optionaler
   Zeitlauf zum Herzcontainer, Endboss Schattenfuchs (Phasen, Knaller-
   Explosionen treffen ihn immer). Logikprüfung: 10 Stufen, keine Hinweise.
-  Erzeugt mit einem Python-Skript (nicht im Repo); Änderungen jetzt direkt im
-  JSON oder per Editor.
+  Erzeugt mit `spiele/waldwacht/werkzeuge/fuchsfeste.py`.
   Seit Entwurf 11: **bis zu drei Türen je Wand** (`n1 n n3`, `w1 w w3` …; 1 =
   links/oben, 3 = rechts/unten, Gegentür an derselben Stelle der Nachbarwand) –
   im Spiel, in Logik, Datenprüfung und Editor („＋ Tür links/rechts“, versetzte
@@ -202,6 +201,8 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   alle Zustände (Ort, Kristallfarben, Signale, Schlüssel; rund 180 000
   Zustände): lösbar, keine Sackgasse in irgendeiner Reihenfolge; alle
   Schieberätsel und Zeitläufe zusätzlich per Bot im Spiel nachgespielt.
+  Generator, Löser und Sokoban-Werkzeuge liegen in `spiele/waldwacht/werkzeuge/`
+  (README dort); Änderungen an Fuchsfeste und Kristallgruft dort machen.
   Merkposten für später (vom Nutzer so gewünscht): mehrere Etagen (Treppen,
   Löcher nach unten), Erzählung über die Umgebung, große Räume mit mitlaufender
   Kamera, die Kernmechanik des Tutorials (nicht „Rückstoß“ – kommt später),
