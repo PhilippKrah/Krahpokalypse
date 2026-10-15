@@ -179,8 +179,30 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   Turmeule auf einer Insel im Abgrund), Dreifarb-Kristalle, optionaler
   Zeitlauf zum Herzcontainer, Endboss Schattenfuchs (Phasen, Knaller-
   Explosionen treffen ihn immer). Logikprüfung: 10 Stufen, keine Hinweise.
-  Erzeugt mit einem Python-Skript (nicht im Repo); Änderungen jetzt direkt im
-  JSON oder per Editor.
+  Erzeugt mit `spiele/waldwacht/werkzeuge/fuchsfeste.py`.
+  Seit Entwurf 11: **bis zu drei Türen je Wand** (`n1 n n3`, `w1 w w3` …; 1 =
+  links/oben, 3 = rechts/unten, Gegentür an derselben Stelle der Nachbarwand) –
+  im Spiel, in Logik, Datenprüfung und Editor („＋ Tür links/rechts“, versetzte
+  Marken auf der Karte). Pflöcke ohne Kristalltyp sind **Sperren**, die über ein
+  Signal hoch- und runterfahren (`oben_wenn`, im Editor „Gesteuert von: Signal“).
+  Hauptmenü in zwei Ebenen: Dungeons, Eigene Dungeons, Editor.
+  **Fünfter Dungeon „Die Kristallgruft“** (`kristallgruft`, 33 Räume, schwer, ohne
+  Erklärschilder): Grundkristall Blau/Orange und Schleusenkristall Rot/Grün/Lila,
+  deren Farben Türen, Pflöcke und Raumtrenner im ganzen Dungeon steuern
+  (Luftschleusen, Käfige, die eine Farbe „festhalten“, Türen je Farbe); drei
+  Sokoban-Rätsel (Blöcke auf Platten, per Ereignis zum Signal), zwei
+  Brücken-Rätsel, zwei lange Zeitläufe, Dunkel-Labyrinthe, ein
+  Reihenfolge-Rätsel (die Glockenstube zeigt die Folge mit Fackeln, die Halle
+  der Folge prüft sie per Ereignissen), Kreuzhalle mit Siegel-Sperren aus beiden
+  Flügeln, Doppelkäfig (braucht Orange und Lila zugleich). Bosse: Grubenkeiler
+  (gepanzert, praktisch nur über die Abgründe zu besiegen), Schildwache (nur von
+  hinten), Kristallwächter (nur verwundbar, nachdem man den Kristall auf die
+  jeweils andere Farbe geschlagen hat). Geprüft mit einem eigenen Löser über
+  alle Zustände (Ort, Kristallfarben, Signale, Schlüssel; rund 180 000
+  Zustände): lösbar, keine Sackgasse in irgendeiner Reihenfolge; alle
+  Schieberätsel und Zeitläufe zusätzlich per Bot im Spiel nachgespielt.
+  Generator, Löser und Sokoban-Werkzeuge liegen in `spiele/waldwacht/werkzeuge/`
+  (README dort); Änderungen an Fuchsfeste und Kristallgruft dort machen.
   Merkposten für später (vom Nutzer so gewünscht): mehrere Etagen (Treppen,
   Löcher nach unten), Erzählung über die Umgebung, große Räume mit mitlaufender
   Kamera, die Kernmechanik des Tutorials (nicht „Rückstoß“ – kommt später),
