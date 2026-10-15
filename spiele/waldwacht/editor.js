@@ -1197,7 +1197,7 @@ const Editor = (() => {
       <ol class="ablauf">${p.logik.ablauf.map(a => `<li><b>Stufe ${a.stufe}</b>
         ${a.raeume.length ? `<div>erreichbar: ${a.raeume.map(id => `<button data-raumwahl="${id}">Raum ${nr(id)}</button>`).join(' ')}</div>` : ''}
         ${a.erhalten.length ? `<div>dort gibt es: ${a.erhalten.map(e => `${was(e)} <small>(Raum ${nr(e.raum)})</small>`).join(' · ')}</div>` : ''}
-        ${a.geoeffnet.length ? `<div>aufgeschlossen: ${a.geoeffnet.map(t => `Raum ${nr(t.raum)} ${richtung[t.dir]}`).join(' · ')}</div>` : ''}</li>`).join('')}</ol>
+        ${a.geoeffnet.length ? `<div>aufgeschlossen: ${a.geoeffnet.map(t => `Raum ${nr(t.raum)} ${TUERNAME(t.dir)}`).join(' · ')}</div>` : ''}</li>`).join('')}</ol>
       <h3>Rätselräume und Nachweise</h3>
       <p class="klein">Ob ein Rätsel innerhalb eines Raums lösbar ist, weist ein Testlauf nach: Im Raumtest jede Tür und jede Truhe einmal erreichen. Der Nachweis gilt, bis du den Raum änderst.</p>
       ${(() => { const n = Object.entries(p.logik.nachweise || {}).filter(([, x]) => x.raetsel); return n.length ? `<ul class="nachweisliste">${n.map(([id, x]) => `<li class="${x.status}"><button data-raumwahl="${id}">Raum ${nr(id)}</button> ${{ ok: '✓ nachgewiesen', teil: `${x.erreicht.length}/${x.ziele.length} Ziele`, veraltet: 'geändert – neu testen', offen: 'noch nicht getestet' }[x.status]}${x.status !== 'ok' && x.erreicht.length < x.ziele.length ? ` <small>(fehlt: ${x.ziele.filter(z => !x.erreicht.includes(z)).map(ZIEL_NAME).join(', ')})</small>` : ''}</li>`).join('')}</ul>` : '<p class="klein">Keine Rätselräume (Abgründe, Blöcke, Platten, Kristalle, Pflöcke, bedingte Truhen).</p>'; })()}
