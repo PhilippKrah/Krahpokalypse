@@ -40,7 +40,8 @@ const Editor = (() => {
         'Bleibt sie unten, gilt ihr Signal danach im ganzen Dungeon. Sonst nur, solange man im Raum ist und etwas daraufsteht. Der Zeitschalter hält das Signal nach dem Loslassen noch einige Sekunden (Restzeit über der Platte, Ticken).'],
     ],
     kristall: [['kristalltyp', 'kristalltyp', 'Kristalltyp', 'Ein Schwertschlag schaltet alle Kristalle dieses Typs eine Farbe weiter – im ganzen Dungeon.']],
-    pflock: [['kristalltyp', 'kristalltyp', 'Kristalltyp'], ['farbe', 'pflockfarbe', 'Oben bei Farbe', 'Der Pflock steht oben (versperrt den Weg), solange sein Kristalltyp diese Farbe zeigt.']],
+    pflock: [['kristalltyp', 'pflocktyp', 'Gesteuert von', 'Kristalltyp: steht oben, solange der Typ die Farbe des Pflocks zeigt. Signal (Sperre): steht oben, solange die Bedingung gilt – z. B. „nicht tor-auf“, damit eine Platte oder ein Gegner in einem anderen Raum den Weg freigibt.'],
+      ['farbe', 'pflockfarbe', 'Farbe', 'Beim Kristalltyp: bei dieser Farbe steht der Pflock oben. Bei der Sperre nur das Aussehen.']],
     leuchtet: [['an_wenn', 'brennt', 'Brennt'], ['merken', 'janein', 'einmal entzündet = brennt weiter']],
   };
   const VORGABE = {
@@ -228,7 +229,7 @@ const Editor = (() => {
     const d = dg(), id = neueRaumId(d), nr = Object.keys(d.raeume).length + 1, r = leererRaum(nr, [x, y]);
     d.raeume[id] = r;
     if (verbindeMit) {   // Tür zum Raum, von dem aus angelegt wurde
-      const [vid, v] = verbindeMit, dir = Object.keys(RICHTUNG).find(k => v.pos[0] + RICHTUNG[k][0] === x && v.pos[1] + RICHTUNG[k][1] === y);
+      const [vid, v] = verbindeMit, dir = ['n', 'o', 's', 'w'].find(k => v.pos[0] + RICHTUNG[k][0] === x && v.pos[1] + RICHTUNG[k][1] === y);   // Mitteltür
       if (dir) { v.tueren[dir] = { ziel: id }; r.tueren[GEGENUEBER[dir]] = { ziel: vid }; }
     }
     if (Z.fuellen.auto) befuelle(r, false);
@@ -518,10 +519,10 @@ const Editor = (() => {
         if (nw.status === 'offen') { g.strokeStyle = '#120d14'; g.lineWidth = 1.5; g.stroke(); g.lineWidth = 1; }
         else { g.fillStyle = nw.status === 'ok' ? '#58933b' : '#e0a33a'; g.fill(); }
       }
-      for (const [dir, t] of Object.entries(r.tueren)) {   // Verbindungen
-        const [dx, dy] = RICHTUNG[dir], art = tuerArt(t);
+      for (const [dir, t] of Object.entries(r.tueren)) {   // Verbindungen, bei mehreren Türen je Wand versetzt
+        const [dx, dy] = RICHTUNG[dir], art = tuerArt(t), v = dir[1] === '1' ? -1 : dir[1] === '3' ? 1 : 0;
         g.fillStyle = TUERFARBE[art];
-        if (dx) g.fillRect(dx > 0 ? px + KZ.w - 6 : px, py + KZ.h / 2 - 3, 6, 6); else g.fillRect(px + KZ.w / 2 - 3, dy > 0 ? py + KZ.h - 6 : py, 6, 6);
+        if (dx) g.fillRect(dx > 0 ? px + KZ.w - 6 : px, py + KZ.h / 2 - 3 + v * 9, 6, 6); else g.fillRect(px + KZ.w / 2 - 3 + v * 12, dy > 0 ? py + KZ.h - 6 : py, 6, 6);
       }
     }
   }
@@ -650,7 +651,9 @@ const Editor = (() => {
     }
     if (typ === 'kristalltyp') return feld(label, auswahlfeld('a.' + name, w, Object.fromEntries(Object.keys(DATEN.kristalltypen).map(k => [k, typText(k)]))) +
       ' <button data-ansicht="kristalle" class="klein">Kristalltypen verwalten …</button>', hilfe);
-    if (typ === 'pflockfarbe') return feld(label, auswahlfeld('a.' + name, w, Object.fromEntries(kristallTyp(a.kristalltyp).farben.map(f => [f, farbName(f)]))), hilfe);
+    if (typ === 'pflocktyp') return feld(label, auswahlfeld('a.' + name, w || '', { ...Object.fromEntries(Object.keys(DATEN.kristalltypen).map(k => [k, 'Kristall: ' + typText(k)])), '': 'Signal (Sperre)' }), hilfe) +
+      (a.kristalltyp ? '' : feld('Steht oben, solange', bedingungsFormular('a.oben_wenn', a.oben_wenn)));
+    if (typ === 'pflockfarbe') return feld(label, auswahlfeld('a.' + name, w, Object.fromEntries((a.kristalltyp ? kristallTyp(a.kristalltyp).farben : Object.keys(KFARBEN)).map(f => [f, farbName(f)]))), hilfe);
     if (typ === 'plattenwirkung') return feld(label, wahlHtml('data-plattenwirkung', a.merken ? '1' : a.nachlauf ? 'zeit' : '', { '': 'nur solange etwas daraufsteht', '1': 'einmal drücken genügt – bleibt unten', zeit: 'Zeitschalter: hält noch einige Sekunden' }) +
       (a.nachlauf ? feld('Sekunden', `<input type="number" min="1" step="0.5" data-f="a.nachlauf" value="${a.nachlauf}">`) : ''), hilfe);
     if (typ === 'brennt') return feld(label, bedingungsFormular('a.an_wenn', a.an_wenn, { nie: true, istNie: a.an === false }), hilfe);
@@ -666,10 +669,19 @@ const Editor = (() => {
   function renderRechts() {
     const el = $('#ed-rechts'), r = raum(), d = dg();
     if (!r) { el.innerHTML = ''; return; }
-    const tueren = Object.keys(RICHTUNG).map(dir => {
-      const nb = nachbar(dir), t = r.tueren[dir], art = tuerArt(t);
-      if (!nb) return `<div class="tuer"><b>${RICHTUNGSNAME[dir]}</b> <span class="klein">kein Nachbarraum</span> <button data-a="nachbar" data-dir="${dir}">Raum anlegen</button></div>`;
-      return `<div class="tuer"><b>${RICHTUNGSNAME[dir]}</b> → ${esc(nb[1].nr)} ${esc(nb[1].titel)}<br>
+    const tueren = ['n', 'o', 's', 'w'].map(seite => {   // je Wand bis zu drei Türen: Mitte immer, links/rechts bzw. oben/unten bei Bedarf
+      const nb = nachbar(seite);
+      if (!nb) return `<div class="tuer"><b>${RICHTUNGSNAME[seite]}</b> <span class="klein">kein Nachbarraum</span> <button data-a="nachbar" data-dir="${seite}">Raum anlegen</button></div>`;
+      const stellen = [seite + '1', seite, seite + '3'], quer = seite === 'n' || seite === 's';
+      const name = d => d.length === 1 ? 'Mitte' : d[1] === '1' ? (quer ? 'links' : 'oben') : (quer ? 'rechts' : 'unten');
+      const zeigen = stellen.filter(d => d === seite || r.tueren[d]), fehlen = stellen.filter(d => !zeigen.includes(d));
+      return `<div class="tuerwand"><b>${RICHTUNGSNAME[seite]}</b> → ${esc(nb[1].nr)} ${esc(nb[1].titel)}
+        ${zeigen.map(dir => tuerZeile(r, dir, zeigen.length > 1 || dir !== seite ? name(dir) : '')).join('')}
+        ${fehlen.length ? `<div class="knoepfe">${fehlen.map(dir => `<button data-a="tuerplus" data-dir="${dir}" title="Zweite oder dritte Tür in dieser Wand">＋ Tür ${name(dir)}</button>`).join('')}</div>` : ''}</div>`;
+    }).join('');
+    function tuerZeile(r, dir, stelle) {
+      const t = r.tueren[dir], art = tuerArt(t);
+      return `<div class="tuer">${stelle ? `<span class="klein">${stelle}:</span> ` : ''}
         <select data-tuer="${dir}">${Object.entries(TUERARTEN).map(([k, v]) => `<option value="${k}"${k === art ? ' selected' : ''}>${v}</option>`).join('')}</select>
         ${art === 'bedingung' ? `<div class="klein">offen, solange:</div>${bedingungsFormular('tuer.' + dir, t.offen_wenn)}
           <label class="klein"><input type="checkbox" data-tuermerk="${dir}"${t.merken ? ' checked' : ''}> bleibt offen, wenn einmal erfüllt</label>` : ''}
@@ -677,7 +689,7 @@ const Editor = (() => {
         ${art === 'gross' ? '<div class="klein">braucht den großen Schlüssel (Truhe mit Inhalt „grosser_schluessel“); er bleibt erhalten – typisch für die Bosstür</div>' : ''}
         ${art === 'riegel' ? '<div class="klein">Von hier aus verschlossen. Wer von der anderen Seite kommt, schiebt den Riegel auf – danach ist sie von beiden Seiten offen. Ideal als Abkürzung zurück zum Anfang.</div>' : ''}
         ${art === 'gegenstand' ? `<div class="klein">Gitter mit dem Bild des Gegenstands – geht auf, sobald man ihn hat:</div>${wahlHtml(`data-tuerding="${dir}"`, t.braucht, Object.fromEntries(Object.entries(DATEN.gegenstaende).filter(([, x]) => !(x.wirkung || {}).schluessel).map(([k, x]) => [k, x.name || k])))}` : ''}</div>`;
-    }).join('');
+    }
     const a = Z.auswahl && r[Z.auswahl.liste][Z.auswahl.i];
     let auswahl = '<p class="klein">Mit „Auswählen“ ein Objekt oder einen Gegner anklicken, um es einzustellen. Frisch gesetzte Objekte sind gleich ausgewählt.</p>';
     if (a && Z.auswahl.liste === 'gegner') {
@@ -749,7 +761,7 @@ const Editor = (() => {
   }
   function vorgabenHtml(r, d) {
     const v = vorgaben(Z.raum), q = Object.keys(dungeonSignale(DATEN, DATEN.dungeons[Z.dungeon]).quellen).filter(n => !n.includes('=') && !n.startsWith('hat:'));
-    const eingaenge = { ...(d.start.raum === Z.raum ? { start: 'Startpunkt' } : {}), ...Object.fromEntries(Object.keys(r.tueren).map(dir => [dir, 'Tür ' + RICHTUNGSNAME[dir]])), mitte: 'Raummitte' };
+    const eingaenge = { ...(d.start.raum === Z.raum ? { start: 'Startpunkt' } : {}), ...Object.fromEntries(Object.keys(r.tueren).map(dir => [dir, 'Tür ' + TUERNAME(dir)])), mitte: 'Raummitte' };
     const gegenst = Object.entries(DATEN.gegenstaende).filter(([, g]) => !(g.wirkung || {}).schluessel);
     const kurz = [v.signale.length ? v.signale.map(n => '„' + n + '“').join(', ') : '', v.besitz.map(id => (DATEN.gegenstaende[id] || {}).name || id).join(', '), v.schluessel ? v.schluessel + ' Schlüssel' : ''].filter(Boolean).join(' · ') || 'nichts';
     return `<details class="vorgaben"${Z.vorgabenOffen ? ' open' : ''}><summary class="klein">Test-Vorgaben: ${esc(eingaenge[v.eingang] || 'Tür')} · ${esc(kurz)}${Z.vorgaben[Z.raum] ? ' (angepasst)' : v.ausLogik ? ' (aus der Logik)' : ''}</summary>
@@ -838,7 +850,10 @@ const Editor = (() => {
       }
       if (schluessel === 'merken' && t.tagName === 'SELECT') wert = wert === '1';
       if (wert === undefined || wert === '' || wert === false) delete a[schluessel]; else a[schluessel] = wert;
-      if (schluessel === 'kristalltyp' && a.farbe !== undefined && !kristallTyp(wert).farben.includes(a.farbe)) a.farbe = kristallTyp(wert).farben[0];
+      if (schluessel === 'kristalltyp' && wert && a.farbe !== undefined && !kristallTyp(wert).farben.includes(a.farbe)) a.farbe = kristallTyp(wert).farben[0];
+      if (schluessel === 'kristalltyp' && a.objekt === 'pflock') {   // Kristall- oder Signal-Pflock (Sperre)
+        if (wert) delete a.oben_wenn; else { if (a.oben_wenn === undefined) a.oben_wenn = { nicht: 'sperre-auf' }; a.farbe = 'weiss'; }
+      }
       if (Z.auswahl.liste === 'objekte') vorlageAus(a);
       if (['kristalltyp', 'signal', 'merken', 'gegner'].includes(schluessel)) { aenderung(); renderRechts(); return; }
     }
@@ -1166,13 +1181,13 @@ const Editor = (() => {
     const el = $('#ed-logikansicht'), d = dg(), p = Z.pruefung;
     if (!d) { el.innerHTML = '<div class="spalte breit"><p>Erst einen Dungeon wählen.</p></div>'; return; }
     if (!p) { el.innerHTML = '<div class="spalte breit"><p>Prüfe …</p></div>'; zeigeWarnungen(); return; }
-    const nr = id => esc((d.raeume[id] || {}).nr || id), richtung = { n: 'Nord', o: 'Ost', s: 'Süd', w: 'West' };
+    const nr = id => esc((d.raeume[id] || {}).nr || id);
     const was = e => e.was === 'truhe' ? `Truhe: ${esc((DATEN.gegenstaende[e.name] || {}).name || e.name)}` : e.was === 'kristall' ? `Kristall ${esc(kristallTyp(e.name).name)} schaltbar` : `Signal „${esc(e.name)}“${e.ereignis ? ' (Ereignis)' : ''}`;
     const tueren = [];
     for (const [id, r] of Object.entries(d.raeume)) for (const [dir, t] of Object.entries(r.tueren)) {
       if (!t.schloss && t.offen_wenn === undefined) continue;
       const bed = t.schloss ? 'kleiner Schlüssel' : bedingungLesbar(t.offen_wenn);
-      tueren.push(`<tr><td>Raum ${nr(id)} ${richtung[dir]}</td><td>→ Raum ${nr(t.ziel)}</td><td>${esc(bed)}${t.merken ? ' (bleibt offen)' : ''}</td></tr>`);
+      tueren.push(`<tr><td>Raum ${nr(id)} ${TUERNAME(dir)}</td><td>→ Raum ${nr(t.ziel)}</td><td>${esc(bed)}${t.merken ? ' (bleibt offen)' : ''}</td></tr>`);
     }
     el.innerHTML = `<div class="spalte breit">
       <h3>Prüfung: ${p.fehler.length ? `<span class="rot">${p.fehler.length} Fehler</span>` : '<span class="gruen">lösbar</span>'}${p.hinweise.length ? ` · <span class="gelb">${p.hinweise.length} Hinweise</span>` : ''}</h3>
@@ -1249,7 +1264,7 @@ const Editor = (() => {
 
   // ---------- Hilfe ----------
   const HILFE = [
-    ['Grundidee', `Ein <b>Dungeon</b> besteht aus Räumen auf einem Raster. Jeder Raum ist 20 × 15 Felder groß; der Rand ist Mauer, Türen liegen fest in der Mitte jeder Seite.
+    ['Grundidee', `Ein <b>Dungeon</b> besteht aus Räumen auf einem Raster. Jeder Raum ist 20 × 15 Felder groß; der Rand ist Mauer, Türen liegen an festen Stellen: in der Mitte jeder Seite und auf Wunsch zwei weitere je Wand (links/rechts bzw. oben/unten).
       Du malst Gelände, setzt Objekte und Gegner, stellst Türen ein und testest sofort. Alles wird automatisch im Browser gespeichert – <b>Export</b> sichert es als Datei.`],
     ['Räume und Karte', `Links die Dungeon-Karte: Raum anklicken = bearbeiten, „+“ = neuen Raum anlegen (neben dem gewählten gleich mit Tür). ★ ist der Startraum.
       Rechts die Einstellungen des Raums: Titel, Licht, Kampfraum (Türen erst offen, wenn alle Gegner besiegt sind), Einstiegstext, Wellen, Türen, Ereignisse.
@@ -1257,7 +1272,8 @@ const Editor = (() => {
     ['Malen', `Werkzeuge oben: <b>Auswählen</b> (Objekt/Gegner anklicken und rechts einstellen), <b>Pipette</b> (übernimmt ein Feld samt Einstellungen; auch Alt+Klick),
       <b>Radierer</b> (auch rechte Maustaste), <b>Startpunkt</b>. Form <b>Rechteck</b> (oder Umschalt+Ziehen) füllt Flächen. Ein eingestelltes Objekt ist Vorlage für alle weiteren seiner Art.
       Strg+Z macht rückgängig.`],
-    ['Türen', `Je Seite: keine, offen, Schloss (kleiner Schlüssel, wird verbraucht), großes Schloss (großer Schlüssel, bleibt – die Bosstür),
+    ['Türen', `Je Wand bis zu drei Türen (Mitte, dazu mit „＋ Tür …“ links/rechts bzw. oben/unten), alle zum selben Nachbarraum; die Gegentür liegt dort an derselben Stelle. So lässt sich ein Raum mit Abgründen oder Pflöcken in Abschnitte teilen, die man über verschiedene Türen erreicht.
+      Je Tür: keine, offen, Schloss (kleiner Schlüssel, wird verbraucht), großes Schloss (großer Schlüssel, bleibt – die Bosstür),
       Tor für einen Gegenstand (zeigt dessen Bild, öffnet sich, sobald man ihn hat), Riegel (von dieser Seite zu, von der anderen zu öffnen – für Abkürzungen zurück),
       Kampf (offen, wenn der Raum geräumt ist) oder Bedingung.
       Eine Tür gilt immer für die Seite, auf der sie steht – wer hereinkommt, findet sie von innen offen.`],
@@ -1314,6 +1330,7 @@ const Editor = (() => {
       case 'testraum': teste(Z.raum); break;
       case 'startraum': merke(); d.start = { raum: Z.raum, feld: [9.5, 8.5] }; aenderung(); renderRechts(); break;
       case 'raumloeschen': loescheRaum(); break;
+      case 'tuerplus': setzeTuer(el.dataset.dir, 'offen'); break;
       case 'nachbar': { merke(); const r = raum(), [dx, dy] = RICHTUNG[el.dataset.dir]; legeRaumAn(r.pos[0] + dx, r.pos[1] + dy, [Z.raum, r]); speichern(); render(); break; }
       case 'befuellen': merke(); befuelle(raum()); Z.auswahl = null; aenderung(); renderRechts(); break;
       case 'auswahlweg': merke(); raum()[Z.auswahl.liste].splice(Z.auswahl.i, 1); Z.auswahl = null; aenderung(); renderRechts(); break;
@@ -1404,6 +1421,7 @@ const Editor = (() => {
   #editor #ed-werkzeuge{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px}
   #editor .gruppe{display:flex;flex-wrap:wrap;gap:3px;align-items:center} #editor .gruppe>span{font-size:11px;color:#848e92;margin-right:2px}
   #editor .wz{padding:2px;min-width:38px;min-height:38px} #editor .wz canvas{display:block;image-rendering:pixelated;width:32px;height:32px}
+  #editor .tuerwand{margin:6px 0;padding:6px;background:#1c1e26;border-radius:4px} #editor .tuerwand .tuer{margin:4px 0 0;padding:0;background:none}
   #editor .tuer{margin:6px 0;padding:6px;background:#1c1e26;border-radius:4px} #editor .tuer select{margin-top:3px}
   #editor .warnungen ul{margin:4px 0;padding-left:18px;color:#d0574a} #editor .ok{color:#8abd4f}
   #editor .liste{display:flex;flex-direction:column;gap:3px} #editor .liste button{text-align:left} #editor .liste small{color:#848e92}

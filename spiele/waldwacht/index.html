@@ -13,7 +13,7 @@
                    bild ("@intern" oder Atlasname) · bilder+kette (gleiche Zeichen nebeneinander = ein Objekt) · fest [x,y,w,h]
                    schneidbar {herz} · schiebbar · lesbar (text) · oeffnbar (inhalt) · platte (signal, wer: block|alle, merken)
                    kristall (kristalltyp; Schwert: nächste Farbe) · pflock (kristalltyp + farbe: oben, wenn der Typ diese
-                   Farbe zeigt; sonst oben_wenn) · leuchtet {radius, staerke} (an, an_wenn)
+                   Farbe zeigt; ohne kristalltyp: oben_wenn, z. B. Sperre {"nicht": "signal"}) · leuchtet {radius, staerke} (an, an_wenn)
                  Parameter je Objekt: sichtbar_wenn, an_wenn, oben_wenn, merken (einmal wahr = bleibt wahr), spiegeln
     waffen       { id: {name, art: stich|schwung, laenge (px), schaden, dauer (s), rueckstoss (Faktor), schneidet (Büsche),
                  reflektiert (Kugeln zurückschlagen), aufladen {zeit, schaden} (halten → Kreisschwung)} } – jede Waffe ist zugleich ein
@@ -37,6 +37,8 @@
                  karte (15 Zeilen × 20 Zeichen), zeichen, objekte [{objekt, feld:[c,r], …}], gegner [{gegner, feld}],
                  gegner [{gegner, feld, signal, weg [[c,r]…], blick}],
                  tueren {n|o|s|w: {ziel, schloss (true | "gross"), riegel, braucht (Gegenstand), offen_wenn, merken}}, wellen [[gegnerart…]…], einstieg (Text),
+                 je Wand bis zu drei Türen: n1 n n3 (links, Mitte, rechts), w1 w w3 (oben, Mitte, unten), ebenso s und o;
+                 die Gegentür liegt an derselben Stelle der Nachbarwand (n1 ↔ s1, o3 ↔ w3),
                  ereignisse [{wenn, wiederholen, schritte [{art: signal|warte|warteBis|text, signal, wert, s, wenn, text}]}]
                  (ältere Form {wenn, text, setze}); Platten optional nachlauf (Sekunden: Zeitschalter)
   Bedingungen: "signal" · {"alle": [...]} · {"eine": [...]} · {"nicht": ...}. Eingebaut: "geraeumt" (keine Gegner mehr, Wellen fertig),
@@ -190,7 +192,10 @@
                 "wendepunkte": [ { "wenn": "lp", "unter": 0.5, "ziel": 2, "text": "DER KÖNIG WIRD WÜTEND!", "ruft": { "fuchs": 2 } } ] },
     "panzerkeiler": {"bild": "hase", "farben": {"#6f6463": "#5e3826", "#848e92": "#454a55", "#ece8d6": "#a9b2b0"}, "lp": 5, "tempo": 40, "schaden": 2, "fuss": [8, 5], "koerper": [18, 16], "groesse": 2, "gewicht": 0.3, "abgrundfest": true, "beute": {"herz": 1}, "ki": {"wegfindung": true}, "boss": {"name": "PANZERKEILER"}, "ruestung": "betaeubt", "rammen": {"reichweite": 420, "zielen": 0.6, "tempo": 360, "dauer": 1.6, "betaeubt": 2.4, "pause": [0.5, 1.0]}},
     "turmeule": {"bild": "huhn", "farben": {"#ece8d6": "#7a4f9a", "#b88250": "#3f5190", "#d0574a": "#f4cd5e"}, "lp": 6, "tempo": 30, "schaden": 2, "fuss": [8, 5], "koerper": [18, 18], "groesse": 2, "gewicht": 0.4, "abgrundfest": true, "beute": {"herz": 1}, "boss": {"name": "TURMEULE"}, "ruhig": "pendeln_w", "alarm": "bleiben", "schuss": {"reichweite": 520, "zielen": 0.5, "tempo": 180, "schaden": 1, "anzahl": 1, "pause": [1.0, 1.6]}, "phasen": [{"name": "Lauern"}, {"name": "Zorn", "tempoFaktor": 1.8, "pauseFaktor": 0.8, "schuss": {"reichweite": 520, "zielen": 0.45, "tempo": 200, "schaden": 1, "anzahl": 3, "pause": [1.2, 1.8]}}], "wendepunkte": [{"wenn": "lp", "unter": 0.5, "ziel": 1, "text": "DIE EULE WIRD ZORNIG!"}]},
-    "schattenfuchs": {"bild": "fuchs", "farben": {"#b88250": "#3e2a5a", "#4a2a2a": "#120d14", "#ece8d6": "#d0574a"}, "lp": 12, "tempo": 62, "schaden": 2, "fuss": [11, 6], "koerper": [26, 20], "groesse": 2, "gewicht": 0.25, "abgrundfest": true, "beute": {"herz": 1}, "ki": {"wegfindung": true}, "boss": {"name": "SCHATTENFUCHS"}, "sprung": {"reichweite": 260, "zielen": 0.55, "dauer": 0.45, "tempo": 360, "pause": [1.4, 2.2]}, "schuss": {"reichweite": 420, "zielen": 0.6, "tempo": 170, "schaden": 1, "anzahl": 3, "pause": [2.6, 3.6]}, "serienschutz": {"treffer": 3, "zeit": 2, "dauer": 1, "konter": true, "schaden": 2}, "ausweichen": {"chance": 0.3, "tempo": 380, "abklingzeit": 1.6}, "phasen": [{"name": "Jagd", "unverwundbar": true, "weiter": [{"wenn": "zufall", "s": [6, 8], "ziel": 1}]}, {"name": "Erschöpft", "benommen": true, "weiter": [{"wenn": "zeit", "s": 4, "ziel": 0}]}, {"name": "Schattenwut", "unverwundbar": true, "tempoFaktor": 1.3, "pauseFaktor": 0.7, "stampfen": {"reichweite": 100, "zielen": 0.7, "radius": 90, "schaden": 2, "pause": [2, 3]}, "weiter": [{"wenn": "zufall", "s": [5, 7], "ziel": 3}]}, {"name": "Erschöpft", "benommen": true, "weiter": [{"wenn": "zeit", "s": 3.5, "ziel": 2}]}], "wendepunkte": [{"wenn": "lp", "unter": 0.5, "ziel": 2, "text": "DER SCHATTEN ERWACHT!", "ruft": {"knaller": 2}}, {"wenn": "lp", "unter": 0.25, "ziel": 2, "text": "LETZTE KRAFT!", "ruft": {"glut": 1}}]}
+    "schattenfuchs": {"bild": "fuchs", "farben": {"#b88250": "#3e2a5a", "#4a2a2a": "#120d14", "#ece8d6": "#d0574a"}, "lp": 12, "tempo": 62, "schaden": 2, "fuss": [11, 6], "koerper": [26, 20], "groesse": 2, "gewicht": 0.25, "abgrundfest": true, "beute": {"herz": 1}, "ki": {"wegfindung": true}, "boss": {"name": "SCHATTENFUCHS"}, "sprung": {"reichweite": 260, "zielen": 0.55, "dauer": 0.45, "tempo": 360, "pause": [1.4, 2.2]}, "schuss": {"reichweite": 420, "zielen": 0.6, "tempo": 170, "schaden": 1, "anzahl": 3, "pause": [2.6, 3.6]}, "serienschutz": {"treffer": 3, "zeit": 2, "dauer": 1, "konter": true, "schaden": 2}, "ausweichen": {"chance": 0.3, "tempo": 380, "abklingzeit": 1.6}, "phasen": [{"name": "Jagd", "unverwundbar": true, "weiter": [{"wenn": "zufall", "s": [6, 8], "ziel": 1}]}, {"name": "Erschöpft", "benommen": true, "weiter": [{"wenn": "zeit", "s": 4, "ziel": 0}]}, {"name": "Schattenwut", "unverwundbar": true, "tempoFaktor": 1.3, "pauseFaktor": 0.7, "stampfen": {"reichweite": 100, "zielen": 0.7, "radius": 90, "schaden": 2, "pause": [2, 3]}, "weiter": [{"wenn": "zufall", "s": [5, 7], "ziel": 3}]}, {"name": "Erschöpft", "benommen": true, "weiter": [{"wenn": "zeit", "s": 3.5, "ziel": 2}]}], "wendepunkte": [{"wenn": "lp", "unter": 0.5, "ziel": 2, "text": "DER SCHATTEN ERWACHT!", "ruft": {"knaller": 2}}, {"wenn": "lp", "unter": 0.25, "ziel": 2, "text": "LETZTE KRAFT!", "ruft": {"glut": 1}}]},
+    "grubenkeiler": {"bild": "hase", "farben": {"#6f6463": "#3e2a20", "#848e92": "#5e3826", "#ece8d6": "#a3343a"}, "lp": 30, "tempo": 45, "schaden": 2, "fuss": [8, 5], "koerper": [18, 16], "groesse": 2, "gewicht": 0.9, "beute": {"herz": 1}, "ki": {"wegfindung": true}, "boss": {"name": "GRUBENKEILER"}, "ruestung": "betaeubt", "rammen": {"reichweite": 480, "zielen": 0.55, "tempo": 380, "dauer": 1.6, "betaeubt": 2.2, "pause": [0.4, 0.9]}},
+    "schildwache": {"bild": "fuchs", "farben": {"#b88250": "#7a8088", "#4a2a2a": "#2e313b", "#ece8d6": "#f4cd5e"}, "lp": 10, "tempo": 45, "schaden": 2, "fuss": [11, 6], "koerper": [26, 20], "groesse": 2, "gewicht": 0.4, "abgrundfest": true, "beute": {"herz": 1}, "ki": {"wegfindung": true}, "boss": {"name": "SCHILDWACHE"}, "schild": {"drehtempo": 70}, "stampfen": {"reichweite": 90, "zielen": 0.8, "radius": 90, "schaden": 2, "pause": [2.0, 3.0]}, "serienschutz": {"treffer": 3, "zeit": 2, "dauer": 1, "konter": true, "schaden": 1}, "phasen": [{"name": "Wache"}, {"name": "Zorn", "tempoFaktor": 1.3, "schild": {"drehtempo": 140}, "sprung": {"reichweite": 220, "zielen": 0.5, "dauer": 0.4, "tempo": 340, "pause": [1.6, 2.4]}}], "wendepunkte": [{"wenn": "lp", "unter": 0.5, "ziel": 1, "text": "DIE WACHE RUFT VERSTÄRKUNG!", "ruft": {"waechter": 2}}]},
+    "kristallwaechter": {"bild": "fuchs", "farben": {"#b88250": "#7fbcdc", "#4a2a2a": "#3f5190", "#ece8d6": "#fffbec"}, "lp": 12, "tempo": 55, "schaden": 2, "fuss": [11, 6], "koerper": [26, 20], "groesse": 2, "gewicht": 0.3, "abgrundfest": true, "beute": {"herz": 1}, "ki": {"wegfindung": true}, "boss": {"name": "KRISTALLWÄCHTER"}, "sprung": {"reichweite": 240, "zielen": 0.55, "dauer": 0.42, "tempo": 340, "pause": [1.8, 2.6]}, "schuss": {"reichweite": 400, "zielen": 0.6, "tempo": 170, "schaden": 1, "anzahl": 3, "pause": [2.4, 3.4]}, "serienschutz": {"treffer": 3, "zeit": 2, "dauer": 1, "konter": true, "schaden": 2}, "phasen": [{"name": "Blauer Panzer", "unverwundbar": true, "weiter": [{"wenn": "signal", "signal": "kristall=orange", "ziel": 1}]}, {"name": "Offen", "weiter": [{"wenn": "zeit", "s": 5, "ziel": 2}]}, {"name": "Oranger Panzer", "unverwundbar": true, "tempoFaktor": 1.2, "pauseFaktor": 0.8, "weiter": [{"wenn": "signal", "signal": "kristall=blau", "ziel": 3}]}, {"name": "Offen", "tempoFaktor": 1.2, "pauseFaktor": 0.8, "weiter": [{"wenn": "zeit", "s": 5, "ziel": 0}]}], "wendepunkte": [{"wenn": "lp", "unter": 0.5, "ziel": 2, "text": "DER WÄCHTER WIRD RASEND!", "ruft": {"knaller": 2}}]}
   },
   "waffen": {
     "dolch":   { "name": "Dolch", "art": "stich", "laenge": 14, "schaden": 1, "dauer": 0.2, "rueckstoss": 0.6, "schneidet": true, "reflektiert": false },
@@ -199,7 +204,8 @@
   },
   "kristalltypen": {
     "kristall": { "name": "Blau/Orange", "farben": ["blau", "orange"] },
-    "dreiklang": {"name": "Rot/Grün/Blau", "farben": ["rot", "gruen", "blau"]}
+    "dreiklang": {"name": "Rot/Grün/Blau", "farben": ["rot", "gruen", "blau"]},
+    "schleuse": {"name": "Rot/Grün/Lila", "farben": ["rot", "gruen", "lila"]}
   },
   "gegenstaende": {
     "schluessel":    { "name": "Kleiner Schlüssel", "bild": "@schluessel", "text": "Du hast einen kleinen Schlüssel gefunden! Er öffnet eine verschlossene Tür.", "wirkung": { "schluessel": 1 } },
@@ -1415,6 +1421,1214 @@
             {"gegner": "schattenfuchs", "feld": [9, 5]} ]
         }
       }
+    },
+    "kristallgruft": {
+      "titel": "DIE KRISTALLGRUFT", "untertitel": "33 Räume, schwer: Schleusen, Siegel, Folgen", "start": {"raum": "vorhalle", "feld": [9.5, 10.5]},
+      "raeume": {
+        "vorhalle": {
+          "nr": "1", "titel": "VORHALLE", "licht": "hell", "pos": [0, 0],
+          "einstieg": "Die Kristallgruft.",
+          "tueren": {"w": {"ziel": "pfeilergang"}, "o": {"ziel": "schleusentor"}, "n1": {"ziel": "kreuzhalle"}, "n3": {"ziel": "kreuzhalle"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..S.............S.#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#...S........S.....#",
+            "#..................#",
+            "#..................#",
+            "#.....P......P.....#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "fackel", "feld": [6, 4]},
+            {"objekt": "fackel", "feld": [13, 4]},
+            {"objekt": "pflock", "feld": [1, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [2, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [3, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [4, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [5, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [6, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [7, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [8, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [9, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [10, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [11, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [13, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [14, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [15, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [16, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [17, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [18, 6], "kristalltyp": "kristall", "farbe": "blau"} ],
+          "gegner": []
+        },
+        "pfeilergang": {
+          "nr": "2", "titel": "PFEILERGANG", "licht": "hell", "pos": [-1, 0],
+          "tueren": {"o": {"ziel": "vorhalle"}, "w": {"ziel": "brunnenkammer"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#.S..............S.#",
+            "#..................#",
+            "#........S.........#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#........S.........#",
+            "#..................#",
+            "#.S..............S.#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "pflock", "feld": [6, 2], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 2], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 3], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 3], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 5], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 5], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 7], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 7], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 8], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "kristall", "feld": [9, 8], "kristalltyp": "kristall"},
+            {"objekt": "pflock", "feld": [12, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 9], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 9], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 10], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 10], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 11], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 11], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 12], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 12], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 13], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 13], "kristalltyp": "kristall", "farbe": "orange"} ],
+          "gegner": []
+        },
+        "brunnenkammer": {
+          "nr": "3", "titel": "BRUNNENKAMMER", "licht": "hell", "pos": [-2, 0],
+          "tueren": {"o": {"ziel": "pfeilergang"}, "w3": {"ziel": "zisterne"}, "n1": {"ziel": "gruft"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#.E.....~~...S.....#",
+            "#.......~~......S..#",
+            "#.......~~S........#",
+            "#...S...~~....S....#",
+            "#.......~~.S.......#",
+            "#.......~~.........#",
+            "#.......~~..S......#",
+            "#.......~~S........#",
+            "#..E....~~......S..#",
+            "#.......~~..S......#",
+            "#.......~~.........#",
+            "#.......~~.S.......#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "block", "feld": [12, 4]},
+            {"objekt": "block", "feld": [15, 7]},
+            {"objekt": "block", "feld": [13, 10]} ],
+          "gegner": []
+        },
+        "zisterne": {
+          "nr": "4", "titel": "ZISTERNE", "licht": "hell", "pos": [-3, 0],
+          "tueren": {"o3": {"ziel": "brunnenkammer"}, "n": {"ziel": "uhrwerk", "schloss": true}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#...........~~~....#",
+            "#...........~~~....#",
+            "#..................#",
+            "#..........S.......#",
+            "#..................#",
+            "#..................#",
+            "#......~~~....S....#",
+            "#......~~~.........#",
+            "#..................#",
+            "#..E...............#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "pflock", "feld": [2, 3], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [3, 3], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [4, 3], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [5, 3], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 3], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [2, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [2, 5], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "truhe", "feld": [4, 5], "inhalt": "herzcontainer"},
+            {"objekt": "pflock", "feld": [6, 5], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [2, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [2, 7], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [3, 7], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [4, 7], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [5, 7], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 7], "kristalltyp": "kristall", "farbe": "orange"} ],
+          "gegner": [
+            {"gegner": "fuchs", "feld": [12, 7]},
+            {"gegner": "fuchs", "feld": [6, 11]},
+            {"gegner": "silber", "feld": [15, 4]} ]
+        },
+        "gruft": {
+          "nr": "5", "titel": "FINSTERE GRUFT", "licht": "finster", "pos": [-2, -1],
+          "tueren": {"s1": {"ziel": "brunnenkammer"}, "o": {"ziel": "westwacht"}, "n": {"ziel": "knochengang"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#~~~~~~~~..~~~~~~~~#",
+            "#~~~~~~~~.~~~~~~~~~#",
+            "#~...~~~~.~~~~~~~~~#",
+            "#~~~.~~.........~~~#",
+            "#~~~.~~.~~~~~~~.~~~#",
+            "#~~~....~~~~~~~....#",
+            "#~~~~~~.~~~~~~~~~..#",
+            "#~~~~~~.....~~~~~~~#",
+            "#~~~~~~~~~~.~~~~~~~#",
+            "#~~~~.......~~~~~~~#",
+            "#~~~~.~~~~~~~~~~~~~#",
+            "#~~~~..~~~~~~~~~~~~#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "truhe", "feld": [2, 4], "inhalt": "laterne"} ],
+          "gegner": [
+            {"gegner": "fuchs", "feld": [12, 5]},
+            {"gegner": "fuchs", "feld": [8, 9]} ]
+        },
+        "westwacht": {
+          "nr": "6", "titel": "WESTWACHT", "licht": "hell", "pos": [-1, -1],
+          "tueren": {"w": {"ziel": "gruft"}, "o": {"ziel": "kreuzhalle"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..S...........S...#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..S...............#",
+            "#..................#",
+            "#..................#",
+            "#..............S...#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "pflock", "feld": [7, 2], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [7, 3], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [7, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "truhe", "feld": [13, 4], "inhalt": "schluessel"},
+            {"objekt": "pflock", "feld": [7, 5], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [7, 6], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [8, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [9, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [10, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [11, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [12, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [13, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [14, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [15, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [16, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [17, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [18, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [7, 7], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [7, 8], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [7, 9], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [7, 10], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "kristall", "feld": [13, 10], "kristalltyp": "kristall"},
+            {"objekt": "pflock", "feld": [7, 11], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [7, 12], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [7, 13], "kristalltyp": "kristall", "farbe": "blau"} ],
+          "gegner": [
+            {"gegner": "silber", "feld": [15, 9]},
+            {"gegner": "fuchs", "feld": [3, 11]} ]
+        },
+        "knochengang": {
+          "nr": "7", "titel": "KNOCHENGANG", "licht": "hell", "pos": [-2, -2], "kampf": true,
+          "wellen": [["silber", "fuchs", "silber"], ["glut", "schildfuchs", "glut", "fuchs"]],
+          "tueren": {"s": {"ziel": "gruft", "offen_wenn": "geraeumt"}, "w": {"ziel": "gebeinkammer", "offen_wenn": "geraeumt"}, "o": {"ziel": "spiegelsaal", "offen_wenn": "geraeumt"}, "n": {"ziel": "grube", "schloss": true}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..S............S..#",
+            "#..................#",
+            "#.....~~....~~.....#",
+            "#.....~~....~~.....#",
+            "#..................#",
+            "#..................#",
+            "#.....~~....~~.....#",
+            "#.....~~....~~.....#",
+            "#..................#",
+            "#..S............S..#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "pflock", "feld": [8, 2], "oben_wenn": {"nicht": "gebein"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [11, 2], "oben_wenn": {"nicht": "gebein"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [8, 3], "oben_wenn": {"nicht": "gebein"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [9, 3], "oben_wenn": {"nicht": "gebein"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [10, 3], "oben_wenn": {"nicht": "gebein"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [11, 3], "oben_wenn": {"nicht": "gebein"}, "farbe": "weiss"} ],
+          "gegner": [
+            {"gegner": "fuchs", "feld": [4, 8]},
+            {"gegner": "fuchs", "feld": [15, 8]} ]
+        },
+        "uhrwerk": {
+          "nr": "9", "titel": "UHRWERK", "licht": "hell", "pos": [-3, -1],
+          "tueren": {"s": {"ziel": "zisterne", "schloss": true}, "n": {"ziel": "gebeinkammer"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#~~~~~~~~~~~~~~~~..#",
+            "#..................#",
+            "#....S......S......#",
+            "#..................#",
+            "#..~~~~~~~~~~~~~~~~#",
+            "#..................#",
+            "#.....S......S.....#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "truhe", "feld": [1, 2], "inhalt": "schluessel"},
+            {"objekt": "pflock", "feld": [4, 2], "oben_wenn": {"nicht": "uhr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [4, 3], "oben_wenn": {"nicht": "uhr"}, "farbe": "weiss"},
+            {"objekt": "platte", "feld": [2, 4], "signal": "uhr", "wer": "alle", "nachlauf": 15},
+            {"objekt": "pflock", "feld": [4, 4], "oben_wenn": {"nicht": "uhr"}, "farbe": "weiss"},
+            {"objekt": "platte", "feld": [17, 12], "signal": "uhr", "wer": "alle", "nachlauf": 15} ],
+          "gegner": [
+            {"gegner": "fuchs", "feld": [8, 7]},
+            {"gegner": "fuchs", "feld": [14, 10]} ]
+        },
+        "spiegelsaal": {
+          "nr": "10", "titel": "SPIEGELSAAL", "licht": "hell", "pos": [-1, -2],
+          "tueren": {"w": {"ziel": "knochengang"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#~~~~~~......~~~~~~#",
+            "#~~.~~~......~~~.~~#",
+            "#~~~~~~......~~~~~~#",
+            "#~~~~~~......~~~~~~#",
+            "#..................#",
+            "#...S........S.....#",
+            "#..................#",
+            "#......S....S......#",
+            "#..................#",
+            "#..S...........S...#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "pflock", "feld": [8, 3], "oben_wenn": {"nicht": {"alle": ["spiegel_l", "spiegel_r"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [9, 3], "oben_wenn": {"nicht": {"alle": ["spiegel_l", "spiegel_r"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [10, 3], "oben_wenn": {"nicht": {"alle": ["spiegel_l", "spiegel_r"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [11, 3], "oben_wenn": {"nicht": {"alle": ["spiegel_l", "spiegel_r"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [8, 4], "oben_wenn": {"nicht": {"alle": ["spiegel_l", "spiegel_r"]}}, "farbe": "weiss"},
+            {"objekt": "truhe", "feld": [9, 4], "inhalt": "schluessel"},
+            {"objekt": "pflock", "feld": [11, 4], "oben_wenn": {"nicht": {"alle": ["spiegel_l", "spiegel_r"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [8, 5], "oben_wenn": {"nicht": {"alle": ["spiegel_l", "spiegel_r"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [9, 5], "oben_wenn": {"nicht": {"alle": ["spiegel_l", "spiegel_r"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [10, 5], "oben_wenn": {"nicht": {"alle": ["spiegel_l", "spiegel_r"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [11, 5], "oben_wenn": {"nicht": {"alle": ["spiegel_l", "spiegel_r"]}}, "farbe": "weiss"} ],
+          "gegner": [
+            {"gegner": "schuetze", "feld": [3, 3], "signal": "spiegel_l", "fern": true},
+            {"gegner": "schuetze", "feld": [16, 3], "signal": "spiegel_r", "fern": true},
+            {"gegner": "schildfuchs", "feld": [9, 9]} ]
+        },
+        "gebeinkammer": {
+          "nr": "11", "titel": "GEBEINKAMMER", "licht": "hell", "pos": [-3, -2],
+          "ereignisse": [{"wenn": {"alle": ["gebein1", "gebein2", "gebein3"]}, "schritte": [{"art": "signal", "signal": "gebein"}]}],
+          "tueren": {"s": {"ziel": "uhrwerk"}, "o": {"ziel": "knochengang"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#....##########....#",
+            "#....#....###.#....#",
+            "#....#...#.#..#....#",
+            "#....#........#....#",
+            "#....##...#...#....#",
+            "#....###...#..#....#",
+            "#....#...#.##.#....#",
+            "#....#####.####....#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "platte", "feld": [8, 4], "signal": "gebein1", "wer": "block"},
+            {"objekt": "platte", "feld": [9, 4], "signal": "gebein2", "wer": "block"},
+            {"objekt": "platte", "feld": [13, 4], "signal": "gebein3", "wer": "block"},
+            {"objekt": "block", "feld": [13, 5]},
+            {"objekt": "block", "feld": [10, 6]},
+            {"objekt": "block", "feld": [9, 7]},
+            {"objekt": "truhe", "feld": [16, 8], "inhalt": "herzcontainer", "sichtbar_wenn": "gebein"} ],
+          "gegner": []
+        },
+        "grube": {
+          "nr": "12", "titel": "DIE GRUBE", "licht": "daemmrig", "pos": [-2, -3], "kampf": true,
+          "tueren": {"s": {"ziel": "knochengang", "offen_wenn": "geraeumt"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..................#",
+            "#...~~~......~~~...#",
+            "#...~~~......~~~...#",
+            "#...~~~......~~~...#",
+            "#..................#",
+            "#..................#",
+            "#...~~~......~~~...#",
+            "#...~~~......~~~...#",
+            "#...~~~......~~~...#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "truhe", "feld": [9, 8], "inhalt": "herzcontainer", "sichtbar_wenn": "geraeumt"},
+            {"objekt": "fackel", "feld": [2, 2]},
+            {"objekt": "fackel", "feld": [17, 2]},
+            {"objekt": "fackel", "feld": [2, 13]},
+            {"objekt": "fackel", "feld": [17, 13]} ],
+          "gegner": [
+            {"gegner": "grubenkeiler", "feld": [9, 4], "signal": "westsiegel"} ]
+        },
+        "kreuzhalle": {
+          "nr": "8", "titel": "KREUZHALLE", "licht": "hell", "pos": [0, -1],
+          "tueren": {"s1": {"ziel": "vorhalle"}, "s3": {"ziel": "vorhalle"}, "w": {"ziel": "westwacht"}, "o": {"ziel": "ostwacht"}, "n": {"ziel": "saeulensaal", "offen_wenn": {"alle": ["westsiegel", "ostsiegel"]}}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..S............S..#",
+            "#..................#",
+            "#........SS........#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..S............S..#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "pflock", "feld": [7, 2], "oben_wenn": {"nicht": "westsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [12, 2], "oben_wenn": {"nicht": "ostsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 3], "oben_wenn": {"nicht": "westsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [12, 3], "oben_wenn": {"nicht": "ostsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 4], "oben_wenn": {"nicht": "westsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [12, 4], "oben_wenn": {"nicht": "ostsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 5], "oben_wenn": {"nicht": "westsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [12, 5], "oben_wenn": {"nicht": "ostsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 6], "oben_wenn": {"nicht": "westsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [12, 6], "oben_wenn": {"nicht": "ostsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 7], "oben_wenn": {"nicht": "westsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [12, 7], "oben_wenn": {"nicht": "ostsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 8], "oben_wenn": {"nicht": "westsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [12, 8], "oben_wenn": {"nicht": "ostsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 9], "oben_wenn": {"nicht": "westsiegel"}, "farbe": "weiss"},
+            {"objekt": "kristall", "feld": [9, 9], "kristalltyp": "kristall"},
+            {"objekt": "pflock", "feld": [12, 9], "oben_wenn": {"nicht": "ostsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 10], "oben_wenn": {"nicht": "westsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [12, 10], "oben_wenn": {"nicht": "ostsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 11], "oben_wenn": {"nicht": "westsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [12, 11], "oben_wenn": {"nicht": "ostsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 12], "oben_wenn": {"nicht": "westsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [12, 12], "oben_wenn": {"nicht": "ostsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 13], "oben_wenn": {"nicht": "westsiegel"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [12, 13], "oben_wenn": {"nicht": "ostsiegel"}, "farbe": "weiss"} ],
+          "gegner": []
+        },
+        "schleusentor": {
+          "nr": "13", "titel": "SCHLEUSENTOR", "licht": "hell", "pos": [1, 0],
+          "tueren": {"w": {"ziel": "vorhalle"}, "o": {"ziel": "pumpenhaus", "offen_wenn": "schleuse=gruen"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..S...........S...#",
+            "#......~~~~~~......#",
+            "#......~~~~~~......#",
+            "#......~~..~~......#",
+            "#......~~~~~~......#",
+            "#......~~~~~~......#",
+            "#....S.......S.....#",
+            "#..................#",
+            "#..........S.......#",
+            "#......S...........#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "kristall", "feld": [9, 6], "kristalltyp": "schleuse"},
+            {"objekt": "block", "feld": [4, 10]},
+            {"objekt": "block", "feld": [14, 11]} ],
+          "gegner": []
+        },
+        "pumpenhaus": {
+          "nr": "14", "titel": "PUMPENHAUS", "licht": "hell", "pos": [2, 0],
+          "tueren": {"w": {"ziel": "schleusentor", "offen_wenn": "schleuse=gruen"}, "n": {"ziel": "schleusenkammer", "offen_wenn": "schleuse=rot"}, "o": {"ziel": "ueberlauf", "offen_wenn": "schleuse=lila"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..S...........S...#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#...S.........S....#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "pflock", "feld": [8, 4], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "pflock", "feld": [9, 4], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "pflock", "feld": [10, 4], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "pflock", "feld": [11, 4], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "pflock", "feld": [12, 4], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "pflock", "feld": [8, 5], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "pflock", "feld": [12, 5], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "pflock", "feld": [8, 6], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "kristall", "feld": [10, 6], "kristalltyp": "schleuse"},
+            {"objekt": "pflock", "feld": [12, 6], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "pflock", "feld": [8, 7], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "pflock", "feld": [12, 7], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "pflock", "feld": [8, 8], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "pflock", "feld": [9, 8], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "pflock", "feld": [10, 8], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "pflock", "feld": [11, 8], "kristalltyp": "schleuse", "farbe": "lila"},
+            {"objekt": "pflock", "feld": [12, 8], "kristalltyp": "schleuse", "farbe": "lila"} ],
+          "gegner": [
+            {"gegner": "rammler", "feld": [4, 12]},
+            {"gegner": "rammler", "feld": [15, 12]} ]
+        },
+        "ueberlauf": {
+          "nr": "15", "titel": "ÜBERLAUF", "licht": "hell", "pos": [3, 0], "kampf": true,
+          "wellen": [["knaller", "teiler", "knaller"], ["glut", "teiler", "glut", "knaller"]],
+          "tueren": {"w": {"ziel": "pumpenhaus", "offen_wenn": {"alle": ["geraeumt", "schleuse=lila"]}}, "n": {"ziel": "wasserspeicher", "offen_wenn": "geraeumt"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..~~..........~~..#",
+            "#..~~..........~~..#",
+            "#..................#",
+            "#......S....S......#",
+            "#..................#",
+            "#..................#",
+            "#......S....S......#",
+            "#..................#",
+            "#..~~..........~~..#",
+            "#..~~..........~~..#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "kristall", "feld": [9, 4], "kristalltyp": "schleuse"} ],
+          "gegner": [
+            {"gegner": "teiler", "feld": [5, 8]},
+            {"gegner": "teiler", "feld": [14, 8]} ]
+        },
+        "ostwacht": {
+          "nr": "16", "titel": "OSTWACHT", "licht": "hell", "pos": [1, -1],
+          "tueren": {"w": {"ziel": "kreuzhalle"}, "o": {"ziel": "schleusenkammer", "offen_wenn": "schleuse=lila"}, "n": {"ziel": "stauwehr"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..S............S..#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#....S........S....#",
+            "#..................#",
+            "#..................#",
+            "#..S............S..#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "pflock", "feld": [7, 2], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [12, 2], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [7, 3], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [12, 3], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [7, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [12, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [7, 5], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [8, 5], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [9, 5], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [10, 5], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [11, 5], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [12, 5], "kristalltyp": "kristall", "farbe": "orange"} ],
+          "gegner": [
+            {"gegner": "waechter", "feld": [3, 7], "weg": [[3, 7], [16, 7], [16, 11], [3, 11]]},
+            {"gegner": "waechter", "feld": [16, 10], "weg": [[16, 10], [3, 10]], "blick": "links"} ]
+        },
+        "schleusenkammer": {
+          "nr": "17", "titel": "SCHLEUSENKAMMER", "licht": "hell", "pos": [2, -1],
+          "tueren": {"s": {"ziel": "pumpenhaus", "offen_wenn": "schleuse=rot"}, "w": {"ziel": "ostwacht", "offen_wenn": "schleuse=lila"}, "o": {"ziel": "wasserspeicher", "offen_wenn": "schleuse=gruen"}, "n": {"ziel": "raederwerk"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..S............S..#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "pflock", "feld": [1, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [2, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [3, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [4, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [5, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [6, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [8, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [9, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [10, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [11, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [12, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [13, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [14, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [15, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [16, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [17, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [18, 5], "oben_wenn": {"nicht": "wehr"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [8, 7], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [9, 7], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [10, 7], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [11, 7], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [12, 7], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [8, 8], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [12, 8], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [8, 9], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "kristall", "feld": [10, 9], "kristalltyp": "schleuse"},
+            {"objekt": "pflock", "feld": [12, 9], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [8, 10], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [12, 10], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [8, 11], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [9, 11], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [10, 11], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [11, 11], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [12, 11], "kristalltyp": "schleuse", "farbe": "gruen"} ],
+          "gegner": [
+            {"gegner": "silber", "feld": [4, 11]},
+            {"gegner": "silber", "feld": [15, 11]} ]
+        },
+        "wasserspeicher": {
+          "nr": "18", "titel": "WASSERSPEICHER", "licht": "finster", "pos": [3, -1],
+          "tueren": {"w": {"ziel": "schleusenkammer", "offen_wenn": "schleuse=gruen"}, "s": {"ziel": "ueberlauf"}, "n": {"ziel": "rinne", "offen_wenn": "schleuse=rot"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#~~~~~~~~..~~~~~~~~#",
+            "#~~~~~~~~..~~~~~~~~#",
+            "#~..~~~~~..~~~~~~~~#",
+            "#~~.~~~~~..~~~~~~~~#",
+            "#~~.......~~~~~~~..#",
+            "#.~~.~~~~.~~~~~....#",
+            "#....~~~~.~~~~~.~..#",
+            "#~~~~.....~~~~~.~~~#",
+            "#~~~~.~~~~~~~~~.~~~#",
+            "#~~~~...........~~~#",
+            "#~~~~~~~~..~~~...~~#",
+            "#~~~~~~~~..~~~~~~~~#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "truhe", "feld": [2, 4], "inhalt": "schluessel"},
+            {"objekt": "platte", "feld": [17, 6], "signal": "pegel", "wer": "alle", "merken": true} ],
+          "gegner": [
+            {"gegner": "fuchs", "feld": [7, 11]} ]
+        },
+        "stauwehr": {
+          "nr": "19", "titel": "STAUWEHR", "licht": "hell", "pos": [1, -2],
+          "ereignisse": [{"wenn": {"alle": ["wehr1", "wehr2"]}, "schritte": [{"art": "signal", "signal": "wehr"}]}],
+          "tueren": {"s": {"ziel": "ostwacht"}, "o": {"ziel": "raederwerk", "offen_wenn": "schleuse=lila"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#........#########.#",
+            "#........#.#.#..##.#",
+            "#........#.......#.#",
+            "#........#.....#.#.#",
+            "#........#...#...#.#",
+            "#........#......##.#",
+            "#........#......##.#",
+            "#........####.####.#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "block", "feld": [13, 5]},
+            {"objekt": "block", "feld": [14, 5]},
+            {"objekt": "platte", "feld": [11, 6], "signal": "wehr1", "wer": "block"},
+            {"objekt": "platte", "feld": [11, 9], "signal": "wehr2", "wer": "block"} ],
+          "gegner": []
+        },
+        "raederwerk": {
+          "nr": "20", "titel": "RÄDERWERK", "licht": "hell", "pos": [2, -2],
+          "tueren": {"w": {"ziel": "stauwehr", "offen_wenn": "schleuse=lila"}, "s": {"ziel": "schleusenkammer"}, "o": {"ziel": "rinne", "offen_wenn": "schleuse=gruen"}, "n": {"ziel": "wachsaal", "offen_wenn": "pegel"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..S...............#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..~~~~~~~~~~~~~~~~#",
+            "#..................#",
+            "#~~~~~~~~~~~~~~~~..#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "pflock", "feld": [11, 3], "oben_wenn": {"nicht": "raeder"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [12, 3], "oben_wenn": {"nicht": "raeder"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [13, 3], "oben_wenn": {"nicht": "raeder"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [14, 3], "oben_wenn": {"nicht": "raeder"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [15, 3], "oben_wenn": {"nicht": "raeder"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [11, 4], "oben_wenn": {"nicht": "raeder"}, "farbe": "weiss"},
+            {"objekt": "kristall", "feld": [13, 4], "kristalltyp": "schleuse"},
+            {"objekt": "pflock", "feld": [15, 4], "oben_wenn": {"nicht": "raeder"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [11, 5], "oben_wenn": {"nicht": "raeder"}, "farbe": "weiss"},
+            {"objekt": "platte", "feld": [13, 5], "signal": "raeder", "wer": "alle", "nachlauf": 14},
+            {"objekt": "pflock", "feld": [15, 5], "oben_wenn": {"nicht": "raeder"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [11, 6], "oben_wenn": {"nicht": "raeder"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [12, 6], "oben_wenn": {"nicht": "raeder"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [13, 6], "oben_wenn": {"nicht": "raeder"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [14, 6], "oben_wenn": {"nicht": "raeder"}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [15, 6], "oben_wenn": {"nicht": "raeder"}, "farbe": "weiss"},
+            {"objekt": "platte", "feld": [2, 12], "signal": "raeder", "wer": "alle", "nachlauf": 14} ],
+          "gegner": [
+            {"gegner": "rammler", "feld": [9, 10]} ]
+        },
+        "rinne": {
+          "nr": "21", "titel": "RINNE", "licht": "hell", "pos": [3, -2], "kampf": true,
+          "wellen": [["rammler", "silber", "rammler"], ["rammler", "glut", "rammler", "glut"]],
+          "tueren": {"w": {"ziel": "raederwerk", "offen_wenn": {"alle": ["geraeumt", "schleuse=gruen"]}}, "s": {"ziel": "wasserspeicher", "offen_wenn": {"alle": ["geraeumt", "schleuse=rot"]}}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..~~~.......~~~...#",
+            "#..~~~.......~~~...#",
+            "#..................#",
+            "#..................#",
+            "#......~~~~~~......#",
+            "#......~~~~~~......#",
+            "#..................#",
+            "#..~~~.......~~~...#",
+            "#..~~~.......~~~...#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "truhe", "feld": [9, 4], "inhalt": "herzcontainer", "sichtbar_wenn": "geraeumt"} ],
+          "gegner": [
+            {"gegner": "rammler", "feld": [5, 6]},
+            {"gegner": "rammler", "feld": [14, 6]},
+            {"gegner": "rammler", "feld": [9, 12]} ]
+        },
+        "wachsaal": {
+          "nr": "22", "titel": "WACHSAAL", "licht": "daemmrig", "pos": [2, -3], "kampf": true,
+          "tueren": {"s": {"ziel": "raederwerk", "offen_wenn": "geraeumt"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..S............S..#",
+            "#..................#",
+            "#.....S......S.....#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#.....S......S.....#",
+            "#..................#",
+            "#..S............S..#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "truhe", "feld": [9, 7], "inhalt": "herzcontainer", "sichtbar_wenn": "geraeumt"},
+            {"objekt": "fackel", "feld": [2, 2]},
+            {"objekt": "fackel", "feld": [17, 2]},
+            {"objekt": "fackel", "feld": [2, 13]},
+            {"objekt": "fackel", "feld": [17, 13]} ],
+          "gegner": [
+            {"gegner": "schildwache", "feld": [9, 4], "signal": "ostsiegel"} ]
+        },
+        "saeulensaal": {
+          "nr": "23", "titel": "SÄULENSAAL", "licht": "daemmrig", "pos": [0, -2], "kampf": true,
+          "wellen": [["glut", "silber", "glut"], ["knaller", "schildfuchs", "knaller", "silber"]],
+          "tueren": {"s": {"ziel": "kreuzhalle", "offen_wenn": "geraeumt"}, "n": {"ziel": "folge", "schloss": true}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..S...S....S...S..#",
+            "#..................#",
+            "#..................#",
+            "#..S...S....S...S..#",
+            "#..................#",
+            "#..................#",
+            "#..S...S....S...S..#",
+            "#..................#",
+            "#..................#",
+            "#..S...S....S...S..#",
+            "#..................#",
+            "####################" ],
+          "objekte": [],
+          "gegner": [
+            {"gegner": "waechter", "feld": [5, 7], "weg": [[5, 4], [14, 4], [14, 10], [5, 10]]},
+            {"gegner": "waechter", "feld": [14, 10], "weg": [[14, 10], [5, 10], [5, 4], [14, 4]]} ]
+        },
+        "glockenstube": {
+          "nr": "24", "titel": "GLOCKENSTUBE", "licht": "finster", "pos": [-1, -3],
+          "ereignisse": [{"wenn": {"nicht": "glocke_lauf"}, "wiederholen": true, "schritte": [{"art": "signal", "signal": "glocke_lauf"}, {"art": "warte", "s": 1.5}, {"art": "signal", "signal": "glocke3"}, {"art": "warte", "s": 0.8}, {"art": "signal", "signal": "glocke3", "wert": false}, {"art": "warte", "s": 0.4}, {"art": "signal", "signal": "glocke1"}, {"art": "warte", "s": 0.8}, {"art": "signal", "signal": "glocke1", "wert": false}, {"art": "warte", "s": 0.4}, {"art": "signal", "signal": "glocke4"}, {"art": "warte", "s": 0.8}, {"art": "signal", "signal": "glocke4", "wert": false}, {"art": "warte", "s": 0.4}, {"art": "signal", "signal": "glocke2"}, {"art": "warte", "s": 0.8}, {"art": "signal", "signal": "glocke2", "wert": false}, {"art": "warte", "s": 0.4}, {"art": "warte", "s": 1.5}, {"art": "signal", "signal": "glocke_ende"}]}, {"wenn": "glocke_ende", "wiederholen": true, "schritte": [{"art": "signal", "signal": "glocke_ende", "wert": false}, {"art": "signal", "signal": "glocke_lauf", "wert": false}]}],
+          "tueren": {"o": {"ziel": "folge"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#~~~~~~~~~~~~~~~~..#",
+            "#~~~~~~~~~~~~~~~~..#",
+            "#~~.......~~~~~....#",
+            "#~~.~~~~~.~~~~~.~..#",
+            "#~~.~~~~~.......~~~#",
+            "#~~.~~~~~~~~~~~~~~~#",
+            "#~~.......~~~~~~~~~#",
+            "#~~~~~~~~.~~~~~~~~~#",
+            "#~~~~~~~~~~~~~~~~~~#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "fackel", "feld": [4, 2], "an_wenn": "glocke1"},
+            {"objekt": "fackel", "feld": [7, 2], "an_wenn": "glocke2"},
+            {"objekt": "fackel", "feld": [12, 2], "an_wenn": "glocke3"},
+            {"objekt": "fackel", "feld": [15, 2], "an_wenn": "glocke4"},
+            {"objekt": "truhe", "feld": [9, 12], "inhalt": "schluessel"} ],
+          "gegner": []
+        },
+        "folge": {
+          "nr": "25", "titel": "HALLE DER FOLGE", "licht": "hell", "pos": [0, -3],
+          "ereignisse": [{"wenn": {"alle": ["folge3", {"nicht": "folge_a"}]}, "wiederholen": true, "schritte": [{"art": "signal", "signal": "folge_a"}]}, {"wenn": {"alle": ["folge1", "folge_a", {"nicht": "folge_b"}]}, "wiederholen": true, "schritte": [{"art": "signal", "signal": "folge_b"}]}, {"wenn": {"alle": ["folge4", "folge_b", {"nicht": "folge_c"}]}, "wiederholen": true, "schritte": [{"art": "signal", "signal": "folge_c"}]}, {"wenn": {"alle": ["folge2", "folge_c"]}, "schritte": [{"art": "signal", "signal": "folge"}]}, {"wenn": {"alle": [{"nicht": "folge"}, {"eine": [{"alle": ["folge1", {"nicht": "folge_a"}]}, {"alle": ["folge4", {"nicht": "folge_b"}]}, {"alle": ["folge2", {"nicht": "folge_c"}]}]}]}, "wiederholen": true, "schritte": [{"art": "signal", "signal": "folge_a", "wert": false}, {"art": "signal", "signal": "folge_b", "wert": false}, {"art": "signal", "signal": "folge_c", "wert": false}]}],
+          "tueren": {"s": {"ziel": "saeulensaal", "schloss": true}, "w": {"ziel": "glockenstube"}, "o": {"ziel": "doppelkaefig", "schloss": true}, "n": {"ziel": "torhalle", "offen_wenn": "folge", "merken": true}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..S............S..#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "platte", "feld": [4, 8], "signal": "folge1", "wer": "alle"},
+            {"objekt": "platte", "feld": [7, 8], "signal": "folge2", "wer": "alle"},
+            {"objekt": "platte", "feld": [12, 8], "signal": "folge3", "wer": "alle"},
+            {"objekt": "platte", "feld": [15, 8], "signal": "folge4", "wer": "alle"},
+            {"objekt": "fackel", "feld": [8, 11], "an_wenn": "folge_a"},
+            {"objekt": "fackel", "feld": [10, 11], "an_wenn": "folge_b"},
+            {"objekt": "fackel", "feld": [12, 11], "an_wenn": "folge_c"} ],
+          "gegner": []
+        },
+        "doppelkaefig": {
+          "nr": "26", "titel": "DOPPELKÄFIG", "licht": "hell", "pos": [1, -3],
+          "tueren": {"w": {"ziel": "folge", "schloss": true}, "n": {"ziel": "ostturm"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..S............S..#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..~~..........~~..#",
+            "#..~~..........~~..#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "truhe", "feld": [9, 3], "inhalt": "schluessel"},
+            {"objekt": "pflock", "feld": [1, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [2, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [3, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [4, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [5, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [6, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [7, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [8, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [9, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [10, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [11, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [13, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [14, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [15, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [16, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [17, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [18, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [1, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [2, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [3, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [4, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [5, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [6, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [7, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [8, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [9, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [10, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [11, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [12, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [13, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [14, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [15, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [16, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [17, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [18, 5], "kristalltyp": "schleuse", "farbe": "rot"},
+            {"objekt": "pflock", "feld": [1, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [2, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [3, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [4, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [5, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [6, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [7, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [8, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [9, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [10, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [11, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [12, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [13, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [14, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [15, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [16, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [17, 6], "kristalltyp": "schleuse", "farbe": "gruen"},
+            {"objekt": "pflock", "feld": [18, 6], "kristalltyp": "schleuse", "farbe": "gruen"} ],
+          "gegner": [
+            {"gegner": "glut", "feld": [4, 12]},
+            {"gegner": "glut", "feld": [15, 12]} ]
+        },
+        "torhalle": {
+          "nr": "27", "titel": "TORHALLE", "licht": "hell", "pos": [0, -4],
+          "tueren": {"s": {"ziel": "folge"}, "w": {"ziel": "westturm"}, "n": {"ziel": "vorthron", "offen_wenn": {"alle": ["nord_w", "nord_o"]}}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..S...S....S...S..#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..S...S....S...S..#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "kristall", "feld": [10, 7], "kristalltyp": "kristall"} ],
+          "gegner": []
+        },
+        "westturm": {
+          "nr": "28", "titel": "WESTTURM", "licht": "hell", "pos": [-1, -4],
+          "ereignisse": [{"wenn": {"alle": ["turm1", "turm2", "turm3"]}, "schritte": [{"art": "signal", "signal": "nord_w"}]}],
+          "tueren": {"o": {"ziel": "torhalle"}, "n": {"ziel": "kapelle", "schloss": true}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#.##########.......#",
+            "#.##..#....#.......#",
+            "#.#.......##.......#",
+            "#.#....#...#.......#",
+            "#.##.##....#.......#",
+            "#.#........#.......#",
+            "#.#.#...#..#.......#",
+            "#.#####.####.......#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "platte", "feld": [6, 6], "signal": "turm1", "wer": "block"},
+            {"objekt": "platte", "feld": [8, 6], "signal": "turm2", "wer": "block"},
+            {"objekt": "block", "feld": [9, 6]},
+            {"objekt": "platte", "feld": [10, 7], "signal": "turm3", "wer": "block"},
+            {"objekt": "block", "feld": [5, 8]},
+            {"objekt": "block", "feld": [7, 8]} ],
+          "gegner": []
+        },
+        "ostturm": {
+          "nr": "29", "titel": "OSTTURM", "licht": "daemmrig", "pos": [1, -4],
+          "tueren": {"s": {"ziel": "doppelkaefig"}, "n": {"ziel": "glockenkammer", "schloss": true}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..S............S..#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..S............S..#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "pflock", "feld": [5, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [7, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [8, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [9, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [10, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [11, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [12, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [13, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [14, 4], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [5, 5], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [14, 5], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "kristall", "feld": [2, 6], "kristalltyp": "kristall"},
+            {"objekt": "pflock", "feld": [5, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [14, 6], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [5, 7], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [14, 7], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [5, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [7, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [8, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [9, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [10, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [11, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [12, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [13, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [14, 8], "kristalltyp": "kristall", "farbe": "orange"} ],
+          "gegner": [
+            {"gegner": "waechter", "feld": [7, 6], "signal": "nord_o", "weg": [[6, 5], [13, 5], [13, 7], [6, 7]]},
+            {"gegner": "waechter", "feld": [12, 7], "weg": [[13, 7], [6, 7], [6, 5], [13, 5]]},
+            {"gegner": "waechter", "feld": [3, 11], "weg": [[2, 11], [17, 11]]} ]
+        },
+        "kapelle": {
+          "nr": "30", "titel": "KAPELLE", "licht": "daemmrig", "pos": [-1, -5], "kampf": true,
+          "wellen": [["schildfuchs", "glut", "schildfuchs"], ["knaller", "glut", "silber", "knaller", "glut"], ["schildfuchs", "schildfuchs", "glut", "glut"]],
+          "tueren": {"s": {"ziel": "westturm", "offen_wenn": "geraeumt"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#.....S......S.....#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#.....S......S.....#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "fackel", "feld": [3, 3]},
+            {"objekt": "fackel", "feld": [15, 3]},
+            {"objekt": "truhe", "feld": [9, 7], "inhalt": "grosser_schluessel", "sichtbar_wenn": "geraeumt"},
+            {"objekt": "fackel", "feld": [3, 11]},
+            {"objekt": "fackel", "feld": [15, 11]} ],
+          "gegner": [
+            {"gegner": "glut", "feld": [5, 7]},
+            {"gegner": "glut", "feld": [14, 7]} ]
+        },
+        "glockenkammer": {
+          "nr": "31", "titel": "GLOCKENKAMMER", "licht": "hell", "pos": [1, -5],
+          "tueren": {"s": {"ziel": "ostturm", "schloss": true}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..S.........S.....#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "pflock", "feld": [7, 4], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [8, 4], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [9, 4], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [10, 4], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [11, 4], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 5], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [11, 5], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 6], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "truhe", "feld": [9, 6], "inhalt": "herzcontainer"},
+            {"objekt": "pflock", "feld": [11, 6], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 7], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "platte", "feld": [9, 7], "signal": "glocke_zeit", "wer": "alle", "nachlauf": 3},
+            {"objekt": "pflock", "feld": [11, 7], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [7, 8], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [8, 8], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [9, 8], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [10, 8], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "pflock", "feld": [11, 8], "oben_wenn": {"nicht": {"alle": ["glocke_block", "glocke_zeit"]}}, "farbe": "weiss"},
+            {"objekt": "block", "feld": [6, 11]},
+            {"objekt": "platte", "feld": [3, 12], "signal": "glocke_block", "wer": "block"},
+            {"objekt": "platte", "feld": [13, 12], "signal": "glocke_zeit", "wer": "alle", "nachlauf": 3} ],
+          "gegner": []
+        },
+        "vorthron": {
+          "nr": "32", "titel": "VORTHRON", "licht": "daemmrig", "pos": [0, -5],
+          "tueren": {"s": {"ziel": "torhalle"}, "n": {"ziel": "thron", "schloss": "gross"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#...S.........S....#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..S............S..#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "pflock", "feld": [1, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [2, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [3, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [4, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [5, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [6, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [7, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [8, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [9, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [10, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [11, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [13, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [14, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [15, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [16, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [17, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [18, 4], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "kristall", "feld": [9, 6], "kristalltyp": "kristall"},
+            {"objekt": "pflock", "feld": [1, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [2, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [3, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [4, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [5, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [7, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [8, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [9, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [10, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [11, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [12, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [13, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [14, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [15, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [16, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [17, 8], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [18, 8], "kristalltyp": "kristall", "farbe": "orange"} ],
+          "gegner": []
+        },
+        "thron": {
+          "nr": "33", "titel": "KRISTALLTHRON", "licht": "daemmrig", "pos": [0, -6], "kampf": true,
+          "ereignisse": [{"wenn": "geraeumt", "schritte": [{"art": "text", "text": "Der Kristallwächter zerspringt. Die Kristallgruft ist bezwungen!"}]}],
+          "tueren": {"s": {"ziel": "vorthron", "offen_wenn": "geraeumt"}},
+          "karte": [
+            "####################",
+            "####################",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "#..................#",
+            "####################" ],
+          "objekte": [
+            {"objekt": "kristall", "feld": [3, 3], "kristalltyp": "kristall"},
+            {"objekt": "kristall", "feld": [15, 3], "kristalltyp": "kristall"},
+            {"objekt": "pflock", "feld": [6, 5], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [7, 5], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [12, 5], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [13, 5], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [6, 9], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [7, 9], "kristalltyp": "kristall", "farbe": "orange"},
+            {"objekt": "pflock", "feld": [12, 9], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "pflock", "feld": [13, 9], "kristalltyp": "kristall", "farbe": "blau"},
+            {"objekt": "fackel", "feld": [5, 2]},
+            {"objekt": "fackel", "feld": [14, 2]},
+            {"objekt": "fackel", "feld": [5, 13]},
+            {"objekt": "fackel", "feld": [14, 13]} ],
+          "gegner": [
+            {"gegner": "kristallwaechter", "feld": [9, 4]} ]
+        }
+      }
     }
   }
 }
@@ -1441,11 +2655,19 @@ const PAL = {
   blau0: '#3f5190', blau1: '#5a70b0', blau2: '#8098cc', blau3: '#7fbcdc',
 };
 
-// Türöffnungen liegen immer an derselben Stelle: Nord 2×2 Felder (Mauer ist oben zwei Felder dick), sonst 2 Felder breit.
-const TUER_RECHTECK = { n: [9 * T, 0, 2 * T, 2 * T], s: [9 * T, 14 * T, 2 * T, T], w: [0, 7 * T, T, 2 * T], o: [19 * T, 7 * T, T, 2 * T] };
-const RICHTUNG = { n: [0, -1], s: [0, 1], w: [-1, 0], o: [1, 0] };
-const GEGENUEBER = { n: 's', s: 'n', w: 'o', o: 'w' };
-const BLICK_VON = { n: 'hoch', s: 'runter', w: 'links', o: 'rechts' };
+// Bis zu drei Türen je Wand an festen Stellen: n/s/w/o ist die Mitte, mit 1 links bzw. oben, mit 3 rechts bzw. unten
+// (n1 n n3 · w1 w w3 …). Nord 2×2 Felder (Mauer ist oben zwei Felder dick), sonst 2 Felder breit. Gegentür: gleiche
+// Stelle auf der anderen Seite (n1 ↔ s1, w3 ↔ o3), damit die Räume nahtlos aneinanderpassen.
+const TUER_SPALTE = { 1: 5, 2: 9, 3: 13 }, TUER_ZEILE = { 1: 3, 2: 7, 3: 11 };
+const TUER_RECHTECK = {}, RICHTUNG = {}, GEGENUEBER = {}, BLICK_VON = {};
+for (const [seite, gegen, richtung, blick] of [['n', 's', [0, -1], 'hoch'], ['s', 'n', [0, 1], 'runter'], ['w', 'o', [-1, 0], 'links'], ['o', 'w', [1, 0], 'rechts']])
+  for (const nr of ['1', '', '3']) {
+    const d = seite + nr, c = TUER_SPALTE[nr || 2], r = TUER_ZEILE[nr || 2];
+    TUER_RECHTECK[d] = seite === 'n' ? [c * T, 0, 2 * T, 2 * T] : seite === 's' ? [c * T, 14 * T, 2 * T, T] : seite === 'w' ? [0, r * T, T, 2 * T] : [19 * T, r * T, T, 2 * T];
+    RICHTUNG[d] = richtung; GEGENUEBER[d] = gegen + nr; BLICK_VON[d] = blick;
+  }
+const TUERSEITE = d => d[0];   // n1 → n
+const TUERNAME = d => ({ n: 'Nord', s: 'Süd', w: 'West', o: 'Ost' })[d[0]] + (d[1] === '1' ? (d[0] === 'n' || d[0] === 's' ? ' links' : ' oben') : d[1] === '3' ? (d[0] === 'n' || d[0] === 's' ? ' rechts' : ' unten') : '');
 const WINKEL = { rechts: 0, runter: 90, links: 180, hoch: 270 };
 
 // ---------- Hilfen ----------
@@ -1491,7 +2713,7 @@ function migriereObjekt(o) {   // ältere Daten: Kristall mit signal, Pflock mit
   if (art.kristall && o.kristalltyp === undefined) { o.kristalltyp = o.signal || 'kristall'; delete o.signal; }
   if (art.pflock && o.kristalltyp === undefined) {
     const b = o.oben_wenn, typ = typeof b === 'string' ? b : b && typeof b.nicht === 'string' ? b.nicht : null;
-    if (typ) { const f = kristallTyp(typ).farben; o.kristalltyp = typ; o.farbe = typeof b === 'string' ? f[1] : f[0]; delete o.oben_wenn; }
+    if (typ && (DATEN.kristalltypen[typ] || typ === 'kristall')) { const f = kristallTyp(typ).farben; o.kristalltyp = typ; o.farbe = typeof b === 'string' ? f[1] : f[0]; delete o.oben_wenn; }   // sonst: Sperrpflock über ein Signal
   }
   return o;
 }
@@ -1559,7 +2781,7 @@ function istRaetselraum(d, r) {   // alles, was die Logikprüfung nicht von auß
   if (r.karte.some(z => [...z].some(ch => d.kacheln[ch] === 'abgrund'))) return true;
   return raumObjekte(d, r).some(o => { const a = d.objektarten[o.objekt] || {}; return a.schiebbar || a.platte || a.kristall || a.pflock || (a.oeffnbar && o.sichtbar_wenn !== undefined); });
 }
-const ZIEL_NAME = z => z.startsWith('tuer:') ? 'Tür ' + ({ n: 'Nord', o: 'Ost', s: 'Süd', w: 'West' })[z.slice(5)] : 'Truhe auf ' + z.slice(6);
+const ZIEL_NAME = z => z.startsWith('tuer:') ? 'Tür ' + TUERNAME(z.slice(5)) : 'Truhe auf ' + z.slice(6);
 
 // ---------- Logik: ist der Dungeon lösbar? ----------
 // Spielt den Dungeon gedanklich durch, in Stufen wie die „Sphären“ eines Randomizers: was ist vom Start aus erreichbar,
@@ -1691,7 +2913,7 @@ function pruefeLogik(d, dgId) {
       if (w.stufe[von] === undefined) continue;
       for (const [dir, t] of Object.entries(r.tueren)) {
         if (t.ziel !== id) continue;
-        const wo = `Tür ${({ n: 'Nord', o: 'Ost', s: 'Süd', w: 'West' })[dir]} in Raum ${nr(von)}`;
+        const wo = `Tür ${TUERNAME(dir)} in Raum ${nr(von)}`;
         const offen = w.offen.has(von + ':' + dir);
         if (t.schloss === true && !offen) gruende.push(`${wo} ist verschlossen, aber es gibt keinen Schlüssel mehr`);
         if (t.schloss === 'gross' && !offen && !w.besitz.has('grosser_schluessel')) gruende.push(`${wo} braucht den großen Schlüssel, der in keiner erreichbaren Truhe liegt`);
@@ -1780,6 +3002,7 @@ function pruefeDaten(d, still = false) {
       (r.wellen || []).forEach((welle, i) => { if (!welle.length) w.push(`${wo}: Welle ${i + 1} ist leer`); });
       for (const e of r.gegner || []) if (e.weg && !e.weg.length) w.push(`${wo}: Gegner auf ${e.feld} hat einen leeren Weg`);
       for (const [dir, t] of Object.entries(r.tueren)) {
+        if (!TUER_RECHTECK[dir]) { w.push(`${wo}: unbekannte Türstelle ${dir} (erlaubt: n1 n n3, s1 s s3, w1 w w3, o1 o o3)`); continue; }
         const gegen = dg.raeume[t.ziel] && dg.raeume[t.ziel].tueren[GEGENUEBER[dir]];
         if (!gegen || gegen.ziel !== id) w.push(`${wo}: Tür ${dir} → ${t.ziel} hat keine passende Gegentür`);
       }
@@ -2692,13 +3915,19 @@ function pruefeEreignisse() {
 // ---------- Raumwechsel ----------
 // Am Bildrand einer offenen Tür: Bildlauf in den Nachbarraum, dann läuft der Held selbst ein Stück hinein.
 function pruefeAusgang(h) {
-  const d = h.y - h.hh < 1 ? 'n' : h.y + h.hh > HOEHE - 1 ? 's' : h.x - h.hw < 1 ? 'w' : h.x + h.hw > BREITE - 1 ? 'o' : null;
-  if (!d || !S.raum.def.tueren[d]) return;
+  const seite = h.y - h.hh < 1 ? 'n' : h.y + h.hh > HOEHE - 1 ? 's' : h.x - h.hw < 1 ? 'w' : h.x + h.hw > BREITE - 1 ? 'o' : null;
+  if (!seite) return;
+  const d = Object.keys(S.raum.def.tueren).find(k => {   // welche der (bis zu drei) Türen dieser Wand
+    if (TUERSEITE(k) !== seite) return false;
+    const [x, y, w, hh] = TUER_RECHTECK[k];
+    return seite === 'n' || seite === 's' ? h.x >= x && h.x <= x + w : h.y >= y && h.y <= y + hh;
+  });
+  if (!d) return;
   const prot = S.protokoll[S.raum.id]; if (prot && !prot.raus.includes(d)) prot.raus.push(d);
   const alt = { bg: S.raum.bg, licht: raumDunkel(S.raum) ? lichtKopie() : null }, p0 = { x: h.x, y: h.y };
   const neu = { x: h.x, y: h.y, blick: BLICK_VON[d], einlauf: d };
-  if (d === 'o') neu.x = h.hw + 1; else if (d === 'w') neu.x = BREITE - h.hw - 1;
-  else if (d === 'n') neu.y = HOEHE - h.hh - 1; else neu.y = h.hh + 1;
+  if (seite === 'o') neu.x = h.hw + 1; else if (seite === 'w') neu.x = BREITE - h.hw - 1;
+  else if (seite === 'n') neu.y = HOEHE - h.hh - 1; else neu.y = h.hh + 1;
   betreteRaum(S.raum.def.tueren[d].ziel, neu);
   durchgangOffen(GEGENUEBER[d]);
   S.wechsel = { d, t: 0, alt, p0 };
@@ -3679,13 +4908,26 @@ function zeichne() {
 }
 
 // ---------- Menü ----------
-// Einträge: eingebaute und eigene Dungeons, zuletzt der Editor; höchstens MENUE.sichtbar auf einmal, dann wird geblättert
-const MENUE = { wahl: 0, oben: 0, sichtbar: 4, zeit: 0 };
-const menueListe = () => [...Object.keys(DATEN.dungeons), '@editor'];
+// Zwei Ebenen: Hauptmenü (Dungeons, Eigene Dungeons, Editor) und je eine Liste, die mit „Zurück“ (oder Esc) endet;
+// höchstens MENUE.sichtbar Einträge auf einmal, dann wird geblättert. Nach einem Dungeon geht es in seine Liste zurück.
+const MENUE = { wahl: 0, oben: 0, sichtbar: 4, zeit: 0, ebene: null };
+const HAUPTMENUE = ['@dungeons', '@eigene', '@editor'];
+const menueListe = () => MENUE.ebene === null ? HAUPTMENUE
+  : [...Object.keys(DATEN.dungeons).filter(id => !DATEN.dungeons[id].eigen === (MENUE.ebene === 'dungeons')), '@zurueck'];
 const menueY = i => 220 + (i - MENUE.oben) * 52;
+function menueEbene(ebene) {
+  const vorher = MENUE.ebene;
+  MENUE.ebene = ebene; MENUE.oben = 0;
+  MENUE.wahl = ebene === null ? Math.max(0, HAUPTMENUE.indexOf('@' + vorher)) : 0;
+  ton('menue');
+}
 function waehleMenue(i) {
   const id = menueListe()[i];
-  if (id === '@editor') ladeEditor(); else starteDungeon(id);
+  if (id === '@editor') ladeEditor();
+  else if (id === '@dungeons') menueEbene('dungeons');
+  else if (id === '@eigene') menueEbene('eigene');
+  else if (id === '@zurueck') menueEbene(null);
+  else starteDungeon(id);
 }
 function updateMenue() {
   MENUE.zeit += DT;
@@ -3695,6 +4937,7 @@ function updateMenue() {
   if (gedrueckt.has('runter')) { MENUE.wahl = (MENUE.wahl + 1) % n; ton('menue'); }
   MENUE.oben = Math.max(0, Math.min(MENUE.oben, MENUE.wahl, n - MENUE.sichtbar), MENUE.wahl - MENUE.sichtbar + 1);
   if (gedrueckt.has('schlag')) waehleMenue(MENUE.wahl);
+  else if (gedrueckt.has('menue') && MENUE.ebene !== null) menueEbene(null);
   gedrueckt.clear();
 }
 function menueTipp(y) {
@@ -3710,15 +4953,21 @@ function zeichneMenue() {
   for (let i = 0; i < SPALTEN; i++) zeichneBild(ctx, 'gras_' + (i * 7 % 4 === 3 ? 1 : i * 7 % 4), i * T, 40);
   zeichneBild(ctx, 'held_3', 236, 28); zeichneLeinwand(GEGNERBILD.fuchs[Math.floor(MENUE.zeit * 4) % 2], 372, 44, true);
   schreibe('WALDWACHT', BREITE / 2, 112, 6, PAL.gold2);
-  schreibe('WÄHLE EINEN DUNGEON', BREITE / 2, 186, 2, PAL.fels4);
-  const liste = menueListe();
+  schreibe(MENUE.ebene === 'dungeons' ? 'WÄHLE EINEN DUNGEON' : MENUE.ebene === 'eigene' ? 'EIGENE DUNGEONS' : 'HAUPTMENÜ', BREITE / 2, 186, 2, PAL.fels4);
+  const liste = menueListe(), zahl = eigen => Object.values(DATEN.dungeons).filter(d => !d.eigen === !eigen).length;
+  const EINTRAG = {
+    '@dungeons': { titel: 'DUNGEONS', untertitel: `${zahl(false)} fertige Dungeons, von klein bis groß` },
+    '@eigene': { titel: 'EIGENE DUNGEONS', untertitel: zahl(true) ? `${zahl(true)} im Editor gebaut` : 'Noch keine - im Editor bauen' },
+    '@editor': { titel: 'EDITOR', untertitel: 'Dungeons, Räume und Gegner bauen' },
+    '@zurueck': { titel: 'ZURÜCK', untertitel: MENUE.ebene === 'eigene' && !zahl(true) ? 'Noch keine eigenen Dungeons - im Editor bauen' : '' },
+  };
   liste.forEach((id, i) => {
     if (i < MENUE.oben || i >= MENUE.oben + MENUE.sichtbar) return;
-    const dg = id === '@editor' ? { titel: 'EDITOR', untertitel: 'Dungeons, Räume und Gegner bauen' } : DATEN.dungeons[id];
+    const dg = EINTRAG[id] || DATEN.dungeons[id];
     const an = i === MENUE.wahl, y = menueY(i);
     if (an && Math.floor(MENUE.zeit * 3) % 2 === 0) schreibe('>', 120, y, 3, PAL.gold2, false);
-    schreibe(dg.titel, 150, y, 3, an ? PAL.creme : id === '@editor' ? PAL.gold1 : PAL.fels3, false);
-    schreibe(dg.eigen ? 'EIGENER DUNGEON' + (dg.untertitel ? ' - ' + dg.untertitel : '') : (dg.untertitel || ''), 150, y + 26, 2, PAL.fels3, false);
+    schreibe(dg.titel, 150, y, 3, an ? PAL.creme : id === '@editor' || id === '@zurueck' ? PAL.gold1 : PAL.fels3, false);
+    schreibe(dg.untertitel || '', 150, y + 26, 2, PAL.fels3, false);
   });
   if (MENUE.oben > 0) schreibe('- MEHR -', BREITE / 2, 200, 1, PAL.fels3);
   if (MENUE.oben + MENUE.sichtbar < liste.length) schreibe('- MEHR -', BREITE / 2, menueY(MENUE.oben + MENUE.sichtbar) - 4, 1, PAL.fels3);
