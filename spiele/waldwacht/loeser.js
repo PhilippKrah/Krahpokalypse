@@ -227,6 +227,16 @@
       feld: Array.from({ length: H }, (_, r) => Array.from({ length: W }, (_, c) => nr[zelle(c, r)])), zeitlaeufe: zeitlaeufe(D, raum, z) };
   }
 
+  // Was erreicht man ab einer Tür – mit Schieben, Zeitschaltern und Ereignissen (für die Ansicht im Editor)?
+  function erreichbarAb(D, dg, rid, tuer, zustand) {
+    const raum = baueRaeume(D, { raeume: { [rid]: dg.raeume[rid] } })[rid];
+    const z = { sig: new Set(zustand.signale || []), items: new Set(zustand.besitz || []), krist: zustand.kristalle || {}, geraeumt: true };
+    const a = analyse(D, raum, eingang(tuer)[0], raum.bloecke.slice().sort((x, y) => x - y), new Set(), z, 200000);
+    const zellen = []; for (let i = 0; i < W * H; i++) if (a.reach[i]) zellen.push([spalte(i), zeile(i)]);
+    return { zellen, tueren: [...a.tueren.keys()], truhen: raum.truhen.filter(t => a.truhen.has(t.key)).map(t => t.inhalt), kristalle: a.kristalle.map(k => k.typ),
+      signale: [...a.sig], fallen: a.fallen, beispielFalle: a.beispielFalle, voll: a.voll, stellungen: a.zustaende };
+  }
+
   // ---------- Suche über alle Zustände ----------
   function loese(D, dg, opt = {}) {
     const R = baueRaeume(D, dg), rids = Object.keys(R), typen = Object.keys(D.kristalltypen), grenze = opt.raumGrenze || 200000, maxZ = opt.maxZustaende || 2000000;
@@ -399,13 +409,17 @@
     };
   }
 
-  const Loeser = { loese, raumteile, baueRaeume, analyse, eingang, TUERNAME };
+  const Loeser = { loese, raumteile, erreichbarAb, baueRaeume, analyse, eingang, TUERNAME };
   if (typeof module !== 'undefined' && module.exports) module.exports = Loeser;
   wurzel.Loeser = Loeser;
-  // Als Worker: { daten, dungeon, optionen } → { fortschritt } … { ergebnis } bzw. { fehler }
+  // Als Worker: { daten, dungeon, optionen } → { fortschritt } … { ergebnis }; { daten, dungeon, ab: [Raum, Tür, Zustand] } → { ab }; Fehler → { fehler }
   if (typeof document === 'undefined' && typeof importScripts === 'function') {
     wurzel.onmessage = e => {
-      try { const { daten, dungeon, optionen } = e.data; wurzel.postMessage({ ergebnis: loese(daten, dungeon, Object.assign({}, optionen, { fortschritt: n => wurzel.postMessage({ fortschritt: n }) })) }); }
+      try {
+        const { daten, dungeon, optionen, ab } = e.data;
+        if (ab) wurzel.postMessage({ ab: erreichbarAb(daten, dungeon, ...ab) });   // [Raum, Tür, Zustand]
+        else wurzel.postMessage({ ergebnis: loese(daten, dungeon, Object.assign({}, optionen, { fortschritt: n => wurzel.postMessage({ fortschritt: n }) })) });
+      }
       catch (err) { wurzel.postMessage({ fehler: String(err && err.stack || err) }); }
     };
   }

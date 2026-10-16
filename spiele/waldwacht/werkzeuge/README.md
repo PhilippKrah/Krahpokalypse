@@ -33,6 +33,11 @@ dann `kristallgruft.py` schreiben lässt, bekommt `index.html` unverändert zur�
 
 ## Der Löser
 
+(Für eigene Dungeons gibt es den Löser auch in JavaScript: `../loeser.js`, im
+Editor unter Logik → „Durchrechnen“. Er arbeitet direkt auf den Spieldaten und
+rechnet auch Schieberätsel und Zeitläufe selbst; die Python-Fassung hier bleibt
+das Werkzeug für die beiden generierten Dungeons.)
+
 `Loeser` in `gruft_kern.py` durchsucht alle Zustände: Ort (Raum und Abschnitt,
 per Flutfüllung über die Karte), Kristallfarben, Signale, Gegenstände,
 Schlüssel, geöffnete Türen und Truhen. Er kennt Pflöcke (Kristall und Sperre),

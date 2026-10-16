@@ -214,6 +214,37 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   startet den aktuellen Raum neu – Blöcke, Gegner und Platten wie beim erneuten
   Betreten, Fortschritt bleibt, keine Heilung (sonst wäre es ein Heil-Trick).
   Halten statt Tippen (0,8 s, mit Balken), weil R neben W liegt.
+  **Dungeon-Creator, Etappe 1 von 4** (Wunsch des Nutzers: eigener Modus, der
+  den Editor enthält bzw. zu ihm umschalten kann; nur am Desktop; Hilfe und
+  klare Arbeitsschritte). Etappe 1 = Werkzeuge, auf denen der Creator aufbaut:
+  - **Gegner-Drops:** ein Gegner kann einen Gegenstand tragen (`traegt`), der
+    beim Besiegen an seiner Stelle liegen bleibt (über Abgrund: nächstes freie
+    Feld). Logik und Löser behandeln ihn wie eine Truhe.
+  - **`loeser.js`** – Löser über alle Zustände in JavaScript, arbeitet direkt
+    auf den Spieldaten (anders als der Python-Löser braucht er keine von Hand
+    beschriebenen Raum-Aktionen): Raumteile per Flutfüllung, Kristallfarben,
+    jede Blockstellung (Sokoban mit Abgründen, je Raum bis 200 000 Stellungen),
+    Platten, Zeitschalter (mit Laufzeit-Prüfung), Ereignisse, Schlüssel,
+    Truhen, Drops, Kampf- und Bossräume. Liefert kürzesten Weg, Sackgassen samt
+    „so kommt man dahin“, Einsperr-Fallen, zu knappe Zeitläufe, nie erreichte
+    Räume. Läuft im Editor als Web Worker; in Node per `require` testbar.
+    Kristallgruft: 176 868 Zustände, lösbar, keine Sackgasse (im Browser rund
+    1,5 Minuten). Einzige Warnung: Westturm hat 1,3 Mio. Blockstellungen und
+    wird nur teilweise durchsucht – der Python-Prüfer (`--fallen`) hat ihn
+    vollständig als fallenfrei bestätigt.
+  - **Editor:** Reiter „Logik“ hat oben den Kasten „Löser: alle Spielverläufe“
+    (Durchrechnen, Abbrechen, Ergebnis mit Raum-Knöpfen). Werkzeugleiste
+    „Ansicht → Raumteile“ färbt die Flächen des Raums ein, schreibt an jede Tür
+    den Buchstaben ihres Teils, Zustand (Kristallfarben, Signale, Gegenstände)
+    rechts wählbar; „Ab Eingang erreichbar“ rechnet im Hintergrund alle
+    Blockstellungen ab einer Tür durch und markiert die Felder. Drei neue
+    Hilfe-Abschnitte.
+  Nächste Etappen (abgestimmt): **2** Creator-Modus mit Ablauf-Reiter – Ziele
+  rückwärts planen (Boss ← großer Schlüssel ← …), Schritte Räumen und
+  Raumteilen zuordnen, Prüfung vorwärts mit Spoiler-Log über den Löser;
+  **3** Raumaufträge (je Raum eine Liste „was muss hier passieren“, die man
+  Stück für Stück abarbeitet) und Rätsel-Bausteine; **4** Vorschläge und
+  Generierung für einzelne Räume.
   Merkposten für später (vom Nutzer so gewünscht): mehrere Etagen (Treppen,
   Löcher nach unten), Erzählung über die Umgebung, große Räume mit mitlaufender
   Kamera, die Kernmechanik des Tutorials (nicht „Rückstoß“ – kommt später),
