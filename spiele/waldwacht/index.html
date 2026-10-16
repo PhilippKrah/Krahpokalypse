@@ -59,7 +59,8 @@
 
   Steuerung: WASD/Pfeile laufen · Leertaste: lesen/öffnen, sonst Schwert · R Neustart im Raum (nach Game Over) · M Ton · Esc Menü
   Touch (erscheint beim ersten Fingertipp): linke Hälfte Steuerstick, rechte Hälfte wie Leertaste, im Menü Eintrag antippen.
-  Editor: Menüeintrag EDITOR lädt editor.js (Dungeons, Räume, Objekte, Gegner, Gegnerarten); gespeichert wird im Browser
+  Editor: Menüeintrag EDITOR lädt editor.js (Dungeons, Räume, Objekte, Gegner, Gegnerarten), CREATOR dazu creator.js (planen in
+  Arbeitsschritten, Plan in dungeon.plan – vom Spiel nicht gelesen), Löser loeser.js; gespeichert wird im Browser
   (localStorage, EIGENE_SCHLUESSEL) im selben Format, eigene Dungeons erscheinen im Menü. Export/Import als JSON-Datei.
   Testen: ?dungeon=<id>&raum=<id> startet direkt (z. B. ?dungeon=hain&raum=kristall), ?touch zeigt die Touch-Bedienung am PC.
 -->
@@ -3054,13 +3055,15 @@ function uebernehmeEigene(e, mitBildern = false) {   // auch vom Editor nach jed
 uebernehmeEigene(ladeEigene());
 // Editor: eigene Datei, erst bei Bedarf geladen
 const imEditor = () => typeof Editor !== 'undefined' && Editor.offen;
-function ladeEditor() {
-  if (typeof Editor !== 'undefined') { Editor.oeffne(); return; }
-  const sc = document.createElement('script');
-  sc.src = 'editor.js';
-  sc.onload = () => Editor.oeffne();
-  sc.onerror = () => alert('Der Editor (editor.js) konnte nicht geladen werden.');
-  document.head.appendChild(sc);
+function ladeEditor(modus) {   // modus: 'editor' | 'creator' (ohne: wie zuletzt); der Creator (creator.js) baut auf dem Editor auf
+  const lade = (src, weiter) => {
+    const sc = document.createElement('script');
+    sc.src = src; sc.onload = weiter;
+    sc.onerror = () => alert(`${src} konnte nicht geladen werden.`);
+    document.head.appendChild(sc);
+  };
+  const oeffnen = () => typeof Creator !== 'undefined' ? Editor.oeffne(modus) : lade('creator.js', () => Editor.oeffne(modus));
+  if (typeof Editor !== 'undefined') oeffnen(); else lade('editor.js', oeffnen);
 }
 function vergissHintergruende(dungeonId) { for (const k of Object.keys(HG)) if (k.startsWith(dungeonId + '/')) delete HG[k]; }
 
@@ -4957,10 +4960,10 @@ function zeichne() {
 }
 
 // ---------- Menü ----------
-// Zwei Ebenen: Hauptmenü (Dungeons, Eigene Dungeons, Editor) und je eine Liste, die mit „Zurück“ (oder Esc) endet;
+// Zwei Ebenen: Hauptmenü (Dungeons, Eigene Dungeons, Creator, Editor) und je eine Liste, die mit „Zurück“ (oder Esc) endet;
 // höchstens MENUE.sichtbar Einträge auf einmal, dann wird geblättert. Nach einem Dungeon geht es in seine Liste zurück.
 const MENUE = { wahl: 0, oben: 0, sichtbar: 4, zeit: 0, ebene: null };
-const HAUPTMENUE = ['@dungeons', '@eigene', '@editor'];
+const HAUPTMENUE = ['@dungeons', '@eigene', '@creator', '@editor'];
 const menueListe = () => MENUE.ebene === null ? HAUPTMENUE
   : [...Object.keys(DATEN.dungeons).filter(id => !DATEN.dungeons[id].eigen === (MENUE.ebene === 'dungeons')), '@zurueck'];
 const menueY = i => 220 + (i - MENUE.oben) * 52;
@@ -4972,7 +4975,8 @@ function menueEbene(ebene) {
 }
 function waehleMenue(i) {
   const id = menueListe()[i];
-  if (id === '@editor') ladeEditor();
+  if (id === '@editor') ladeEditor('editor');
+  else if (id === '@creator') ladeEditor('creator');
   else if (id === '@dungeons') menueEbene('dungeons');
   else if (id === '@eigene') menueEbene('eigene');
   else if (id === '@zurueck') menueEbene(null);
@@ -5007,7 +5011,8 @@ function zeichneMenue() {
   const EINTRAG = {
     '@dungeons': { titel: 'DUNGEONS', untertitel: `${zahl(false)} fertige Dungeons, von klein bis groß` },
     '@eigene': { titel: 'EIGENE DUNGEONS', untertitel: zahl(true) ? `${zahl(true)} im Editor gebaut` : 'Noch keine - im Editor bauen' },
-    '@editor': { titel: 'EDITOR', untertitel: 'Dungeons, Räume und Gegner bauen' },
+    '@creator': { titel: 'CREATOR', untertitel: 'Dungeon planen und bauen in 5 Schritten' },
+    '@editor': { titel: 'EDITOR', untertitel: 'Dungeons, Räume und Gegner im Detail' },
     '@zurueck': { titel: 'ZURÜCK', untertitel: MENUE.ebene === 'eigene' && !zahl(true) ? 'Noch keine eigenen Dungeons - im Editor bauen' : '' },
   };
   liste.forEach((id, i) => {
@@ -5015,7 +5020,7 @@ function zeichneMenue() {
     const dg = EINTRAG[id] || DATEN.dungeons[id];
     const an = i === MENUE.wahl, y = menueY(i);
     if (an && Math.floor(MENUE.zeit * 3) % 2 === 0) schreibe('>', 120, y, 3, PAL.gold2, false);
-    schreibe(dg.titel, 150, y, 3, an ? PAL.creme : id === '@editor' || id === '@zurueck' ? PAL.gold1 : PAL.fels3, false);
+    schreibe(dg.titel, 150, y, 3, an ? PAL.creme : id === '@editor' || id === '@creator' || id === '@zurueck' ? PAL.gold1 : PAL.fels3, false);
     schreibe(dg.untertitel || '', 150, y + 26, 2, PAL.fels3, false);
   });
   if (MENUE.oben > 0) schreibe('- MEHR -', BREITE / 2, 200, 1, PAL.fels3);

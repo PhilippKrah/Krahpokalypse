@@ -1,5 +1,7 @@
 // Waldwacht – Editor für Dungeons, Räume, Objekte, Gegner, Gegnerarten und Kristalltypen.
-// Wird vom Spiel erst geladen, wenn im Menü „EDITOR“ gewählt wird, und nutzt dessen Daten, Grafik und Funktionen
+// Zwei Modi im selben Fenster: Editor (alles im Detail) und Creator (creator.js: planen in Arbeitsschritten); der Creator
+// greift über Editor.intern auf Zustand und Hilfsfunktionen zu.
+// Wird vom Spiel erst geladen, wenn im Menü „EDITOR“ oder „CREATOR“ gewählt wird, und nutzt dessen Daten, Grafik und Funktionen
 // (DATEN, baueHintergrund, zeichneBild, Sprites, GEGNERBILD, pruefeDaten, uebernehmeEigene, starteDungeon …).
 // Gespeichert wird im Browser (localStorage, EIGENE_SCHLUESSEL) im selben JSON-Format wie der Block spieldaten:
 //   { format: 1, dungeons: { id: dungeon }, gegnerarten: { id: gegnerart }, kristalltypen: { id: kristalltyp }, waffen: { id: waffe } }
@@ -10,6 +12,7 @@ const Editor = (() => {
   // ---------- Zustand ----------
   let offen = false, wurzel = null, eigene = ladeEigene(), rueckgaengig = [];
   const Z = {
+    modus: 'editor',               // editor | creator
     ansicht: 'dungeon',            // dungeon | gegner | kristalle
     dungeon: null, raum: null,
     werkzeug: { art: 'kachel', wert: '#' },   // bei Objekten optional vorlage: Einstellungen für neu gesetzte
@@ -227,15 +230,16 @@ const Editor = (() => {
   }
   function raumBei(x, y) { const d = dg(); return d ? Object.entries(d.raeume).find(([, r]) => r.pos && r.pos[0] === x && r.pos[1] === y) : null; }
   function nachbar(dir) { const r = raum(); return r && r.pos ? raumBei(r.pos[0] + RICHTUNG[dir][0], r.pos[1] + RICHTUNG[dir][1]) : null; }
-  function legeRaumAn(x, y, verbindeMit) {
-    const d = dg(), id = neueRaumId(d), nr = Object.keys(d.raeume).length + 1, r = leererRaum(nr, [x, y]);
+  function legeRaumAn(x, y, verbindeMit, leer = false) {
+    const d = dg(), id = neueRaumId(d), nr = Math.max(0, ...Object.values(d.raeume).map(q => Number(q.nr) || 0)) + 1, r = leererRaum(nr, [x, y]);
     d.raeume[id] = r;
     if (verbindeMit) {   // Tür zum Raum, von dem aus angelegt wurde
       const [vid, v] = verbindeMit, dir = ['n', 'o', 's', 'w'].find(k => v.pos[0] + RICHTUNG[k][0] === x && v.pos[1] + RICHTUNG[k][1] === y);   // Mitteltür
       if (dir) { v.tueren[dir] = { ziel: id }; r.tueren[GEGENUEBER[dir]] = { ziel: vid }; }
     }
-    if (Z.fuellen.auto) befuelle(r, false);
+    if (Z.fuellen.auto && !leer) befuelle(r, false);
     Z.raum = id; Z.auswahl = null;
+    return id;
   }
   function loescheRaum() {
     const d = dg();
@@ -261,9 +265,13 @@ const Editor = (() => {
     return 'offen';
   }
   function setzeTuer(dir, art, bedingung, merken) {
-    const r = raum(), nb = nachbar(dir);
+    if (!nachbar(dir)) return;
+    merke(); tuerSetzen(Z.raum, dir, art, bedingung, merken);
+    aenderung(); renderRechts();
+  }
+  function tuerSetzen(rid, dir, art, bedingung, merken) {   // Tür in Raum rid (Wand dir) setzen; die Gegentür bekommt mindestens das Ziel
+    const r = dg().raeume[rid], nb = r && r.pos ? raumBei(r.pos[0] + RICHTUNG[dir][0], r.pos[1] + RICHTUNG[dir][1]) : null;
     if (!nb) return;
-    merke();
     const [nid, n] = nb, g = GEGENUEBER[dir];
     if (art === 'keine') { delete r.tueren[dir]; delete n.tueren[g]; }
     else {
@@ -279,9 +287,8 @@ const Editor = (() => {
         t.offen_wenn = bedingung === undefined ? (erstes ? erstes[0] : { alle: ['geraeumt'] }) : bedingung; if (merken) t.merken = true;
       }
       r.tueren[dir] = t;
-      n.tueren[g] = n.tueren[g] ? { ...n.tueren[g], ziel: Z.raum } : { ziel: Z.raum };
+      n.tueren[g] = n.tueren[g] ? { ...n.tueren[g], ziel: rid } : { ziel: rid };
     }
-    aenderung(); renderRechts();
   }
 
   // ---------- Automatisch befüllen ----------
@@ -718,7 +725,7 @@ const Editor = (() => {
         `<div class="knoepfe"><button data-a="alleGleichen" title="Alle Objekte dieser Art im Raum bekommen diese Einstellungen">Auf alle ${esc(a.objekt)} im Raum übertragen</button><button data-a="auswahlweg" class="gefahr">Entfernen</button></div>`;
     }
     const f = Z.fuellen;
-    el.innerHTML = `${Z.teile ? teileHtml(r) : ''}
+    el.innerHTML = `${typeof Creator !== 'undefined' ? Creator.auftragKasten(Z.raum) : ''}${Z.teile ? teileHtml(r) : ''}
       <h3>Raum ${esc(r.nr)} <small>(${esc(Z.raum)})</small></h3>
       ${feld('Titel', textfeld('r.titel', r.titel))}
       <div class="zeile">${feld('Nr.', textfeld('r.nr', r.nr))}${feld('Licht', auswahlfeld('r.licht', typeof r.licht === 'number' ? 'hell' : (r.licht || 'hell'), { hell: 'hell', daemmrig: 'dämmrig', dunkel: 'dunkel', finster: 'finster' }))}</div>
@@ -1441,6 +1448,10 @@ const Editor = (() => {
 
   // ---------- Hilfe ----------
   const HILFE = [
+    ['Creator oder Editor?', `Zwei Modi für denselben Dungeon, umschaltbar mit <b>⇄</b> oben rechts. Der <b>Creator</b> führt in fünf Schritten vom Großen zum Kleinen:
+      Idee und Endboss, Ablauf (rückwärts: was braucht man wofür?), Raumplan (Räume, Türen, Elemente in Räume legen), Räume bauen (je Raum ein Auftrag) und Prüfen
+      (der Löser vergleicht den gebauten Dungeon mit dem Plan und zeigt Abkürzungen samt der Tür, an die die Sperre gehört). Der <b>Editor</b> ist für die Details:
+      Gelände malen, Objekte und Gegner einstellen. Hat ein Raum einen Auftrag aus dem Creator, steht er hier rechts oben.`],
     ['Grundidee', `Ein <b>Dungeon</b> besteht aus Räumen auf einem Raster. Jeder Raum ist 20 × 15 Felder groß; der Rand ist Mauer, Türen liegen an festen Stellen: in der Mitte jeder Seite und auf Wunsch zwei weitere je Wand (links/rechts bzw. oben/unten).
       Du malst Gelände, setzt Objekte und Gegner, stellst Türen ein und testest sofort. Alles wird automatisch im Browser gespeichert – <b>Export</b> sichert es als Datei.`],
     ['Räume und Karte', `Links die Dungeon-Karte: Raum anklicken = bearbeiten, „+“ = neuen Raum anlegen (neben dem gewählten gleich mit Tür). ★ ist der Startraum.
@@ -1596,6 +1607,7 @@ const Editor = (() => {
     display:flex;flex-direction:column;touch-action:auto;user-select:text}
   #editor header{display:flex;gap:8px;align-items:center;padding:8px 12px;background:#1c1e26;border-bottom:1px solid #2e313b;flex-wrap:wrap}
   #editor header h2{margin:0 12px 0 0;font-size:16px;color:#f4cd5e}
+  #editor .kopfreiter{display:contents} #editor.creator .nur-editor{display:none} #editor:not(.creator) .nur-creator{display:none}
   #editor .ansichten{display:flex;flex:1;overflow:auto;gap:12px;padding:12px}
   #editor h3{margin:14px 0 6px;font-size:13px;color:#f4cd5e} #editor h3 small{color:#848e92;font-weight:normal}
   #editor .spalte{flex:0 0 250px;overflow:auto} #editor #ed-rechts{flex-basis:290px} #editor .spalte.breit{flex:1 1 320px} #editor .mitte{flex:1 1 auto;min-width:320px;overflow:auto}
@@ -1662,10 +1674,12 @@ const Editor = (() => {
     const stil = document.createElement('style'); stil.textContent = CSS; document.head.appendChild(stil);
     wurzel = document.createElement('div'); wurzel.id = 'editor';
     wurzel.innerHTML = `
-      <header><h2>Waldwacht-Editor</h2>
-        <button data-ansicht="dungeon">Dungeons &amp; Räume</button><button data-ansicht="gegner">Gegnerarten</button><button data-ansicht="kristalle">Kristalltypen</button><button data-ansicht="waffen">Waffen</button><button data-ansicht="logik">Logik</button><button data-ansicht="hilfe">Hilfe</button>
-        <button id="ed-status" class="status" data-ansicht="logik">–</button>
-        <span style="flex:1"></span><button data-a2="zurueck" title="Strg+Z">↶ Rückgängig</button><button data-a2="spiel">Zum Spiel</button></header>
+      <header><h2 id="ed-titel">Waldwacht-Editor</h2>
+        <span class="nur-editor kopfreiter"><button data-ansicht="dungeon">Dungeons &amp; Räume</button><button data-ansicht="gegner">Gegnerarten</button><button data-ansicht="kristalle">Kristalltypen</button><button data-ansicht="waffen">Waffen</button><button data-ansicht="logik">Logik</button><button data-ansicht="hilfe">Hilfe</button>
+        <button id="ed-status" class="status" data-ansicht="logik">–</button></span>
+        <nav class="nur-creator kopfreiter" id="ed-schritte"></nav>
+        <span style="flex:1"></span><button data-a2="zurueck" title="Strg+Z">↶ Rückgängig</button>
+        <button data-a2="modus" id="ed-moduswechsel" title="Zwischen Creator (planen in Schritten) und Editor (alles im Detail) wechseln – es bleibt derselbe Dungeon">⇄ Creator</button><button data-a2="spiel">Zum Spiel</button></header>
       <div class="ansichten" id="ed-dungeonansicht">
         <div class="spalte" id="ed-links"></div>
         <div class="mitte"><div id="ed-werkzeuge"></div><div id="ed-vorlage" class="vorlage"></div><canvas id="ed-raum" width="${BREITE}" height="${HOEHE}"></canvas>
@@ -1676,7 +1690,8 @@ const Editor = (() => {
       <div class="ansichten" id="ed-kristallansicht"></div>
       <div class="ansichten" id="ed-waffenansicht"></div>
       <div class="ansichten" id="ed-logikansicht"></div>
-      <div class="ansichten" id="ed-hilfeansicht"></div>`;
+      <div class="ansichten" id="ed-hilfeansicht"></div>
+      <div class="ansichten" id="ed-creatoransicht"></div>`;
     document.body.appendChild(wurzel);
     wurzel.addEventListener('click', e => {
       const b = e.target.closest('button');
@@ -1684,6 +1699,8 @@ const Editor = (() => {
       if (b.dataset.ansicht) { Z.ansicht = b.dataset.ansicht; render(); }
       else if (b.dataset.a2 === 'zurueck') zurueck();
       else if (b.dataset.a2 === 'spiel') { schliesse(); }
+      else if (b.dataset.a2 === 'modus') { Z.modus = Z.modus === 'creator' ? 'editor' : 'creator'; if (Z.modus === 'editor' && Z.ansicht !== 'dungeon' && Z.ansicht !== 'logik') Z.ansicht = 'dungeon'; render(); }
+      else if (b.closest('#ed-creatoransicht,#ed-schritte')) return;   // Knöpfe des Creators behandelt creator.js
       else if (b.dataset.art) { Z.gegnerArt = b.dataset.art; Z.gPhase = null; renderGegner(); }
       else if (b.dataset.gphase !== undefined) { Z.gPhase = b.dataset.gphase === '' ? null : Number(b.dataset.gphase); renderGegner(); }
       else if (b.dataset.ktyp) { Z.kristallTyp = b.dataset.ktyp; renderKristalle(); }
@@ -1741,6 +1758,15 @@ const Editor = (() => {
     });
   }
   function render() {
+    const creator = Z.modus === 'creator' && typeof Creator !== 'undefined';
+    wurzel.classList.toggle('creator', creator);
+    $('#ed-titel').textContent = creator ? 'Waldwacht-Creator' : 'Waldwacht-Editor';
+    $('#ed-moduswechsel').textContent = creator ? '⇄ Editor' : '⇄ Creator';
+    $('#ed-creatoransicht').style.display = creator ? '' : 'none';
+    if (creator) {
+      for (const v of ['dungeon', 'gegner', 'kristall', 'logik', 'waffen', 'hilfe']) $(`#ed-${v}ansicht`).style.display = 'none';
+      zeigeWarnungen(); Creator.render(); return;
+    }
     $('#ed-dungeonansicht').style.display = Z.ansicht === 'dungeon' ? '' : 'none';
     $('#ed-gegneransicht').style.display = Z.ansicht === 'gegner' ? '' : 'none';
     $('#ed-kristallansicht').style.display = Z.ansicht === 'kristalle' ? '' : 'none';
@@ -1775,7 +1801,8 @@ const Editor = (() => {
     }
     if (zeilen.length) { Z.meldung = 'Testlauf ausgewertet – ' + zeilen.join(' · '); speichern(); }
   }
-  function oeffne() {
+  function oeffne(modus) {
+    if (modus) Z.modus = modus;
     if (!wurzel) baue();
     eigene = ladeEigene();
     for (const d of Object.values(eigene.dungeons)) for (const r of Object.values(d.raeume)) for (const o of r.objekte || []) migriereObjekt(o);
@@ -1790,5 +1817,11 @@ const Editor = (() => {
     render();
   }
   function schliesse() { offen = false; wurzel.style.display = 'none'; document.body.classList.remove('editor'); skaliere(); }
-  return { oeffne, schliesse, get offen() { return offen; } };
+  // Für creator.js: Zustand und Hilfsfunktionen des Editors (alles Weitere bleibt intern)
+  const intern = {
+    Z, get eigene() { return eigene; }, dg, raum, $: sel => wurzel.querySelector(sel), esc, kopie, slug, signalName, feld, bildUrl, farbName, kristallTyp,
+    merke, speichern, render, zeigeWarnungen, renderRechts, zeichneRaum, raumBei, legeRaumAn, tuerSetzen, tuerArt, loeserDaten, loeserBereit, teste, schliesse,
+    TUERARTEN, TUERFARBE, TUERZEICHEN, RICHTUNGSNAME, rahmenKarte, neuerDungeon, kopiereDungeon,
+  };
+  return { oeffne, schliesse, get offen() { return offen; }, intern };
 })();

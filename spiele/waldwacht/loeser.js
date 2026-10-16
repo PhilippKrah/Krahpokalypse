@@ -128,11 +128,12 @@
     const erg = { reach: new Uint8Array(W * H), tueren: new Map(), truhen: new Set(), sig: new Set(), kristalle: [], fallen: 0, voll: true, zustaende: 0, beispielFalle: null };
     const gesehen = new Set(), q = [[start, bloecke0, gefuellt0]];
     const ausgaenge = new Set(Object.keys(raum.def.tueren).flatMap(eingang));
-    const zeit = raum.platten.filter(p => p.nachlauf), alle = raum.platten.filter(p => p.wer === 'alle' && !p.nachlauf && !p.merken);
+    const vb = s => !!(g.verboten && g.verboten.has(s));   // Plan-Prüfung: „ohne X“ – verbotene Signale entstehen nicht
+    const zeit = raum.platten.filter(p => p.nachlauf && !vb(p.signal)), alle = raum.platten.filter(p => p.wer === 'alle' && !p.nachlauf && !p.merken && !vb(p.signal));
     for (let k = 0; k < q.length; k++) {
       const [st, bl, gef] = q[k];
       // anliegende Signale: Platten mit Block darauf, Zeitschalter, die man erreicht (die Zeit prüft die Warnung)
-      const live = new Set(raum.platten.filter(p => bl.includes(p.i)).map(p => p.signal));
+      const live = new Set(raum.platten.filter(p => bl.includes(p.i) && !vb(p.signal)).map(p => p.signal));
       const z = { sig: new Set([...g.sig, ...live]), items: g.items, krist: g.krist, geraeumt: g.geraeumt };
       let sperr = sperr0(z, gef, bl), f = flut(st, sperr);
       for (let runde = 0; runde < 4; runde++) {   // Zeitschalter in Reichweite öffnen womöglich weitere Teile
@@ -162,7 +163,7 @@
         erg.tueren.set(d, l);
       }
       for (const t of raum.truhen) if (nah(t.i) && gilt(t.wenn, z)) erg.truhen.add(t.key);
-      for (const p of raum.platten) if (p.merken && (f.da[p.i] && p.wer === 'alle' || bl.includes(p.i))) erg.sig.add(p.signal);
+      for (const p of raum.platten) if (p.merken && !vb(p.signal) && (f.da[p.i] && p.wer === 'alle' || bl.includes(p.i))) erg.sig.add(p.signal);
       for (const kr of raum.kristalle) if (nah(kr.i) && !erg.kristalle.some(x => x.i === kr.i)) {   // je Kristall die erste Stellung, von der aus man ihn trifft
         const steh = [0, 1, 2, 3].map(n => nachbar(kr.i, n)).filter(j => j >= 0 && f.da[j]);
         if (steh.length) erg.kristalle.push({ typ: kr.typ, i: kr.i, steh: steh[0], bloecke: bl, gefuellt: gef });
@@ -170,7 +171,7 @@
       // Ereignisse: mit den anliegenden Signalen, dazu je eine erreichbare Trittplatte (man steht auf einer)
       const versuche = [z.sig, ...alle.filter(p => f.da[p.i]).map(p => new Set([...z.sig, p.signal]))];
       for (const e of raum.def.ereignisse || []) {
-        const setzt = [...Object.keys(e.setze || {}), ...(e.schritte || []).filter(x => x.art === 'signal' && x.signal && x.wert !== false).map(x => x.signal)];
+        const setzt = [...Object.keys(e.setze || {}), ...(e.schritte || []).filter(x => x.art === 'signal' && x.signal && x.wert !== false).map(x => x.signal)].filter(s => !vb(s));
         if (!setzt.length || setzt.every(s => g.sig.has(s) || erg.sig.has(s))) continue;
         if (versuche.some(s => gilt(e.wenn, { sig: new Set([...s, ...erg.sig]), items: g.items, krist: g.krist, geraeumt: g.geraeumt }))) setzt.forEach(s => erg.sig.add(s));
       }
@@ -238,9 +239,12 @@
   }
 
   // ---------- Suche über alle Zustände ----------
+  // Optionen: raumGrenze, maxZustaende, fortschritt(n), zielBits (Namen wie 'hat:laterne', 'truhe:r3:2', 'geraeumt:r9', Signal),
+  // zielText, verboten (Namen, die nie gewonnen werden – für „geht es auch ohne X?“), nurErreichbar (nur die Menge alles Erreichbaren)
   function loese(D, dg, opt = {}) {
     const R = baueRaeume(D, dg), rids = Object.keys(R), typen = Object.keys(D.kristalltypen), grenze = opt.raumGrenze || 200000, maxZ = opt.maxZustaende || 2000000;
     const melde = opt.fortschritt || (() => {});
+    const verboten = new Set(opt.verboten || []), V = n => verboten.has(n);
     const bits = new Map(), namen = [];
     const bit = n => { if (!bits.has(n)) { bits.set(n, 1n << BigInt(namen.length)); namen.push(n); } return bits.get(n); };
     const menge = m => namen.filter(n => (bits.get(n) & m) !== 0n);
@@ -249,7 +253,8 @@
     const kristCtx = k => Object.fromEntries(typen.map((t, i) => [t, D.kristalltypen[t].farben[k[i]]]));
     const bossRaeume = rids.filter(r => R[r].bossRaum);
     let ziel;
-    if (dg.ziel && dg.ziel.signal) ziel = z => (z.sig & bit(dg.ziel.signal)) !== 0n;
+    if (opt.zielBits && opt.zielBits.length) { const m = opt.zielBits.reduce((a, n) => a | bit(n), 0n); ziel = z => ((z.sig | z.items | z.truhen) & m) !== 0n; }
+    else if (dg.ziel && dg.ziel.signal) ziel = z => (z.sig & bit(dg.ziel.signal)) !== 0n;
     else if (dg.ziel && dg.ziel.raum) ziel = z => z.rid === dg.ziel.raum;
     else if (bossRaeume.length) { const m = bossRaeume.reduce((a, r) => a | bit('geraeumt:' + r), 0n); ziel = z => (z.sig & m) === m; }
     else { const m = rids.reduce((a, r) => a | bit('war:' + r), 0n); ziel = z => (z.sig & m) === m; }
@@ -259,7 +264,7 @@
       let k = ctxCache.get(key);
       if (!k) {
         if (ctxCache.size > 100000) ctxCache.clear();
-        k = { sig: new Set(menge(z.sig).filter(n => !n.startsWith('hat:'))), items: new Set(menge(z.items).map(n => n.slice(4))), krist: kristCtx(z.krist), geraeumt: (z.sig & bit('geraeumt:' + rid)) !== 0n };
+        k = { sig: new Set(menge(z.sig).filter(n => !n.startsWith('hat:'))), items: new Set(menge(z.items).map(n => n.slice(4))), krist: kristCtx(z.krist), geraeumt: (z.sig & bit('geraeumt:' + rid)) !== 0n, verboten: verboten.size ? verboten : null };
         ctxCache.set(key, k);
       }
       return k;
@@ -290,12 +295,12 @@
       const e = { a, k }; schnell.set(sk, e);
       return e;
     }
-    const zaehltRaeume = !(dg.ziel && (dg.ziel.signal || dg.ziel.raum)) && !bossRaeume.length;
-    function betreten(rid, sig) {
+    const zaehltRaeume = !(opt.zielBits && opt.zielBits.length) && !(dg.ziel && (dg.ziel.signal || dg.ziel.raum)) && !bossRaeume.length;
+    function betreten(rid, sig) {   // Kämpfe gelten als gewonnen: wer einen Kampf- oder Bossraum betritt, hat ihn geräumt
       const raum = R[rid]; if (zaehltRaeume) sig |= bit('war:' + rid);
-      if (raum.kampf || Object.values(raum.def.tueren).some(t => t.offen_wenn === 'geraeumt')) {
+      if ((raum.kampf || raum.bossRaum || raum.bezug.has('geraeumt')) && !V('geraeumt:' + rid)) {
         sig |= bit('geraeumt:' + rid);
-        for (const g of raum.gegner) if (g.signal) sig |= bit(g.signal);
+        for (const g of raum.gegner) if (g.signal && !V(g.signal)) sig |= bit(g.signal);
       }
       return sig;
     }
@@ -304,8 +309,9 @@
       for (let runde = 0; runde < 20; runde++) {
         const { a, k } = raumAnalyse(z.rid, z.lage, z), raum = R[z.rid];
         let neu = false;
-        for (const s of a.sig) { const b = bit(s); if (!(z.sig & b)) { z.sig |= b; neu = true; gewonnen.push('Signal „' + s + '“'); } }
+        for (const s of a.sig) { if (V(s)) continue; const b = bit(s); if (!(z.sig & b)) { z.sig |= b; neu = true; gewonnen.push('Signal „' + s + '“'); } }
         for (const t of raum.truhen) if (a.truhen.has(t.key)) {
+          if (V('truhe:' + t.key) || V('hat:' + t.inhalt)) continue;
           const b = bit('truhe:' + t.key); if (z.truhen & b) continue;
           z.truhen |= b; neu = true; gewonnen.push(((D.gegenstaende[t.inhalt] || {}).name || t.inhalt));
           if (t.inhalt === 'schluessel') z.keys++; else z.items |= bit('hat:' + t.inhalt);
@@ -313,9 +319,10 @@
         const fern = reflektiert(k.items);
         for (const g of raum.gegner) {
           const erreichbar = a.reach[g.i] || [0, 1, 2, 3].some(n => { const j = nachbar(g.i, n); return j >= 0 && a.reach[j]; }) || (g.schiesst && fern);
-          if (!erreichbar) continue;
-          if (g.signal && !(z.sig & bit(g.signal))) { z.sig |= bit(g.signal); neu = true; gewonnen.push('Signal „' + g.signal + '“'); }
+          if (!erreichbar || V('geraeumt:' + z.rid)) continue;   // „ohne diesen Boss“: der Kampf im Raum gilt als nicht gewonnen
+          if (g.signal && !V(g.signal) && !(z.sig & bit(g.signal))) { z.sig |= bit(g.signal); neu = true; gewonnen.push('Signal „' + g.signal + '“'); }
           if (g.traegt) {
+            if (V('truhe:' + g.key) || V('hat:' + g.traegt)) continue;
             const b = bit('truhe:' + g.key); if (z.truhen & b) continue;
             z.truhen |= b; neu = true; gewonnen.push(((D.gegenstaende[g.traegt] || {}).name || g.traegt) + ' (Drop)');
             if (g.traegt === 'schluessel') z.keys++; else z.items |= bit('hat:' + g.traegt);
@@ -353,13 +360,13 @@
         if (!tt) continue;
         if (tt.schloss || tt.riegel || (tt.offen_wenn !== undefined && tt.merken)) offen |= bit('tuer:' + t.ziel + ':' + an);
         const n = { rid: t.ziel, lage: { start: eingang(an)[0], bloecke: ziel.bloecke.slice().sort((x, y) => x - y), gefuellt: new Set() }, krist: z.krist.slice(), sig: betreten(t.ziel, z.sig), items: z.items, keys, offen, truhen: z.truhen };
-        aus.push({ z: n, raum: z.rid, text: `Raum ${raum.nr} ${raum.titel}: Tür ${TUERNAME(d)}${wie} → Raum ${ziel.nr} ${ziel.titel}` });
+        aus.push({ z: n, raum: z.rid, nach: t.ziel, text: `Raum ${raum.nr} ${raum.titel}: Tür ${TUERNAME(d)}${wie} → Raum ${ziel.nr} ${ziel.titel}` });
       }
       for (const kr of a.kristalle) {
         const ti = typen.indexOf(kr.typ); if (ti < 0) continue;
         const n = kopie(z); n.krist[ti] = (n.krist[ti] + 1) % D.kristalltypen[kr.typ].farben.length;
         n.lage = { start: kr.steh, bloecke: kr.bloecke, gefuellt: kr.gefuellt };
-        aus.push({ z: n, raum: z.rid, text: `Raum ${raum.nr} ${raum.titel}: Kristall (${D.kristalltypen[kr.typ].name || kr.typ}) → ${D.kristalltypen[kr.typ].farben[n.krist[ti]]}` });
+        aus.push({ z: n, raum: z.rid, nach: z.rid, kristall: kr.typ, text: `Raum ${raum.nr} ${raum.titel}: Kristall (${D.kristalltypen[kr.typ].name || kr.typ}) → ${D.kristalltypen[kr.typ].farben[n.krist[ti]]}` });
       }
       return aus;
     }
@@ -372,10 +379,10 @@
     for (let i = 0; i < zust.length; i++) {
       const z = zust[i];
       if (ziel(z)) { ziele.push(i); continue; }
-      for (const { z: n, text, raum } of nachfolger(kopie(z))) {
+      for (const { z: n, text, raum, nach } of nachfolger(kopie(z))) {
         const gewonnen = sammeln(n), key = kanon(n); let j = idx.get(key);
         if (j === undefined) {
-          j = zust.length; idx.set(key, j); zust.push(n); kanten.push([]); vor.push([i, text, gewonnen, raum]);
+          j = zust.length; idx.set(key, j); zust.push(n); kanten.push([]); vor.push([i, text, gewonnen, raum, nach]);
           if (zust.length % 20000 === 0) melde(zust.length);
           if (zust.length > maxZ) { fertig = false; break; }
         }
@@ -385,7 +392,11 @@
       if (cache.size > 200000) cache.clear();
     }
     // Ergebnis: Weg, Sackgassen, Warnungen
-    const weg = j => { const s = []; while (vor[j]) { const [i, text, gewonnen, raum] = vor[j]; s.push({ text, gewonnen, raum }); j = i; } return s.reverse(); };
+    const alles = z => z.sig | z.items | z.truhen;
+    let erreichbarM = 0n; for (const z of zust) erreichbarM |= alles(z);
+    const erreichbar = menge(erreichbarM);
+    if (opt.nurErreichbar) return { loesbar: ziele.length > 0, fertig, zustaende: zust.length, erreichbar, raeume: [...new Set(zust.map(z => z.rid))] };
+    const weg = j => { const s = []; while (vor[j]) { const [i, text, gewonnen, raum, nach] = vor[j]; s.push({ text, gewonnen, raum, nach, neu: menge(alles(zust[j]) & ~alles(zust[i])) }); j = i; } return s.reverse(); };
     const bester = ziele.length ? ziele.reduce((a, b) => weg(a).length <= weg(b).length ? a : b) : null;
     const gut = new Uint8Array(zust.length), rueck = zust.map(() => []);
     kanten.forEach((ks, i) => ks.forEach(j => rueck[j].push(i)));
@@ -400,8 +411,9 @@
     const erreicht = new Set(zust.map(z => z.rid));
     return {
       loesbar: ziele.length > 0, fertig, zustaende: zust.length,
-      ziel: dg.ziel ? (dg.ziel.raum ? 'Raum ' + dg.ziel.raum : 'Signal ' + dg.ziel.signal) : bossRaeume.length ? 'alle Bosse besiegt (' + bossRaeume.map(r => R[r].nr).join(', ') + ')' : 'alle Räume betreten',
-      weg: bester !== null ? [{ text: 'Start: Raum ' + R[dg.start.raum].nr + ' ' + R[dg.start.raum].titel, gewonnen: startGewonnen, raum: dg.start.raum }, ...weg(bester)] : [],
+      ziel: opt.zielBits && opt.zielBits.length ? (opt.zielText || 'Plan-Ziel') : dg.ziel ? (dg.ziel.raum ? 'Raum ' + dg.ziel.raum : 'Signal ' + dg.ziel.signal) : bossRaeume.length ? 'alle Bosse besiegt (' + bossRaeume.map(r => R[r].nr).join(', ') + ')' : 'alle Räume betreten',
+      weg: bester !== null ? [{ text: 'Start: Raum ' + R[dg.start.raum].nr + ' ' + R[dg.start.raum].titel, gewonnen: startGewonnen, raum: dg.start.raum, nach: dg.start.raum, neu: menge(alles(s0)) }, ...weg(bester)] : [],
+      erreichbar,
       sackgassen: sackgassen.length,
       fehltritte: [...fehltritte.values()].sort((a, b) => b.anzahl - a.anzahl).slice(0, 8).map(e => ({ text: e.text, raum: e.raum, anzahl: e.anzahl, weg: weg(e.beispiel).slice(-8) })),
       nieErreicht: rids.filter(r => !erreicht.has(r)).map(r => ({ id: r, nr: R[r].nr, titel: R[r].titel })),
@@ -409,15 +421,32 @@
     };
   }
 
-  const Loeser = { loese, raumteile, erreichbarAb, baueRaeume, analyse, eingang, TUERNAME };
+  // ---------- Plan-Prüfung (Creator) ----------
+  // auftrag: { ziel: [Namen], zielText, ohne: [{ id, verboten: [Namen] }] } – erst ein voller Lauf, dann je Element ein Lauf
+  // „ohne dieses Element“, der nur die Menge des Erreichbaren liefert. Daraus liest der Creator, was wovon wirklich abhängt.
+  function pruefePlan(D, dg, auftrag, melde = () => {}) {
+    const n = 1 + auftrag.ohne.length;
+    const basis = loese(D, dg, { zielBits: auftrag.ziel, zielText: auftrag.zielText, fortschritt: z => melde({ lauf: 1, von: n, zustaende: z }) });
+    const ohne = {};
+    auftrag.ohne.forEach((o, k) => {
+      melde({ lauf: k + 2, von: n, zustaende: 0, id: o.id });
+      const e = loese(D, dg, { zielBits: auftrag.ziel, verboten: o.verboten, nurErreichbar: true, maxZustaende: auftrag.maxZustaende || 600000, fortschritt: z => melde({ lauf: k + 2, von: n, zustaende: z, id: o.id }) });
+      ohne[o.id] = { erreichbar: e.erreichbar, raeume: e.raeume, fertig: e.fertig, zustaende: e.zustaende, loesbar: e.loesbar };
+    });
+    return { basis, ohne };
+  }
+
+  const Loeser = { loese, pruefePlan, raumteile, erreichbarAb, baueRaeume, analyse, eingang, TUERNAME };
   if (typeof module !== 'undefined' && module.exports) module.exports = Loeser;
   wurzel.Loeser = Loeser;
-  // Als Worker: { daten, dungeon, optionen } → { fortschritt } … { ergebnis }; { daten, dungeon, ab: [Raum, Tür, Zustand] } → { ab }; Fehler → { fehler }
+  // Als Worker: { daten, dungeon, optionen } → { fortschritt } … { ergebnis }; { daten, dungeon, ab: [Raum, Tür, Zustand] } → { ab };
+  // { daten, dungeon, plan: auftrag } → { fortschritt: { lauf, von, zustaende } } … { plan }; Fehler → { fehler }
   if (typeof document === 'undefined' && typeof importScripts === 'function') {
     wurzel.onmessage = e => {
       try {
         const { daten, dungeon, optionen, ab } = e.data;
         if (ab) wurzel.postMessage({ ab: erreichbarAb(daten, dungeon, ...ab) });   // [Raum, Tür, Zustand]
+        else if (e.data.plan) wurzel.postMessage({ plan: pruefePlan(daten, dungeon, e.data.plan, m => wurzel.postMessage({ fortschritt: m })) });
         else wurzel.postMessage({ ergebnis: loese(daten, dungeon, Object.assign({}, optionen, { fortschritt: n => wurzel.postMessage({ fortschritt: n }) })) });
       }
       catch (err) { wurzel.postMessage({ fehler: String(err && err.stack || err) }); }

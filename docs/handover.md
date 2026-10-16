@@ -239,11 +239,30 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
     rechts wählbar; „Ab Eingang erreichbar“ rechnet im Hintergrund alle
     Blockstellungen ab einer Tür durch und markiert die Felder. Drei neue
     Hilfe-Abschnitte.
-  Nächste Etappen (abgestimmt): **2** Creator-Modus mit Ablauf-Reiter – Ziele
-  rückwärts planen (Boss ← großer Schlüssel ← …), Schritte Räumen und
-  Raumteilen zuordnen, Prüfung vorwärts mit Spoiler-Log über den Löser;
-  **3** Raumaufträge (je Raum eine Liste „was muss hier passieren“, die man
-  Stück für Stück abarbeitet) und Rätsel-Bausteine; **4** Vorschläge und
+  **Etappe 2: der Creator** (`creator.js`, Menüeintrag CREATOR; eigener Modus im
+  Fenster des Editors, „⇄“ schaltet um, gleicher Dungeon, gleiches Rückgängig).
+  Fünf Schritte mit Leiste oben (✓ je erledigtem Schritt), Hilfe in jedem Schritt:
+  1 **Idee** (Name, Startwaffe, Idee-Text, Endboss als Ziel; „Beispiel laden“
+  legt „Die alte Mühle“ an – 6 Räume, fertig geplant und gebaut) ·
+  2 **Ablauf** rückwärts als Baum („＋ braucht …“: großer/kleiner Schlüssel,
+  Gegenstand, Rätsel/Schalter mit Signal, Zwischenboss oder ein schon geplantes
+  Element), daneben „So spielt es sich (geplant)“ vorwärts nummeriert, Kreise
+  werden gemeldet · 3 **Raumplan**: Karte mit Räumen (Mini-Vorschau),
+  ＋ legt leere Räume samt Tür an, runde Knöpfe zwischen Räumen = Türen (je
+  Richtung einstellbar), Elemente per Klick in Räume legen, getrennte Räume rot
+  gestrichelt · 4 **Räume bauen**: je Raum ein Auftrag aus dem Plan („Laterne –
+  liegt in einer Truhe“, „Signal … auslösen – Platte“) mit Haken, die sich beim
+  Bauen von selbst setzen, Raumteile-Buchstaben; „Im Editor bauen“ – dort steht
+  der Auftrag rechts oben · 5 **Prüfen**: der Löser rechnet einmal alles und dann
+  je Element „ohne dieses Element“; daraus: hält / geht auch ohne (Abkürzung,
+  mit Tipp, an welche Tür die Sperre gehört) / zusätzlich nötig / noch nicht
+  gebaut / nie erreichbar, dazu Spoiler-Log (kürzester Weg in Abschnitten),
+  Sackgassen, Warnungen. Der Plan steht im Dungeon unter `plan` (Spiel ignoriert
+  ihn, Export nimmt ihn mit). Löser dafür erweitert: `verboten`, `zielBits`,
+  `nurErreichbar`, `pruefePlan`, je Wegschritt `neu`; Kampf gilt jetzt auch in
+  Bossräumen und Räumen mit „geräumt“-Abfrage als gewonnen.
+  Nächste Etappen (abgestimmt): **3** Raumaufträge im Detail (je Raumteil, mit
+  Prüfung der Sperren im Raum) und Rätsel-Bausteine; **4** Vorschläge und
   Generierung für einzelne Räume.
   Merkposten für später (vom Nutzer so gewünscht): mehrere Etagen (Treppen,
   Löcher nach unten), Erzählung über die Umgebung, große Räume mit mitlaufender
