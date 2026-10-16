@@ -1237,20 +1237,24 @@ const Editor = (() => {
     const L = Z.loeser = { dungeon: Z.dungeon, stand: stand(), laeuft: true, fortschritt: 0, start: Date.now() };
     const fertig = erg => { L.laeuft = false; L.ergebnis = erg; L.sekunden = Math.round((Date.now() - L.start) / 1000); loeserWorker = null; if (Z.ansicht === 'logik') renderLogik(); };
     const fehler = text => { L.laeuft = false; L.fehler = text; loeserWorker = null; if (Z.ansicht === 'logik') renderLogik(); };
+    const dgD = kopie(DATEN.dungeons[Z.dungeon]);
+    const imFenster = () => {   // ohne Worker (z. B. Datei direkt geöffnet): im Fenster rechnen – der Editor steht solange
+      loeserWorker = null;
+      loeserBereit().then(() => setTimeout(() => { if (Z.loeser !== L) return; try { fertig(Loeser.loese(loeserDaten(), dgD)); } catch (err) { fehler(String(err)); } }, 50), err => fehler(String(err)));
+    };
     try {
+      let gehoert = false;
       loeserWorker = new Worker('loeser.js');
       loeserWorker.onmessage = e => {
+        gehoert = true;
         if (Z.loeser !== L) return;
         if (e.data.fortschritt) { L.fortschritt = e.data.fortschritt; if (Z.ansicht === 'logik' && Date.now() - loeserZeichnen > 400) { loeserZeichnen = Date.now(); renderLogik(); } }
         else if (e.data.ergebnis) fertig(e.data.ergebnis);
         else if (e.data.fehler) fehler(e.data.fehler);
       };
-      loeserWorker.onerror = e => { e.preventDefault(); fehler(e.message || 'Worker-Fehler'); };
-      loeserWorker.postMessage({ daten: loeserDaten(), dungeon: DATEN.dungeons[Z.dungeon] });
-    } catch (e) {   // ohne Worker (z. B. Datei direkt geöffnet): im Fenster rechnen – der Editor steht solange
-      loeserWorker = null;
-      loeserBereit().then(() => setTimeout(() => { try { fertig(Loeser.loese(loeserDaten(), DATEN.dungeons[Z.dungeon])); } catch (err) { fehler(String(err)); } }, 50), err => fehler(String(err)));
-    }
+      loeserWorker.onerror = e => { e.preventDefault(); if (Z.loeser !== L) return; if (gehoert) fehler(e.message || 'Worker-Fehler'); else imFenster(); };
+      loeserWorker.postMessage({ daten: loeserDaten(), dungeon: dgD });
+    } catch (e) { imFenster(); }
     renderLogik();
   }
   function stoppeLoeser() {
@@ -1314,15 +1318,14 @@ const Editor = (() => {
     if (abWorker) { abWorker.terminate(); abWorker = null; }
     const M = abMerk = { schluessel, ab: { laeuft: true } }, args = [Z.raum, Z.teileAb, kopie(z)];
     const fertig = ab => { if (abMerk !== M) return; M.ab = ab; abWorker = null; if (Z.teile) { renderRechts(); zeichneRaum(); } };
+    const imFenster = () => { abWorker = null; try { return Loeser.erreichbarAb(DATEN, dgD, ...args); } catch (err) { return { fehler: String(err) }; } };
     try {
+      let gehoert = false;
       abWorker = new Worker('loeser.js');
-      abWorker.onmessage = e => fertig(e.data.ab || { fehler: e.data.fehler || 'Fehler' });
-      abWorker.onerror = e => { e.preventDefault(); fertig({ fehler: e.message || 'Worker-Fehler' }); };
+      abWorker.onmessage = e => { gehoert = true; fertig(e.data.ab || { fehler: e.data.fehler || 'Fehler' }); };
+      abWorker.onerror = e => { e.preventDefault(); fertig(gehoert ? { fehler: e.message || 'Worker-Fehler' } : imFenster()); };   // Worker nicht ladbar: im Fenster rechnen
       abWorker.postMessage({ ab: args, daten: loeserDaten(), dungeon: dgD });
-    } catch (e) {   // ohne Worker im Fenster rechnen
-      abWorker = null;
-      try { M.ab = Loeser.erreichbarAb(DATEN, dgD, ...args); } catch (err) { M.ab = { fehler: String(err) }; }
-    }
+    } catch (e) { M.ab = imFenster(); }
     return M.ab;
   }
   function zeichneTeile(g, r) {
