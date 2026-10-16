@@ -39,7 +39,8 @@
                  tueren {n|o|s|w: {ziel, schloss (true | "gross"), riegel, braucht (Gegenstand), offen_wenn, merken}}, wellen [[gegnerart…]…], einstieg (Text),
                  je Wand bis zu drei Türen: n1 n n3 (links, Mitte, rechts), w1 w w3 (oben, Mitte, unten), ebenso s und o;
                  die Gegentür liegt an derselben Stelle der Nachbarwand (n1 ↔ s1, o3 ↔ w3),
-                 ereignisse [{wenn, wiederholen, schritte [{art: signal|warte|warteBis|text, signal, wert, s, wenn, text}]}]
+                 ereignisse [{wenn, wiederholen, schritte [{art: signal|warte|warteBis|text|ende, signal, wert, s, wenn, text}]}]
+                 (ende: der Dungeon ist geschafft – nach dem letzten Text kommt der Abspann)
                  (ältere Form {wenn, text, setze}); Platten optional nachlauf (Sekunden: Zeitschalter)
   Bedingungen: "signal" · {"alle": [...]} · {"eine": [...]} · {"nicht": ...}. Eingebaut: "geraeumt" (keine Gegner mehr, Wellen fertig),
                "<kristalltyp>=<farbe>" (z. B. "kristall=orange": der Typ zeigt gerade diese Farbe).
@@ -62,6 +63,9 @@
   Editor: Menüeintrag EDITOR lädt editor.js (Dungeons, Räume, Objekte, Gegner, Gegnerarten), CREATOR dazu creator.js (planen in
   Arbeitsschritten, Plan in dungeon.plan – vom Spiel nicht gelesen), Löser loeser.js; gespeichert wird im Browser
   (localStorage, EIGENE_SCHLUESSEL) im selben Format, eigene Dungeons erscheinen im Menü. Export/Import als JSON-Datei.
+  Einzelspiel: steht in den Spieldaten "einzelspiel": {"dungeon": <id>}, zeigt das Menü nur diesen Dungeon (Spiel starten /
+  Weiterspielen), speichert beim Betreten jedes Raums (localStorage) und kennt weder Editor noch eigene Dungeons – so entsteht
+  mit werkzeuge/einzelspiel.py z. B. die Fuchsfeste als eigenes Spiel (itch.io).
   Testen: ?dungeon=<id>&raum=<id> startet direkt (z. B. ?dungeon=hain&raum=kristall), ?touch zeigt die Touch-Bedienung am PC.
 -->
 <html lang="de">
@@ -1398,7 +1402,7 @@
         "thronsaal": {
           "nr": "23", "titel": "THRONSAAL", "licht": "daemmrig", "pos": [0, -6], "kampf": true,
           "einstieg": "Der Schattenfuchs! Das Ende der Fuchsfeste.",
-          "ereignisse": [{"wenn": "geraeumt", "schritte": [{"art": "text", "text": "Der Schattenfuchs ist besiegt - die Fuchsfeste ist befreit! Danke fürs Spielen."}]}],
+          "ereignisse": [{"wenn": "geraeumt", "schritte": [{"art": "text", "text": "Der Schattenfuchs ist besiegt - die Fuchsfeste ist befreit! Danke fürs Spielen."}, {"art": "ende"}]}],
           "tueren": {"s": {"ziel": "vorkammer", "offen_wenn": "geraeumt"}},
           "karte": [
             "####################",
@@ -2597,7 +2601,7 @@
         },
         "thron": {
           "nr": "33", "titel": "KRISTALLTHRON", "licht": "daemmrig", "pos": [0, -6], "kampf": true,
-          "ereignisse": [{"wenn": "geraeumt", "schritte": [{"art": "text", "text": "Der Kristallwächter zerspringt. Die Kristallgruft ist bezwungen!"}]}],
+          "ereignisse": [{"wenn": "geraeumt", "schritte": [{"art": "text", "text": "Der Kristallwächter zerspringt. Die Kristallgruft ist bezwungen!"}, {"art": "ende"}]}],
           "tueren": {"s": {"ziel": "vorthron", "offen_wenn": "geraeumt"}},
           "karte": [
             "####################",
@@ -3052,7 +3056,8 @@ function uebernehmeEigene(e, mitBildern = false) {   // auch vom Editor nach jed
   WARNUNGEN = pruefeDaten(DATEN, mitBildern);
   if (mitBildern) baueDatenbilder();
 }
-uebernehmeEigene(ladeEigene());
+const EINZEL = DATEN.einzelspiel && DATEN.dungeons[DATEN.einzelspiel.dungeon] ? DATEN.einzelspiel.dungeon : null;   // nur dieser Dungeon, eigenes Spiel
+uebernehmeEigene(EINZEL ? { format: 1, dungeons: {}, gegnerarten: {}, kristalltypen: {}, waffen: {} } : ladeEigene());
 // Editor: eigene Datei, erst bei Bedarf geladen
 const imEditor = () => typeof Editor !== 'undefined' && Editor.offen;
 function ladeEditor(modus) {   // modus: 'editor' | 'creator' (ohne: wie zuletzt); der Creator (creator.js) baut auf dem Editor auf
@@ -3537,7 +3542,13 @@ function stickLos() {
   elStick.classList.remove('an'); elStick.style.left = elStick.style.top = ''; elKnauf.style.transform = '';
 }
 addEventListener('pointerdown', e => {
-  if (imEditor() || (e.pointerType === 'mouse' && !TOUCH.aktiv)) return;
+  if (imEditor()) return;
+  if (e.pointerType === 'mouse' && !TOUCH.aktiv) {   // Maus: im Menü Eintrag wählen, im Abspann zurück zum Titel
+    const b = cv.getBoundingClientRect();
+    if (!S && e.target === cv) menueTipp((e.clientY - b.top) / b.height * HOEHE);
+    else if (S && S.zustand === 'sieg') gedrueckt.add('schlag');
+    return;
+  }
   const b = cv.getBoundingClientRect();   // vor touchAn: das ändert die Größe der Leinwand
   touchAn(); e.preventDefault();
   if (!S) { menueTipp((e.clientY - b.top) / b.height * HOEHE); return; }
@@ -3726,6 +3737,7 @@ function nachEinlauf() {   // der Held steht im Raum: Eintrittspunkt merken (fü
   const h = S.held, k = S.raum.schluessel;
   S.eintritt = { x: h.x, y: h.y, blick: h.blick };
   if (!S.besucht.has(k)) { S.besucht.add(k); if (S.raum.def.einstieg) zeigeText(S.raum.def.einstieg); }
+  speichereStand();
 }
 const ANGRIFFE = ['sprung', 'schuss', 'rammen', 'stampfen'];
 const BLICKWINKEL = { rechts: 0, runter: Math.PI / 2, links: Math.PI, hoch: -Math.PI / 2 };
@@ -3897,7 +3909,8 @@ function updateText() {
   else S.text = null;
 }
 // Ereignisse: wenn die Bedingung gilt, einmal (oder mit „wiederholen“ jedes Mal neu) ablaufen. Ein Ablauf besteht aus Schritten:
-// signal (an/aus) · warte (Sekunden) · warteBis (Bedingung) · text. Ältere Form {text, setze} gilt als ein Schritt.
+// signal (an/aus) · warte (Sekunden) · warteBis (Bedingung) · text · ende (Abspann, sobald kein Text mehr offen ist).
+// Ältere Form {text, setze} gilt als ein Schritt.
 function pruefeEreignisse() {
   (S.raum.def.ereignisse || []).forEach((e, i) => {
     const key = `${S.raum.schluessel}:e${i}`;
@@ -3920,6 +3933,7 @@ function pruefeEreignisse() {
       else if (sch.art === 'warteBis') { if (!gilt(sch.wenn)) break; }
       else if (sch.art === 'signal') { S.signale[sch.signal] = sch.wert !== false; ton('schalter'); }
       else if (sch.art === 'text') { if (S.text) break; zeigeText(sch.text || ''); st.i++; break; }
+      else if (sch.art === 'ende') S.endePlan = true;
       st.i++;
     }
     if (st.i >= e.schritte.length) st.i = -1;
@@ -4597,8 +4611,50 @@ function neustartImRaum() {   // Game Over: Herzen voll, Raum frisch (Fortschrit
   betreteRaum(S.raum.id, S.eintritt);
 }
 
+// ---------- Spielstand (nur im Einzelspiel) ----------
+// Beim Betreten jedes Raums, beim Gang ins Menü und beim Schließen der Seite: Fortschritt des Dungeons (Gegenstände, Schlüssel,
+// Signale, geöffnete Türen und Truhen, besiegte Gegner) und der Eintrittspunkt des Raums. Der Raum selbst beginnt beim Laden
+// frisch – wie beim Neustart mit R. Ohne Speicher (z. B. gesperrt im Rahmen einer Webseite) läuft das Spiel trotzdem.
+const STAND_SCHLUESSEL = id => 'waldwacht.stand.' + id;
+const spielzeit = () => (S.zeitBasis || 0) + S.zeit;
+const zeitText = sek => { const m = Math.floor(sek / 60); return m >= 60 ? `${Math.floor(m / 60)} STD ${m % 60} MIN` : `${m} MIN`; };
+function speichereStand() {
+  if (!EINZEL || !S || S.dungeonId !== EINZEL || S.zustand !== 'spiel' || !S.raum || !S.eintritt) return;
+  const st = { v: 1, raum: S.raum.id, titel: S.raum.def.titel || '', eintritt: { x: S.eintritt.x, y: S.eintritt.y, blick: S.eintritt.blick },
+    lp: S.held.lp, maxLp: S.maxLp, inventar: S.inventar, besitz: [...S.besitz], signale: S.signale, gemerkt: [...S.gemerkt], geraeumt: [...S.geraeumt],
+    truhen: [...S.truhen], besucht: [...S.besucht], liegt: S.liegt, kristalle: S.kristalle, waffe: S.waffe, zeit: spielzeit() };
+  try { localStorage.setItem(STAND_SCHLUESSEL(S.dungeonId), JSON.stringify(st)); } catch (e) { /* ohne Speicher geht es auch */ }
+}
+function liesStand(id) {
+  try { const st = JSON.parse(localStorage.getItem(STAND_SCHLUESSEL(id)) || 'null'); return st && st.v === 1 && DATEN.dungeons[id] && DATEN.dungeons[id].raeume[st.raum] ? st : null; }
+  catch (e) { return null; }
+}
+function loescheStand(id) { try { localStorage.removeItem(STAND_SCHLUESSEL(id)); } catch (e) { /* egal */ } }
+function ladeStand(id) {
+  const st = liesStand(id);
+  starteDungeon(id);
+  if (!st) return;
+  Object.assign(S, { maxLp: st.maxLp, inventar: st.inventar || {}, besitz: new Set(st.besitz), signale: st.signale || {}, gemerkt: new Set(st.gemerkt),
+    geraeumt: new Set(st.geraeumt), truhen: new Set(st.truhen), besucht: new Set(st.besucht), liegt: st.liegt || {}, kristalle: st.kristalle || {},
+    waffe: st.waffe || S.waffe, zeitBasis: st.zeit || 0, text: null });
+  S.held.lp = Math.max(1, Math.min(st.lp || S.maxLp, S.maxLp));
+  betreteRaum(st.raum, { ...st.eintritt });
+}
+addEventListener('pagehide', () => speichereStand());
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') speichereStand(); });
+// Abspann: wie viele Truhen (und getragene Gegenstände) es im Dungeon gibt – zum Vergleich mit den gefundenen
+function truhenImDungeon(dg) {
+  let n = 0;
+  for (const r of Object.values(dg.raeume)) {
+    n += raumObjekte(DATEN, r).filter(o => (DATEN.objektarten[o.objekt] || {}).oeffnbar && o.inhalt).length;
+    n += (r.gegner || []).filter(g => g.traegt).length;
+  }
+  return n;
+}
+
 function schritt() {
   if (gedrueckt.has('menue')) {   // aus einem Test zurück in den Editor: Protokoll mitgeben (wird dort zum Nachweis)
+    speichereStand();
     const editor = S.ausEditor;
     if (editor) LETZTER_TEST = { dungeon: S.dungeonId, protokoll: S.protokoll };
     S = null; gedrueckt.clear(); if (editor) ladeEditor(); return;
@@ -4616,6 +4672,13 @@ function schritt() {
     gedrueckt.clear(); return;
   }
   if (S.text) { updateText(); gedrueckt.clear(); return; }
+  if (S.endePlan && S.zustand === 'spiel') {   // Dungeon geschafft: Abspann, Spielstand ist erledigt
+    S.endePlan = false; S.zustand = 'sieg'; S.endeZeit = S.zeit; S.endeSpielzeit = spielzeit(); ton('truhe');
+    if (EINZEL) loescheStand(S.dungeonId);
+  }
+  if (S.zustand === 'sieg') {
+    if (S.zeit - S.endeZeit > 1.5 && (gedrueckt.has('schlag') || gedrueckt.has('neustart'))) { const editor = S.ausEditor; S = null; gedrueckt.clear(); if (editor) ladeEditor(); return; }
+  }
   aktualisiereHindernisse();
   const h = S.held;
   if (S.zustand === 'spiel' || h.modus === 'rueckstoss') updateHeld(h);
@@ -4638,7 +4701,7 @@ function schritt() {
   for (const e of S.effekte) e.t += DT;
   S.effekte = S.effekte.filter(e => e.t < (e.art === 'funke' ? 0.12 : 0.4));
   S.wackeln = Math.max(0, (S.wackeln || 0) - DT);
-  if (S.zustand !== 'spiel' && gedrueckt.has('neustart') && S.zeit - S.endeZeit > 0.8) neustartImRaum();
+  if (S.zustand === 'gameover' && gedrueckt.has('neustart') && S.zeit - S.endeZeit > 0.8) neustartImRaum();
   gedrueckt.clear();
 }
 
@@ -4905,6 +4968,17 @@ function zeichneText() {
 }
 function zeichneEnde() {
   const a = Math.min(1, (S.zeit - S.endeZeit) / 0.6), blinkt = Math.floor(S.zeit * 2) % 2 === 0;
+  if (S.zustand === 'sieg') {   // Abspann: geschafft, Spielzeit, Truhen, Herzen
+    ctx.fillStyle = `rgba(18,13,20,${0.8 * a})`; ctx.fillRect(0, 0, BREITE, HOEHE);
+    if (a < 1) return;
+    schreibe('GESCHAFFT!', BREITE / 2, 110, 6, PAL.gold2);
+    schreibe(S.dungeon.titel || '', BREITE / 2, 170, 3, PAL.creme);
+    schreibe('SPIELZEIT  ' + zeitText(S.endeSpielzeit || 0), BREITE / 2, 235, 2, PAL.fels4);
+    schreibe(`TRUHEN  ${S.truhen.size} VON ${truhenImDungeon(S.dungeon)}`, BREITE / 2, 265, 2, PAL.fels4);
+    schreibe(`HERZEN  ${S.maxLp / 2}`, BREITE / 2, 295, 2, PAL.fels4);
+    if (S.zeit - S.endeZeit > 1.5 && blinkt) schreibe(TOUCH.aktiv ? 'TIPPEN: ZURÜCK ZUM TITEL' : 'LEERTASTE: ZURÜCK ZUM TITEL', BREITE / 2, 380, 2, PAL.creme);
+    return;
+  }
   ctx.fillStyle = `rgba(18,13,20,${0.65 * a})`; ctx.fillRect(0, 0, BREITE, HOEHE);
   if (a < 1) return;
   schreibe('GAME OVER', BREITE / 2, 170, 6, PAL.rot2);
@@ -4964,7 +5038,8 @@ function zeichne() {
 // höchstens MENUE.sichtbar Einträge auf einmal, dann wird geblättert. Nach einem Dungeon geht es in seine Liste zurück.
 const MENUE = { wahl: 0, oben: 0, sichtbar: 4, zeit: 0, ebene: null };
 const HAUPTMENUE = ['@dungeons', '@eigene', '@creator', '@editor'];
-const menueListe = () => MENUE.ebene === null ? HAUPTMENUE
+const einzelMenue = () => liesStand(EINZEL) ? ['@weiter', '@neu'] : ['@neu'];
+const menueListe = () => MENUE.ebene === null ? (EINZEL ? einzelMenue() : HAUPTMENUE)
   : [...Object.keys(DATEN.dungeons).filter(id => !DATEN.dungeons[id].eigen === (MENUE.ebene === 'dungeons')), '@zurueck'];
 const menueY = i => 220 + (i - MENUE.oben) * 52;
 function menueEbene(ebene) {
@@ -4975,7 +5050,9 @@ function menueEbene(ebene) {
 }
 function waehleMenue(i) {
   const id = menueListe()[i];
-  if (id === '@editor') ladeEditor('editor');
+  if (id === '@weiter') ladeStand(EINZEL);
+  else if (id === '@neu') starteDungeon(EINZEL);
+  else if (id === '@editor') ladeEditor('editor');
   else if (id === '@creator') ladeEditor('creator');
   else if (id === '@dungeons') menueEbene('dungeons');
   else if (id === '@eigene') menueEbene('eigene');
@@ -5006,9 +5083,12 @@ function zeichneMenue() {
   for (let i = 0; i < SPALTEN; i++) zeichneBild(ctx, 'gras_' + (i * 7 % 4 === 3 ? 1 : i * 7 % 4), i * T, 40);
   zeichneBild(ctx, 'held_3', 236, 28); zeichneLeinwand(GEGNERBILD.fuchs[Math.floor(MENUE.zeit * 4) % 2], 372, 44, true);
   schreibe('WALDWACHT', BREITE / 2, 112, 6, PAL.gold2);
-  schreibe(MENUE.ebene === 'dungeons' ? 'WÄHLE EINEN DUNGEON' : MENUE.ebene === 'eigene' ? 'EIGENE DUNGEONS' : 'HAUPTMENÜ', BREITE / 2, 186, 2, PAL.fels4);
+  schreibe(MENUE.ebene === 'dungeons' ? 'WÄHLE EINEN DUNGEON' : MENUE.ebene === 'eigene' ? 'EIGENE DUNGEONS' : EINZEL ? DATEN.dungeons[EINZEL].titel : 'HAUPTMENÜ', BREITE / 2, 186, 2, EINZEL ? PAL.creme : PAL.fels4);
   const liste = menueListe(), zahl = eigen => Object.values(DATEN.dungeons).filter(d => !d.eigen === !eigen).length;
+  const stand = EINZEL && liesStand(EINZEL);
   const EINTRAG = {
+    '@weiter': { titel: 'WEITERSPIELEN', untertitel: stand ? `${stand.titel} - ${zeitText(stand.zeit || 0)} GESPIELT` : '' },
+    '@neu': { titel: stand ? 'NEUES SPIEL' : 'SPIEL STARTEN', untertitel: stand ? 'Der Spielstand wird überschrieben' : (EINZEL ? DATEN.dungeons[EINZEL].untertitel || '' : '') },
     '@dungeons': { titel: 'DUNGEONS', untertitel: `${zahl(false)} fertige Dungeons, von klein bis groß` },
     '@eigene': { titel: 'EIGENE DUNGEONS', untertitel: zahl(true) ? `${zahl(true)} im Editor gebaut` : 'Noch keine - im Editor bauen' },
     '@creator': { titel: 'CREATOR', untertitel: 'Dungeon planen und bauen in 5 Schritten' },
@@ -5025,7 +5105,7 @@ function zeichneMenue() {
   });
   if (MENUE.oben > 0) schreibe('- MEHR -', BREITE / 2, 200, 1, PAL.fels3);
   if (MENUE.oben + MENUE.sichtbar < liste.length) schreibe('- MEHR -', BREITE / 2, menueY(MENUE.oben + MENUE.sichtbar) - 4, 1, PAL.fels3);
-  schreibe(TOUCH.aktiv ? 'EINTRAG ANTIPPEN' : 'PFEILE WÄHLEN, LEERTASTE STARTEN', BREITE / 2, 440, 2, PAL.fels3);
+  schreibe(TOUCH.aktiv ? 'EINTRAG ANTIPPEN' : 'ANKLICKEN ODER PFEILE UND LEERTASTE', BREITE / 2, 440, 2, PAL.fels3);
   if (WARNUNGEN.length) schreibe(`${WARNUNGEN.length} WARNUNGEN IN DEN SPIELDATEN (KONSOLE)`, BREITE / 2, 460, 1, PAL.rot2);
 }
 
@@ -5039,7 +5119,7 @@ function skaliere() {
   if (!TOUCH.aktiv) s = Math.min(w / BREITE, (h - document.querySelector('.hilfe').offsetHeight - 30) / HOEHE);
   else if (hochkant) s = Math.min((w - 8) / BREITE, (h - 240) / HOEHE);
   else s = Math.min((w - 2 * 130) / BREITE, h / HOEHE);
-  if (s >= 1) s = Math.floor(s);   // ganzzahlig, damit die Pixel gleich groß bleiben
+  if (s >= 1 && !EINZEL) s = Math.floor(s);   // ganzzahlig, damit die Pixel gleich groß bleiben (im Einzelspiel: Rahmen füllen)
   cv.style.width = BREITE * s + 'px'; cv.style.height = HOEHE * s + 'px';
 }
 addEventListener('resize', skaliere);

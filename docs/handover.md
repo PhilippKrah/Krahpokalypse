@@ -295,6 +295,15 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   296/300 Varianten auf Anhieb gültig (Rest: Einsperr-Fallen, werden verworfen);
   fünfmal alle Räume des Beispiels (plus Zusatz-Elementen mit Sperre im Raum)
   erzeugt – jedes Mal lösbar, keine Sackgasse, alle 8 Abhängigkeiten halten.
+  **Einzelspiel (für itch.io):** `werkzeuge/einzelspiel.py fuchsfeste` baut die
+  Fuchsfeste als eigenes Spiel (eine Datei, ZIP zum Hochladen). Dafür kann die
+  Engine jetzt: Einzelspiel-Modus über `"einzelspiel": {"dungeon": …}` in den
+  Spieldaten (Titelbild nur mit diesem Dungeon, kein Editor, keine eigenen
+  Dungeons, Rahmen-füllende Skalierung), Spielstand beim Betreten jedes Raums, beim
+  Gang ins Menü und beim Schließen der Seite (localStorage `waldwacht.stand.<id>`,
+  „Weiterspielen“), Ereignis-Schritt `ende` mit Abspann (Spielzeit, Truhen,
+  Herzen; im Hauptspiel zurück ins Menü). Fuchsfeste und Kristallgruft haben ihn
+  nach dem Endboss (über ihre Generator-Skripte). Maus-Klick wählt Menüeinträge.
   Damit sind die vier abgestimmten Etappen des Creators fertig. Mögliche nächste
   Schritte: mehr Stile und Bausteine, Raumgrößen, Mobil-Bedienung des Creators,
   Randomizer auf Basis von Plan und Löser.

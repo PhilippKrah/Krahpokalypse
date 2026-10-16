@@ -12,6 +12,7 @@ nur als Dateien mit aus.
 | `sokoban.py` | Schneller Sokoban-Löser (ohne Abgründe). |
 | `sokoban_suche.py` | Sucht zufällige Schieberätsel und zeigt die schwersten. |
 | `sokoban_loesung.py` | Kürzeste Schub-Folgen der Kristallgruft-Rätsel als JSON. |
+| `einzelspiel.py` | Baut einen Dungeon als eigenständiges Spiel (eine `index.html` plus ZIP für itch.io). |
 
 ## Aufrufe
 
@@ -23,7 +24,15 @@ python3 kristallgruft.py --weg        # Löser: kürzester Weg und Sackgassen (c
 python3 kristallgruft.py --fallen     # kann man sich mit Blöcken einsperren? (einige Minuten)
 python3 kristallgruft.py --schreiben  # Löser, dann in ../index.html eintragen
 python3 sokoban_suche.py 8 6 3 3000 0.25
+python3 einzelspiel.py fuchsfeste     # → einzelspiel/fuchsfeste/index.html und einzelspiel/fuchsfeste-itch.zip
 ```
+
+`einzelspiel.py` lässt in den Spieldaten nur den einen Dungeon stehen und setzt
+`"einzelspiel"`: Das Spiel zeigt dann ein Titelbild nur mit diesem Dungeon
+(Spiel starten / Weiterspielen), speichert beim Betreten jedes Raums und zeigt am
+Ende den Abspann (Ereignis-Schritt `ende`). Die ZIP enthält nur die `index.html`
+und lässt sich bei itch.io als HTML-Spiel hochladen (Viewport z. B. 960 × 720).
+Der Ordner `einzelspiel/` ist Bauergebnis und steht nicht im Repo.
 
 `--schreiben` ersetzt den Dungeon und seine Gegnerarten/Kristalltypen im
 `spieldaten`-Block und hängt sie dort wieder an. Wer erst `fuchsfeste.py` und

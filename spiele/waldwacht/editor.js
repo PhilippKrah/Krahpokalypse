@@ -27,7 +27,7 @@ const Editor = (() => {
   try { Object.assign(Z.fuellen, JSON.parse(localStorage.getItem('waldwacht.editor') || '{}')); } catch (e) { /* Voreinstellung */ }
 
   const LICHT = ['hell', 'daemmrig', 'dunkel', 'finster'];
-  const SCHRITTARTEN = { signal: 'Signal setzen', warte: 'warten', warteBis: 'warten bis', text: 'Text zeigen' };
+  const SCHRITTARTEN = { signal: 'Signal setzen', warte: 'warten', warteBis: 'warten bis', text: 'Text zeigen', ende: 'Dungeon geschafft (Abspann)' };
   const TUERARTEN = { keine: 'keine', offen: 'offen', schloss: 'Schloss (kleiner Schlüssel)', gross: 'Großes Schloss (großer Schlüssel)', gegenstand: 'Tor für einen Gegenstand',
     riegel: 'Riegel (geht nur von der anderen Seite auf)', kampf: 'Kampf (offen, wenn geräumt)', bedingung: 'Bedingung' };
   const TUERFARBE = { offen: '#cfd6cf', schloss: '#f4cd5e', gross: '#d0574a', gegenstand: '#8abd4f', riegel: '#986438', kampf: '#d0574a', bedingung: '#8098cc' };
@@ -765,6 +765,7 @@ const Editor = (() => {
           ${x.art === 'signal' ? `<input data-ev="${i}" data-sk="${k}" data-sf="signal" value="${esc(x.signal || '')}" placeholder="Signal" list="ed-signalliste3">${wahlHtml(`data-ev="${i}" data-sk="${k}" data-sf="wert"`, x.wert === false ? 'aus' : 'an', { an: 'an', aus: 'aus' })}` : ''}
           ${x.art === 'warte' ? `<input type="number" step="0.5" min="0" data-ev="${i}" data-sk="${k}" data-sf="s" value="${x.s ?? 1}"> s` : ''}
           ${x.art === 'text' ? `<input data-ev="${i}" data-sk="${k}" data-sf="text" value="${esc(x.text || '')}" placeholder="Text">` : ''}
+          ${x.art === 'ende' ? '<span class="klein">nach dem letzten Text: Abspann mit Spielzeit und Truhen, dann zurück zum Menü</span>' : ''}
           <button data-a="schrittweg" data-i="${i}" data-k="${k}" title="Schritt entfernen">×</button>
           ${x.art === 'warteBis' ? `<div class="bedbreit">${bedingungsFormular('schritt.' + i + '.' + k, x.wenn)}</div>` : ''}</div>`).join('')}
         <div class="knoepfe"><button data-a="schrittneu" data-i="${i}">＋ Schritt</button><button data-a="evweg" data-i="${i}">Ereignis entfernen</button></div></div>`).join('')}

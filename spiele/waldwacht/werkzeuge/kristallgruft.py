@@ -702,7 +702,7 @@ TR.kampf = True
 TR.tuer('s', 'vorthron', offen_wenn='geraeumt')
 TR.feind('kristallwaechter', 9, 4)
 TR.extra['_sieg'] = ['sieg']
-TR.extra['ereignisse'] = [{'wenn': 'geraeumt', 'schritte': [{'art': 'text', 'text': 'Der Kristallwächter zerspringt. Die Kristallgruft ist bezwungen!'}]}]
+TR.extra['ereignisse'] = [{'wenn': 'geraeumt', 'schritte': [{'art': 'text', 'text': 'Der Kristallwächter zerspringt. Die Kristallgruft ist bezwungen!'}, {'art': 'ende'}]}]
 for c, r in ((5, 2), (14, 2), (5, 13), (14, 13)): TR.obj('fackel', c, r)
 
 # ================================================================ Gegnerarten und Kristalltyp
