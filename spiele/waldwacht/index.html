@@ -35,7 +35,7 @@
     dungeons     titel, start {raum, feld}, raeume { id: raum }
     raum         nr, titel, licht (Stufe oder 0..1), lichtkarte (Ziffern 0–9 je Feld), kampf (geräumt bleibt geräumt),
                  karte (15 Zeilen × 20 Zeichen), zeichen, objekte [{objekt, feld:[c,r], …}], gegner [{gegner, feld}],
-                 gegner [{gegner, feld, signal, weg [[c,r]…], blick}],
+                 gegner [{gegner, feld, signal, weg [[c,r]…], blick, traegt (Gegenstand: fällt beim Besiegen heraus)}],
                  tueren {n|o|s|w: {ziel, schloss (true | "gross"), riegel, braucht (Gegenstand), offen_wenn, merken}}, wellen [[gegnerart…]…], einstieg (Text),
                  je Wand bis zu drei Türen: n1 n n3 (links, Mitte, rechts), w1 w w3 (oben, Mitte, unten), ebenso s und o;
                  die Gegentür liegt an derselben Stelle der Nachbarwand (n1 ↔ s1, o3 ↔ w3),
@@ -2742,6 +2742,7 @@ function dungeonSignale(d, dg) {
     }
     for (const e of gegner) {
       const sig = e.signal || (d.gegnerarten[e.gegner] || {}).signal;
+      if (e.traegt) neu(quellen, 'hat:' + e.traegt, { raum: id, art: 'gegner', gegner: e.gegner });
       if (sig) neu(quellen, sig, { raum: id, art: 'gegner', gegner: e.gegner });
     }
     for (const art of (r.wellen || []).flat()) { const sig = (d.gegnerarten[art] || {}).signal; if (sig) neu(quellen, sig, { raum: id, art: 'gegner', gegner: art }); }
@@ -2805,6 +2806,7 @@ function logikInfo(d, dg) {   // je Raum: was es dort zu holen gibt
       if ((art.kristall || art.pflock) && o.kristalltyp && art.kristall) i.kristalle.push(o.kristalltyp);
       if (art.oeffnbar && o.inhalt) i.truhen.push({ key: id + ':' + k, inhalt: o.inhalt, wenn: o.sichtbar_wenn });
     });
+    gegner.forEach((e, k) => { if (e.traegt) i.truhen.push({ key: id + ':g' + k, inhalt: e.traegt }); });   // Gegner-Drop: wie eine Truhe, sobald der Raum erreichbar ist
     for (const e of gegner) { const sig = e.signal || (d.gegnerarten[e.gegner] || {}).signal; if (sig) i.global.push(sig); }
     for (const art of (r.wellen || []).flat()) { const sig = (d.gegnerarten[art] || {}).signal; if (sig) i.global.push(sig); }
   }
@@ -2996,6 +2998,7 @@ function pruefeDaten(d, still = false) {
         if (e.objekt && !d.objektarten[e.objekt]) w.push(`${wo}: unbekannte Objektart ${e.objekt}`);
         if (e.gegner && !d.gegnerarten[e.gegner]) w.push(`${wo}: unbekannte Gegnerart ${e.gegner}`);
         if (e.inhalt && !d.gegenstaende[e.inhalt]) w.push(`${wo}: unbekannter Gegenstand ${e.inhalt}`);
+        if (e.traegt && !d.gegenstaende[e.traegt]) w.push(`${wo}: Gegner trägt unbekannten Gegenstand ${e.traegt}`);
         const art = d.objektarten[e.objekt] || {};
         if ((art.kristall || art.pflock) && e.kristalltyp && !d.kristalltypen[e.kristalltyp]) w.push(`${wo}: unbekannter Kristalltyp ${e.kristalltyp}`);
         if (art.pflock && e.kristalltyp && d.kristalltypen[e.kristalltyp] && !d.kristalltypen[e.kristalltyp].farben.includes(e.farbe))
@@ -3660,6 +3663,7 @@ function starteDungeon(dungeonId, raumId, vorgaben = null) {
     zeit: 0, endeZeit: 0, stopp: 0,
     maxLp: CFG.held.lp, inventar: {}, besitz: new Set(),
     signale: {}, gemerkt: new Set(), geraeumt: new Set(), truhen: new Set(), besucht: new Set(),   // Fortschritt
+    liegt: {},         // von Gegnern fallengelassene Gegenstände, die noch nicht aufgehoben sind (je Gegner-Schlüssel)
     kristalle: {},     // je Kristalltyp die Nummer der aktuellen Farbe (gilt im ganzen Dungeon)
     uhren: {}, ablaeufe: {},   // Zeitschalter der Platten (bis wann), laufende Abläufe der Ereignisse
     live: new Set(),   // Signale, die gerade anliegen (belegte Platten)
@@ -3700,7 +3704,7 @@ function betreteRaum(id, eintritt) {
   S.gegner = []; S.beute = []; S.effekte = []; S.wellen = null; S.live = new Set(); S.geschosse = []; S.gefahren = []; S.banner = null;
   if (!(def.kampf && S.geraeumt.has(S.raum.schluessel))) {
     S.raum.gegner.forEach((e, i) => {   // benannte Gegner (mit Signal) und Bosse bleiben besiegt
-      const a = DATEN.gegnerarten[e.art], key = `${S.raum.schluessel}:g${i}`, benannt = a && (e.p.signal || a.signal || a.boss);
+      const a = DATEN.gegnerarten[e.art], key = `${S.raum.schluessel}:g${i}`, benannt = a && (e.p.signal || a.signal || a.boss || e.p.traegt);
       if (!a || (benannt && S.gemerkt.has(key))) return;
       S.gegner.push(neuerGegner(e.art, e.x, e.y, { ...e.p, key: benannt ? key : null }));
     });
@@ -4472,6 +4476,18 @@ function gegnerBesiegt(g, wie) {   // einmal je Gegner: Signal, Beute, Teilen, E
   const a = g.a, sig = g.inst.signal || a.signal;
   if (sig) S.signale[sig] = true;
   if (g.key) S.gemerkt.add(g.key);
+  if (g.inst.traegt && g.key && !S.liegt[g.key] && !S.truhen.has(g.key)) {   // trägt einen Gegenstand: fällt heraus, bleibt liegen bis zum Aufheben
+    let x = g.x, y = g.y;
+    if (wie === 'sturz') {   // in den Abgrund gefallen: Gegenstand landet auf dem nächsten festen Boden
+      const c0 = Math.floor(x / T), r0 = Math.floor(y / T); let best = null;
+      for (let r = 2; r < ZEILEN - 1; r++) for (let c = 1; c < SPALTEN - 1; c++) if (S.raum.kachel[r][c] === 'boden' && !istLoch(c, r)) {
+        const dd = (c - c0) ** 2 + (r - r0) ** 2; if (!best || dd < best[0]) best = [dd, c, r];
+      }
+      if (best) { x = best[1] * T + T / 2; y = best[2] * T + T / 2; }
+    }
+    S.liegt[g.key] = { raum: S.raum.schluessel, id: g.inst.traegt, x, y };
+    S.effekte.push({ art: 'puff', x, y: y - 8, t: 0 });
+  }
   if (wie === 'sturz') { ton('fall'); return; }
   if (!a.boss) ton('besiegt');
   if (Math.random() < ((a.beute || {}).herz || 0)) S.beute.push({ x: g.x, y: g.y, t: 0 });
@@ -4554,6 +4570,10 @@ function pruefeBeruehrung(h) {   // betäubte Gegner tun nichts; Berührung weck
 }
 
 function pruefeBeute(h) {   // Herzen: einsammeln heilt ein ganzes Herz, nach einer Weile verschwinden sie
+  for (const [key, l] of Object.entries(S.liegt)) {   // fallengelassene Gegenstände: berühren = aufheben
+    if (l.raum !== S.raum.schluessel || S.zustand !== 'spiel' || !ueberlappt(heldKoerper(h), { x: l.x - 10, y: l.y - 16, w: 20, h: 20 })) continue;
+    delete S.liegt[key]; S.truhen.add(key); gibGegenstand(l.id);
+  }
   const k = heldKoerper(h);
   S.beute = S.beute.filter(b => {
     b.t += DT;
@@ -4893,6 +4913,9 @@ function zeichneWelt() {
   for (const d of Object.keys(r.def.tueren)) if (r.tuerZu[d]) zeichneTuer(d, r.def.tueren[d]);
   for (const o of r.objekte) if (flachesObjekt(o)) zeichneObjekt(o);
   for (const b of S.beute) zeichneBeute(b);
+  for (const l of Object.values(S.liegt)) if (l.raum === r.schluessel && GEGENSTANDBILD[l.id]) {   // fallengelassener Gegenstand, leicht schwebend
+    schatten(l.x, l.y + 4, 12); ctx.drawImage(GEGENSTANDBILD[l.id], Math.round(l.x - 10), Math.round(l.y - 22 - Math.abs(Math.sin(S.zeit * 3)) * 3), 20, 20);
+  }
   for (const g of S.gegner) if (g.warten <= 0 && g.faellt === undefined) schatten(g.x, g.y + 6 * g.s, 22 * g.s);
   zeichneWarnungen();
   if (h.modus !== 'fallen') schatten(h.x, h.y + 6, 18);

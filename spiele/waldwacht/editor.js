@@ -469,6 +469,7 @@ const Editor = (() => {
       else { g.fillStyle = '#d0574a'; g.fillRect(e.feld[0] * T + 6, e.feld[1] * T + 6, 20, 20); }
       const sig = e.signal || art.signal;
       if (sig || art.boss) { g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#f4cd5e'; g.fillText(art.boss ? 'BOSS ' + (art.boss.name || '') : 'Signal: ' + sig, e.feld[0] * T + 16, e.feld[1] * T - 10 * k); }
+      if (e.traegt) { g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#7fbcdc'; g.fillText('trägt: ' + ((DATEN.gegenstaende[e.traegt] || {}).name || e.traegt), e.feld[0] * T + 16, e.feld[1] * T - 10 * k - (sig || art.boss ? 12 : 0)); }
     }
     const licht = typeof r.licht === 'number' ? r.licht : (CFG.licht.stufen[r.licht] ?? 1);   // Dunkelheit nur andeuten
     if (licht < 1) { g.fillStyle = `rgba(18,13,20,${(1 - licht) * 0.45})`; g.fillRect(0, 0, BREITE, HOEHE); }
@@ -696,6 +697,8 @@ const Editor = (() => {
       const art = DATEN.gegnerarten[a.gegner] || {}, kegel = art.bemerkt && art.bemerkt.art === 'kegel';
       auswahl = feld('Gegnerart', auswahlfeld('a.gegner', a.gegner, Object.fromEntries(Object.keys(DATEN.gegnerarten).map(k => [k, k])))) +
         parameterFeld(a, ['signal', 'signalname', 'Signal beim Besiegen', 'Z. B. für eine Tür, die erst nach diesem Gegner aufgeht. Ein Gegner mit Signal kommt nicht wieder.']) +
+        feld('Trägt (fällt beim Besiegen heraus)', auswahlfeld('a.traegt', a.traegt || '', { '': '– nichts –', ...Object.fromEntries(Object.entries(DATEN.gegenstaende).map(([k, x]) => [k, x.name || k])) }),
+          'Zum Beispiel ein Schlüssel, den ein Wächter bei sich hat. Der Gegenstand bleibt liegen, bis man ihn aufhebt; der Gegner kommt nicht wieder.') +
         feld('Blickrichtung zu Beginn', auswahlfeld('a.blick', a.blick || '', { '': 'zum Helden', hoch: 'nach oben', runter: 'nach unten', links: 'nach links', rechts: 'nach rechts' }), kegel ? 'Wichtig für den Sichtkegel.' : '') +
         feld('Weg (Patrouille)', `<span class="klein">${a.weg ? a.weg.length + ' Punkte' : 'kein Weg'}</span> <button data-a="wegzeichnen">${a.weg ? 'Weg ergänzen' : 'Weg zeichnen'}</button>${a.weg ? ' <button data-a="wegloeschen">Weg löschen</button>' : ''}`,
           art.ruhig === 'patrouille' ? 'Felder anklicken – er läuft sie der Reihe nach ab und beginnt dann von vorn.' : 'Diese Gegnerart patrouilliert nicht (Bewegung „läuft einen Weg ab“ in der Gegnerart).') +
