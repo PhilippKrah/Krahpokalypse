@@ -125,33 +125,222 @@ const Creator = (() => {
   }
 
   // ---------- Auftrag je Raum ----------
+  // Je Element im Raum: steht es da (Truhe, Platte, Boss …)? Ist es von einem Eingang aus erreichbar? Und hält jede geplante
+  // Abhängigkeit – entweder im Raum (ohne das Benötigte unerreichbar, z. B. hinter Pflöcken) oder an der Tür herein?
+  // Das rechnet der Löser je Raum im Hintergrund (pruefeRaum), Ergebnisse werden nach Raum und Auftrag zwischengespeichert.
+  const GEGEN = { n: 's', s: 'n', w: 'o', o: 'w' }, gegenTuer = dir => GEGEN[dir[0]] + dir.slice(1);
+  const SP = { 1: 5, '': 9, 3: 13 }, ZE = { 1: 3, '': 7, 3: 11 };
+  function eingangsFelder(dir) {   // die beiden Felder innen vor einer Tür (wie im Spiel und im Löser)
+    const s = dir[0], k = dir.slice(1);
+    return s === 'n' ? [[SP[k], 2], [SP[k] + 1, 2]] : s === 's' ? [[SP[k], 13], [SP[k] + 1, 13]] : s === 'w' ? [[1, ZE[k]], [1, ZE[k] + 1]] : [[18, ZE[k]], [18, ZE[k] + 1]];
+  }
   function teileVon(d, rid) {   // Raumteile im Grundzustand (alle Kristalle auf der ersten Farbe, keine Signale) – nur mit geladenem Löser
     if (typeof Loeser === 'undefined' || !d.raeume[rid]) return null;
     try { return Loeser.raumteile(DATEN, d, rid, { kristalle: {}, signale: [], besitz: [] }); } catch (e) { return null; }
   }
+  const bossSignale = (sq, e) => Object.keys(sq).filter(s => sq[s].some(w => w.art === 'gegner' && w.gegner === e.gegner));
+  function eingaengeVon(d, rid) {   // Türen, durch die man hereinkommt (die Gegentür im Nachbarraum führt hierher), dazu der Startpunkt
+    const r = d.raeume[rid], aus = [];
+    for (const [dir, t] of Object.entries(r.tueren)) { const n = d.raeume[t.ziel], z = n && n.tueren[gegenTuer(dir)]; if (z && z.ziel === rid) aus.push({ id: dir, zelle: eingangsFelder(dir)[0], von: t.ziel, tuer: z }); }
+    if (d.start.raum === rid) aus.push({ id: 'start', zelle: [Math.floor(d.start.feld[0]), Math.floor(d.start.feld[1])] });
+    return aus;
+  }
+  function lokalAuftrag(d, p, q, rid) {   // Eingänge, Ziele (Truhen, Gegner, Signale) und Läufe (mit allem / ohne je eine Abhängigkeit)
+    const r = d.raeume[rid];
+    const kandidaten = Object.keys(p.elemente).filter(id => p.elemente[id].raum === rid && q[id].orte.some(o => o.raum === rid));
+    if (!r || !kandidaten.length) return null;
+    const ziele = [];
+    for (const id of kandidaten) {
+      const el = p.elemente[id];
+      if (el.art === 'signal') {
+        ziele.push({ id, art: 'signal', signal: el.signal, zellen: (r.objekte || []).filter(o => (DATEN.objektarten[o.objekt] || {}).platte && o.signal === el.signal).map(o => o.feld) });
+        for (const g of r.gegner || []) if ((g.signal || (DATEN.gegnerarten[g.gegner] || {}).signal) === el.signal) ziele.push({ id, art: 'gegner', zelle: g.feld });
+      } else for (const o of q[id].orte.filter(o => o.raum === rid)) {
+        if (o.art === 'truhe') ziele.push({ id, art: 'truhe', key: o.bit.slice(6) });
+        else if (o.feld) ziele.push({ id, art: 'gegner', zelle: o.feld });
+      }
+    }
+    const ids = kandidaten.filter(id => ziele.some(z => z.id === id));
+    if (!ids.length) return null;
+    // Zustand: alle dauerhaften Signale und Gegenstände des Dungeons – außer dem, was laut Plan erst danach kommt
+    const sq = dungeonSignale(DATEN, d).quellen;
+    const alleSig = [...new Set([...Object.keys(sq).filter(s => !s.startsWith('hat:') && !s.includes('=') && sq[s].some(w => w.art !== 'platte' || w.merken)),
+      ...Object.values(p.elemente).filter(e => e.art === 'signal' && e.signal).map(e => e.signal)])];
+    const alleDinge = [...new Set(Object.keys(sq).filter(s => s.startsWith('hat:')).map(s => s.slice(4)))];
+    const nach = x => new Set([x, ...Object.keys(p.elemente).filter(e => huelle(p, e).has(x))]);
+    const zustand = weg => {
+      const sig = new Set(), ding = new Set(); let geraeumt = true;
+      for (const id of weg) {
+        const e = p.elemente[id];
+        if (e.art === 'signal') sig.add(e.signal);
+        if (e.art === 'gegenstand') ding.add(e.gegenstand);
+        if (e.art === 'boss') { bossSignale(sq, e).forEach(s => sig.add(s)); if (e.raum === rid) geraeumt = false; }
+      }
+      return { signale: alleSig.filter(s => !sig.has(s)), besitz: alleDinge.filter(x => !ding.has(x)), geraeumt };
+    };
+    const laeufe = [];
+    for (const id of ids) {
+      const weg = nach(id);
+      laeufe.push({ id: 'mit:' + id, ...zustand(weg) });
+      for (const y of p.elemente[id].braucht || []) if (p.elemente[y] && q[y].gebaut) laeufe.push({ id: `ohne:${id}:${y}`, ...zustand(new Set([...weg, ...nach(y)])) });
+    }
+    return { eingaenge: eingaengeVon(d, rid).map(({ id, zelle }) => ({ id, zelle })), ziele, laeufe };
+  }
+  const lokal = new Map();   // Schlüssel (Raum + Auftrag) → Ergebnis
+  let lokalWorker = null, lokalWarte = null, lokalLaeuft = null, lokalUhr = null;
+  function lokalErgebnis(d, p, q, rid) {   // fertiges Ergebnis oder { e: null } (dann rechnet es gerade)
+    const a = lokalAuftrag(d, p, q, rid);
+    if (!a) return null;
+    const k = JSON.stringify([d.raeume[rid], a, DATEN.kristalltypen]);
+    if (lokal.has(k)) return { a, e: lokal.get(k) };
+    if (!(lokalLaeuft && lokalLaeuft.has(k))) {
+      (lokalWarte = lokalWarte || new Map()).set(k, { rid, schluessel: k, auftrag: a });
+      clearTimeout(lokalUhr); lokalUhr = setTimeout(lokalStart, 120);
+    }
+    return { a, e: null };
+  }
+  function lokalStart() {
+    if (lokalWorker || !lokalWarte || !lokalWarte.size) return;
+    const liste = [...lokalWarte.values()], dgD = DATEN.dungeons[Z.dungeon];
+    lokalWarte = null; lokalLaeuft = new Set(liste.map(x => x.schluessel));
+    const fertig = res => {
+      for (const x of res) lokal.set(x.schluessel, x.ergebnis);
+      if (lokal.size > 400) [...lokal.keys()].slice(0, 150).forEach(k => lokal.delete(k));
+      lokalWorker = null; lokalLaeuft = null; nachLokal(); lokalStart();
+    };
+    const imFenster = () => E.loeserBereit().then(() => fertig(liste.map(x => {
+      try { return { ...x, ergebnis: Loeser.pruefeRaum(E.loeserDaten(), dgD, x.rid, x.auftrag, 15000) }; } catch (e) { return { ...x, ergebnis: { fehler: String(e) } }; }
+    })), () => {});
+    if (!dgD) { lokalLaeuft = null; return; }
+    try {
+      let gehoert = false;
+      lokalWorker = new Worker('loeser.js');
+      lokalWorker.onmessage = e => { gehoert = true; lokalWorker.terminate(); fertig(e.data.raeume || liste.map(x => ({ ...x, ergebnis: { fehler: e.data.fehler || 'Fehler' } }))); };
+      lokalWorker.onerror = e => { e.preventDefault(); if (gehoert) return; lokalWorker = null; imFenster(); };
+      lokalWorker.postMessage({ daten: E.loeserDaten(), dungeon: dgD, raeume: liste.map(({ rid, schluessel, auftrag }) => ({ rid, schluessel, auftrag })) });
+    } catch (e) { lokalWorker = null; imFenster(); }
+  }
+  function nachLokal() {   // neue Ergebnisse: nur nachzeichnen, was gerade zu sehen ist (Eingabefelder bleiben in Ruhe)
+    if (!Editor.offen) return;
+    if (Z.modus === 'creator') { if (Z.cschritt === 4 || Z.cschritt === 3) render(); else E.$('#ed-schritte') && renderLeiste(); return; }
+    const el = E.$('#c-auftrag');
+    if (el && Z.ansicht === 'dungeon') el.outerHTML = auftragKasten(Z.raum);
+  }
+  function verlangt(d, t, von, e) {   // verlangt die Tür t (auf der Seite von Raum von) das Element e? → Beschreibung oder ''
+    const sig = bedingungsSignale(t.offen_wenn);
+    if (t.riegel) return 'Riegel';
+    if (e.art === 'schluessel' && t.schloss && t.schloss !== 'gross') return 'Schloss';
+    if (e.art === 'gegenstand' && e.gegenstand === 'grosser_schluessel' && t.schloss === 'gross') return 'großes Schloss';
+    if (e.art === 'gegenstand' && (t.braucht === e.gegenstand || sig.includes('hat:' + e.gegenstand))) return 'Tor: ' + dingName(e.gegenstand);
+    if (e.art === 'signal' && sig.includes(e.signal)) return `Bedingung „${e.signal}“`;
+    if (e.art === 'boss' && ((von === e.raum && sig.includes('geraeumt')) || bossSignale(dungeonSignale(DATEN, d).quellen, e).some(s => sig.includes(s)))) return 'erst nach dem Kampf';
+    return '';
+  }
+  const ohneMerk = new Map();
+  function raeumeOhne(d, p, y) {   // Räume, die man vom Start aus erreicht, ohne durch eine Tür zu müssen, die y verlangt (Räume selbst gelten als durchquerbar)
+    const k = JSON.stringify([y, p.elemente[y], Object.entries(d.raeume).map(([id, r]) => [id, r.tueren]), d.start.raum]);
+    if (ohneMerk.has(k)) return ohneMerk.get(k);
+    const da = new Set([d.start.raum]), q = [d.start.raum];
+    while (q.length) {
+      const a = q.shift(), r = d.raeume[a]; if (!r) continue;
+      for (const t of Object.values(r.tueren)) if (d.raeume[t.ziel] && !da.has(t.ziel) && !verlangt(d, t, a, p.elemente[y])) { da.add(t.ziel); q.push(t.ziel); }
+    }
+    if (ohneMerk.size > 200) ohneMerk.clear();
+    ohneMerk.set(k, da);
+    return da;
+  }
+  function tuerSperrt(d, p, rid, dir, y) {   // ist der Weg durch diese Tür herein ohne y versperrt – an der Tür selbst oder weiter vorn?
+    const r = d.raeume[rid], von = r.tueren[dir].ziel, n = d.raeume[von], t = n && n.tueren[gegenTuer(dir)];
+    if (!t) return { ja: true, wie: 'Tür (nur von innen)' };
+    const nr = 'Tür von Raum ' + nrVon(d, von), v = verlangt(d, t, von, p.elemente[y]);
+    if (v) return { ja: true, wie: `${nr} (${v})` };
+    if (!raeumeOhne(d, p, y).has(von)) return { ja: true, wie: `Tür weiter vorn (Raum ${nrVon(d, von)} ist ohne ${p.elemente[y].name} nicht erreichbar)` };
+    return { ja: false };
+  }
+  function globalHaelt(x, y) {   // sagt die letzte (noch gültige) Prüfung aus Schritt 5, dass x wirklich y braucht?
+    const P = Z.cpruefung;
+    if (!P || P.dungeon !== Z.dungeon || !P.roh || P.laeuft || P.stand !== stand()) return false;
+    return auswertung(P).kanten.some(k => k.von === x && k.nach === y && k.status === 'haelt');
+  }
+  function bewerte(d, p, rid, lok, x) {   // Auftragspunkt x mit dem Ergebnis der Raumprüfung → Status und Sperren
+    if (!x.ok) return { status: 'offen' };
+    if (!lok) return { status: 'ok' };
+    if (!lok.e) return { status: 'pruefe' };
+    if (lok.e.fehler) return { status: 'fehler', text: String(lok.e.fehler).split('\n')[0] };
+    const L = lok.e.laeufe, mit = L['mit:' + x.id];
+    if (!mit || !lok.a.ziele.some(z => z.id === x.id)) return { status: 'ok' };   // z. B. Boss nur in Wellen – nicht prüfbar
+    const ab = Object.keys(mit).filter(e => mit[e].includes(x.id));
+    if (!ab.length) return { status: 'unerreichbar', ab };
+    const sperren = x.braucht.map(y => {
+      const o = L[`ohne:${x.id}:${y}`];
+      if (!o) return { y, status: 'ungeprueft' };
+      const offen = Object.keys(o).filter(e => o[e].includes(x.id));
+      if (!offen.length) return { y, status: 'raum' };
+      const tueren = offen.map(e => e === 'start' ? { e, ja: false } : { e, ...tuerSperrt(d, p, rid, e, y) });
+      const fehlt = tueren.filter(t => !t.ja);
+      if (!fehlt.length) return { y, status: 'tuer', wie: [...new Set(tueren.map(t => t.wie))] };
+      if (globalHaelt(x.id, y)) return { y, status: 'vorn' };
+      return { y, status: 'luecke', ab: fehlt.map(t => t.e) };
+    });
+    return { status: sperren.some(s => s.status === 'luecke') ? 'warn' : 'ok', ab, sperren, voll: lok.e.voll };
+  }
   function auftrag(d, p, q, rid, ord = ordnung(p)) {
     const r = d.raeume[rid], teile = teileVon(d, rid), teilBei = f => teile && f ? (teile.teile[(teile.feld[f[1]] || [])[f[0]]] || {}).name : null;
-    const punkte = ord.liste.filter(id => p.elemente[id].raum === rid).map(id => {
+    let punkte = ord.liste.filter(id => p.elemente[id].raum === rid).map(id => {
       const el = p.elemente[id], qq = q[id], hier = qq.orte.filter(o => o.raum === rid);
       let text, ok = hier.length > 0, hinweis = '';
       if (el.art === 'boss') text = `Boss ${esc(bossName(el.gegner))} hineinsetzen`;
-      else if (el.art === 'signal') text = `Signal „${esc(el.signal || '?')}“ auslösen – ${esc(QUELLEN.signal[el.quelle] || 'Platte, Ereignis oder Gegner')}`;
-      else {
+      else if (el.art === 'signal') {
+        text = `Signal „${esc(el.signal || '?')}“ auslösen – ${esc(QUELLEN.signal[el.quelle] || 'Platte, Ereignis oder Gegner')}`;
+        const nurLokal = ok && (r.objekte || []).some(o => o.signal === el.signal && (DATEN.objektarten[o.objekt] || {}).platte && !o.merken) && !(r.objekte || []).some(o => o.signal === el.signal && o.merken)
+          && !(r.ereignisse || []).some(e => (e.schritte || []).some(s => s.signal === el.signal)) && !(r.gegner || []).some(g => g.signal === el.signal);
+        if (nurLokal) hinweis = 'die Platte wirkt nur, solange etwas daraufsteht und man im Raum ist – für andere Räume „bleibt unten“ wählen oder ein Ereignis nutzen';
+      } else {
         text = `${esc(el.name)}: ${QUELLEN[el.art][el.quelle || 'truhe']}`;
         if (ok && el.quelle && !hier.some(o => o.art === el.quelle)) hinweis = el.quelle === 'drop' ? 'liegt in einer Truhe statt bei einem Gegner' : 'trägt ein Gegner statt einer Truhe';
       }
       if (!ok && qq.orte.length) hinweis = 'steht in ' + [...new Set(qq.orte.map(o => 'Raum ' + nrVon(d, o.raum)))].join(', ') + ' statt hier';
       const t = ok ? [...new Set(hier.map(o => teilBei(o.feld)).filter(Boolean))] : [];
-      return { id, el, text, ok, hinweis, teil: teile && teile.teile.length > 1 ? t.join('/') : '', braucht: (el.braucht || []).filter(b => p.elemente[b]) };
+      const nw = d.nachweise && d.nachweise[rid], fp = nw && typeof raumFingerabdruck === 'function' && nw.fp === raumFingerabdruck(r);
+      const getestet = ok && fp && hier.some(o => o.art === 'truhe' && o.feld && nw.erreicht.includes('truhe:' + o.feld.join(',')));
+      return { id, el, text, ok, hinweis, getestet, teil: teile && teile.teile.length > 1 ? t.join('/') : '', braucht: (el.braucht || []).filter(b => p.elemente[b]) };
     });
-    const leer = istLeer(r);
-    const status = punkte.length ? (punkte.every(x => x.ok) ? 'fertig' : 'offen') : leer ? 'frei' : 'gestaltet';
-    return { punkte, notiz: (p.raeume && p.raeume[rid] || {}).notiz || '', leer, status, teile };
+    const lok = punkte.some(x => x.ok) ? lokalErgebnis(d, p, q, rid) : null;
+    punkte = punkte.map(x => ({ ...x, pr: bewerte(d, p, rid, lok, x) }));
+    const leer = istLeer(r), st = punkte.map(x => x.pr.status);
+    const status = !punkte.length ? (leer ? 'frei' : 'gestaltet') : st.includes('offen') ? 'offen' : st.some(s => s === 'warn' || s === 'unerreichbar' || s === 'fehler') ? 'warn' : st.includes('pruefe') ? 'pruefe' : 'fertig';
+    return { punkte, notiz: (p.raeume && p.raeume[rid] || {}).notiz || '', leer, status, teile, eingaenge: eingaengeVon(d, rid) };
   }
-  function auftragListe(d, p, a, ord) {
-    return `<ul class="cauftrag">${a.punkte.map(x => `<li class="${x.ok ? 'ok' : 'offen'}"><span class="chaken">${x.ok ? '✓' : '○'}</span>${bild(x.el, 'csym klein')}<span><span class="cnr">${ord.nr[x.id]}</span> ${x.text}${x.teil ? ` <small class="cteil">Teil ${esc(x.teil)}</small>` : ''}
-      ${x.hinweis ? `<small class="cwarn">– ${esc(x.hinweis)}</small>` : ''}
-      ${x.braucht.length ? `<small class="cerst">erst erreichbar mit: ${x.braucht.map(b => esc(p.elemente[b].name)).join(', ')}</small>` : ''}</span></li>`).join('')}</ul>`;
+  const SYM = { ok: '✓', offen: '○', pruefe: '…', warn: '⚠', unerreichbar: '✗', fehler: '✗' };
+  function eingangText(d, e) {
+    if (e === 'start') return 'dem Startpunkt';
+    return 'Tür ' + TUERNAME(e);
+  }
+  function auftragListe(d, p, a, ord, rid, mitVorschlag = true) {
+    const name = y => esc(p.elemente[y].name);
+    const eing = a.eingaenge.filter(e => e.id !== 'start').map(e => `${TUERNAME(e.id)} (von Raum ${esc(nrVon(d, e.von))}${E.tuerArt(e.tuer) !== 'offen' ? ', ' + esc(E.TUERARTEN[E.tuerArt(e.tuer)].replace(/ \(.*\)/, '')) : ''})`);
+    const kopf = a.punkte.length ? `<p class="ceingaenge">Eingänge: ${eing.length ? eing.join(' · ') : '<span class="cwarn">keiner</span>'}${a.eingaenge.some(e => e.id === 'start') ? ' · Startpunkt' : ''}</p>` : '';
+    return kopf + `<ul class="cauftrag">${a.punkte.map(x => {
+      const pr = x.pr, s = pr.status;
+      const zeilen = [];
+      if (x.hinweis) zeilen.push(`<small class="cwarn">– ${esc(x.hinweis)}</small>`);
+      if (s === 'offen' && x.braucht.length) zeilen.push(`<small class="cerst">soll erst erreichbar sein mit: ${x.braucht.map(name).join(', ')}</small>`);
+      if (s === 'pruefe') zeilen.push('<small class="cerst">wird geprüft …</small>');
+      if (s === 'fehler') zeilen.push(`<small class="cwarn">Prüfung fehlgeschlagen: ${esc(pr.text)}</small>`);
+      if (s === 'unerreichbar') zeilen.push('<small class="crot">von keinem Eingang aus erreichbar – eingemauert, oder eine Sperre geht nie auf?</small>');
+      if (pr.ab && pr.ab.length) zeilen.push(`<small class="cerst">erreichbar ab ${pr.ab.map(e => eingangText(d, e)).join(', ')}${pr.voll === false ? ' (nicht alle Blockstellungen geprüft)' : ''}</small>`);
+      for (const sp of pr.sperren || []) {
+        const t = { raum: ['ok', `im Raum gesichert – ohne ${name(sp.y)} nicht erreichbar`], tuer: ['ok', `gesichert: ${esc((sp.wie || []).join(', '))}`], vorn: ['ok', 'gesichert weiter vorn im Dungeon (laut Prüfung, Schritt 5)'],
+          ungeprueft: ['offen', `erst prüfbar, wenn ${name(sp.y)} gebaut ist`],
+          luecke: ['warn', `ab ${sp.ab ? sp.ab.map(e => eingangText(d, e)).join(', ') : ''} auch ohne ${name(sp.y)} erreichbar – Sperre im Raum (z. B. Baustein „Sperre (Pflock)“ vor dem Bereich) oder an der Tür herein; liegt sie weiter vorn, bestätigt das Schritt 5`] }[sp.status];
+        zeilen.push(`<small class="csperre ${t[0]}">${SYM[t[0]]} braucht ${name(sp.y)}: ${t[1]}</small>`);
+      }
+      if (x.getestet) zeilen.push('<small class="cok">▶ im Test erreicht</small>');
+      const vs = mitVorschlag && (s === 'offen' || s === 'warn') ? vorschlaege(d, p, x.id, s).slice(0, 3) : [];
+      if (s === 'warn' && !vs.length && mitVorschlag) zeilen.push('<small class="cerst">Kleine und große Schlüssel und Bosse sichert man mit einer Tür (Schloss, großes Schloss, Kampf) – im Raumplan oder rechts bei „Türen“.</small>');
+      if (vs.length) zeilen.push(`<span class="cvorschlag">${s === 'offen' ? 'Baustein:' : 'Sperre setzen:'} ${vs.map(([b]) => `<button class="cklein" data-c="bvorschlag" data-id="${x.id}" data-b="${b}" data-raum="${rid}" title="${esc(BAUSTEINE[b].text)}">${esc(BAUSTEINE[b].name)}</button>`).join(' ')}</span>`);
+      return `<li class="${s}"><span class="chaken">${SYM[s] || '✓'}</span>${bild(x.el, 'csym klein')}<span><span class="cnr">${ord.nr[x.id]}</span> ${x.text}${x.teil ? ` <small class="cteil">Teil ${esc(x.teil)}</small>` : ''}${zeilen.join('')}</span></li>`;
+    }).join('')}</ul>`;
   }
   // Kasten im Editor (rechte Spalte): was dieser Raum laut Plan leisten muss
   function auftragKasten(rid) {
@@ -159,9 +348,206 @@ const Creator = (() => {
     if (!d || !d.plan || !d.raeume[rid]) return '';
     const p = d.plan, ord = ordnung(p), a = auftrag(d, p, quellen(d, p), rid, ord);
     if (!a.punkte.length && !a.notiz) return '';
-    return `<div class="cauftragkasten ${a.status}"><h3>Auftrag aus dem Creator</h3>${auftragListe(d, p, a, ord)}${a.notiz ? `<p class="cnotiz">${esc(a.notiz)}</p>` : ''}
-      <small class="erkl">Ob die Reihenfolge wirklich stimmt (z. B. dass man ohne Laterne nicht an die Truhe kommt), zeigt Schritt 5 „Prüfen“ im Creator.</small>
+    const STATUS = { fertig: '✓ erfüllt', offen: 'offen', warn: '⚠ prüfen', pruefe: '… wird geprüft' };
+    return `<div class="cauftragkasten ${a.status}" id="c-auftrag"><h3>Auftrag aus dem Creator <small>${STATUS[a.status] || ''}</small></h3>${Z.werkzeug.art !== 'baustein' ? meldungHtml() : ''}${auftragListe(d, p, a, ord, rid)}${a.notiz ? `<p class="cnotiz">${esc(a.notiz)}</p>` : ''}
+      <small class="erkl">Geprüft wird dieser Raum für sich: Steht alles da, kommt man von einem Eingang hin, und hält jede Abhängigkeit im Raum oder an der Tür herein? Den ganzen Dungeon prüft Schritt 5 im Creator.</small>
       <div class="knoepfe"><button data-a2="modus">⇄ Zum Creator</button></div></div>`;
+  }
+
+  // ---------- Bausteine: fertige Rätsel als Stempel für den Editor ----------
+  // Je Baustein: Gelände-Ausschnitt (# Mauer, . Boden, ~ Abgrund, Leerzeichen = bleibt, wie es ist), Objekte und Gegner relativ
+  // dazu, auf Wunsch Ereignisse und Raum-Einstellungen. zugang: Felder außerhalb, von denen mindestens eines frei sein muss,
+  // damit man hineinkommt. Alle Bausteine sind mit dem Löser geprüft (lösbar, man sperrt sich nicht ein).
+  const BAUSTEINE = {
+    truhe_sperre: { name: 'Truhe hinter Sperre', par: ['inhalt', 'sperre'], zugang: [[2, 4]],
+      text: 'Die Truhe steht in einer Nische, davor ein Pflock. Er senkt sich erst, wenn die Bedingung gilt – ein Signal (Rätsel in einem anderen Raum) oder ein Gegenstand. So hält „braucht …“ im Raum selbst.',
+      baue: p => ({ karte: ['#####', '#...#', '#...#', '##.##'], objekte: [{ objekt: 'truhe', feld: [2, 1], inhalt: p.inhalt }, { objekt: 'pflock', feld: [2, 3], oben_wenn: { nicht: p.sperre }, farbe: 'weiss' }] }) },
+    gehege1: { name: 'Block auf Platte', par: ['signal'], zugang: [[3, 5]],
+      text: 'Ein Gehege mit einem Block und einer Platte. Liegt der Block auf der Platte, gilt das Signal dauerhaft. Ringsum Abgrund statt Mauer: wer sich verschiebt, springt hinein und fängt neu an.',
+      baue: p => ({ karte: ['~~~~~~~', '~.....~', '~.....~', '~.....~', '~~~.~~~'], objekte: [{ objekt: 'block', feld: [2, 2] }, { objekt: 'platte', feld: [5, 2], signal: p.signal, wer: 'block', merken: true }] }) },
+    gehege2: { name: 'Zwei Blöcke, zwei Platten', par: ['signal'], zugang: [[4, 6]],
+      text: 'Zwei Blöcke müssen gleichzeitig auf zwei Platten liegen – dann löst ein Ereignis das Signal aus (dauerhaft). Mit Abgrund-Rand gegen Sackgassen.',
+      baue: p => ({ karte: ['~~~~~~~~~', '~.......~', '~.......~', '~.......~', '~.......~', '~~~~.~~~~'],
+        objekte: [{ objekt: 'block', feld: [2, 2] }, { objekt: 'block', feld: [2, 3] }, { objekt: 'platte', feld: [6, 2], signal: p.signal + '-a', wer: 'block' }, { objekt: 'platte', feld: [6, 3], signal: p.signal + '-b', wer: 'block' }],
+        ereignisse: [{ wenn: { alle: [p.signal + '-a', p.signal + '-b'] }, schritte: [{ art: 'signal', signal: p.signal }] }] }) },
+    schalter: { name: 'Schalter', par: ['signal'], zugang: [[0, 1], [0, -1], [1, 0], [-1, 0]],
+      text: 'Eine Platte, auf die man tritt – sie bleibt unten, das Signal gilt danach im ganzen Dungeon. Einfach, aber gut in Kombination (z. B. auf einer Insel oder hinter einem Kampf).',
+      baue: p => ({ karte: ['.'], objekte: [{ objekt: 'platte', feld: [0, 0], signal: p.signal, wer: 'alle', merken: true }] }) },
+    insel: { name: 'Truhe auf der Insel', par: ['inhalt'], zugang: [[3, -1], [-1, 0], [7, 0]],
+      text: 'Die Truhe liegt hinter einem Abgrund. Einen Block hineinschieben, dann kommt man hinüber. Ein Rätsel ohne Bedingung – gut für Belohnungen.',
+      baue: p => ({ karte: ['.......', '#.....#', '#.....#', '#~~~~~#', '#.....#', '#######'], objekte: [{ objekt: 'block', feld: [3, 1] }, { objekt: 'truhe', feld: [3, 4], inhalt: p.inhalt }] }) },
+    kampftruhe: { name: 'Truhe nach dem Kampf', par: ['inhalt', 'gegner', 'anzahl'], zugang: [[2, -1], [2, 3], [-1, 1], [5, 1]],
+      text: 'Gegner bewachen eine Stelle; die Truhe erscheint erst, wenn der Raum geräumt ist (alle Gegner im Raum zählen).',
+      baue: p => ({ karte: ['.....', '.....', '.....'], objekte: [{ objekt: 'truhe', feld: [2, 1], inhalt: p.inhalt, sichtbar_wenn: 'geraeumt' }],
+        gegner: [[0, 0], [4, 2], [4, 0], [0, 2]].slice(0, p.anzahl).map(f => ({ gegner: p.gegner, feld: f })) }) },
+    drop: { name: 'Gegner trägt etwas', par: ['inhalt', 'gegner'], zugang: [[1, -1], [1, 1], [-1, 0], [3, 0]],
+      text: 'Ein Gegner trägt einen Gegenstand (z. B. einen kleinen Schlüssel) und lässt ihn fallen, wenn er besiegt ist.',
+      baue: p => ({ karte: ['...'], gegner: [{ gegner: p.gegner, feld: [1, 0], traegt: p.inhalt }] }) },
+    signal_kampf: { name: 'Kampf löst Signal aus', par: ['signal', 'gegner', 'anzahl'], zugang: [[2, -1], [2, 3], [-1, 1], [5, 1]],
+      text: 'Ist der Raum geräumt, setzt ein Ereignis das Signal – z. B. damit sich in einem anderen Raum eine Tür öffnet.',
+      baue: p => ({ karte: ['.....', '.....', '.....'], gegner: [[0, 0], [4, 2], [4, 0], [0, 2]].slice(0, p.anzahl).map(f => ({ gegner: p.gegner, feld: f })),
+        ereignisse: [{ wenn: 'geraeumt', schritte: [{ art: 'signal', signal: p.signal }] }] }) },
+    gegner_signal: { name: 'Gegner mit Signal', par: ['signal', 'gegner'], zugang: [[0, -1], [0, 1], [-1, 0], [1, 0]],
+      text: 'Ein einzelner Gegner; ist er besiegt, gilt das Signal.',
+      baue: p => ({ karte: ['.'], gegner: [{ gegner: p.gegner, feld: [0, 0], signal: p.signal }] }) },
+    zeitlauf: { name: 'Zeitlauf zur Truhe', par: ['inhalt', 'sekunden'], zugang: [[-1, 0], [0, -1], [4, -1], [10, 0]],
+      text: 'Auf die Platte treten, dann bleibt der Pflock einige Sekunden unten – schnell hinlaufen. Die Laufzeit prüft der Löser (Warnung, wenn es zu knapp ist).',
+      baue: p => ({ karte: ['..........', '########.#', '       #.#', '       ###'],
+        objekte: [{ objekt: 'platte', feld: [0, 0], signal: p.zeit, wer: 'alle', nachlauf: p.sekunden }, { objekt: 'pflock', feld: [8, 1], oben_wenn: { nicht: p.zeit }, farbe: 'weiss' }, { objekt: 'truhe', feld: [8, 2], inhalt: p.inhalt }] }) },
+    kristall_schleuse: { name: 'Kristall-Schleuse', par: ['inhalt', 'kristalltyp'], zugang: [[2, 5], [-1, 3], [5, 3], [-1, 4], [5, 4]],
+      text: 'Ein Kristall-Pflock versperrt die Nische, solange der Kristalltyp seine erste Farbe zeigt. Kristall schlagen, dann ist der Weg frei. Achtung: Kristalltypen gelten im ganzen Dungeon.',
+      baue: p => ({ karte: ['#####', '#...#', '##.##', '.....', '.....'], objekte: [{ objekt: 'truhe', feld: [2, 1], inhalt: p.inhalt },
+        { objekt: 'pflock', feld: [2, 2], kristalltyp: p.kristalltyp, farbe: (DATEN.kristalltypen[p.kristalltyp] || { farben: ['blau'] }).farben[0] }, { objekt: 'kristall', feld: [2, 4], kristalltyp: p.kristalltyp }] }) },
+    bossarena: { name: 'Boss', par: ['boss', 'herz'], zugang: [[0, -1], [0, 3], [-1, 0], [1, 0]],
+      text: 'Der Boss, dazu wird der Raum zum Kampfraum (Türen erst offen, wenn er besiegt ist). Auf Wunsch erscheint danach ein Herzcontainer.',
+      baue: p => ({ karte: ['.', '.', '.'], gegner: [{ gegner: p.boss, feld: [0, 0] }], raum: { kampf: true },
+        objekte: p.herz ? [{ objekt: 'truhe', feld: [0, 2], inhalt: 'herzcontainer', sichtbar_wenn: 'geraeumt' }] : [] }) },
+    sperre: { name: 'Sperre (Pflock)', par: ['sperre'], zugang: [[0, 1], [0, -1], [1, 0], [-1, 0]],
+      text: 'Ein Pflock, der einen Durchgang versperrt, bis die Bedingung gilt (Signal oder Gegenstand). In eine Lücke einer Mauer oder zwischen zwei Abgründe setzen – so wird ein Raumteil erst später erreichbar.',
+      baue: p => ({ karte: ['.'], objekte: [{ objekt: 'pflock', feld: [0, 0], oben_wenn: { nicht: p.sperre }, farbe: 'weiss' }] }) },
+    truhe: { name: 'Truhe', par: ['inhalt'], zugang: [[0, 1], [0, -1], [1, 0], [-1, 0]],
+      text: 'Eine einfache Truhe, frei zugänglich – die Sperre kommt dann von der Tür herein.',
+      baue: p => ({ karte: ['.'], objekte: [{ objekt: 'truhe', feld: [0, 0], inhalt: p.inhalt }] }) },
+  };
+  const PARNAME = { inhalt: 'Inhalt', sperre: 'Sperre öffnet, wenn', signal: 'Signal (Name)', gegner: 'Gegner', anzahl: 'Anzahl Gegner', sekunden: 'Sekunden', kristalltyp: 'Kristalltyp', boss: 'Boss', herz: 'Herzcontainer danach' };
+  function bausteinVorgabe(id) {   // Einstellungen: zuletzt benutzte, sonst sinnvolle Vorgaben
+    const d = dg(), p = planVon(d), Zp = Z.bausteinPar = Z.bausteinPar || {};
+    const sig = Object.values(p.elemente).find(e => e.art === 'signal' && e.signal);
+    return Zp[id] = Object.assign({ inhalt: 'schluessel', sperre: sig ? sig.signal : 'tor-auf', signal: 'schalter', gegner: 'fuchs', anzahl: 3, sekunden: 4, zeit: 'zeitlauf',
+      kristalltyp: Object.keys(DATEN.kristalltypen)[0] || 'kristall', boss: bossArten()[0], herz: true }, Zp[id] || {});
+  }
+  const KZEICHEN = () => Object.fromEntries(Object.entries(DATEN.kacheln).map(([ch, a]) => [a, ch]));
+  function plazierung(r, maus, id = Z.baustein || 'truhe_sperre') {   // wo landet der Baustein, passt er?
+    const def = BAUSTEINE[id], b = def.baue(bausteinVorgabe(id)), h = b.karte.length, w = Math.max(...b.karte.map(z => z.length));
+    const x0 = maus[0] - Math.floor(w / 2), y0 = maus[1] - Math.floor(h / 2), zellen = [], im = new Set();
+    b.karte.forEach((z, dy) => [...z].forEach((ch, dx) => { if (ch !== ' ') { zellen.push([x0 + dx, y0 + dy, ch]); im.add((x0 + dx) + ',' + (y0 + dy)); } }));
+    const innen = (c, rr) => c >= 1 && c <= 18 && rr >= 2 && rr <= 13;
+    let grund = '';
+    if (zellen.some(([c, rr]) => !innen(c, rr))) grund = 'ragt über den Rand';
+    else {
+      const fest = new Set([...zellen.filter(z => z[2] !== '.').map(z => z[0] + ',' + z[1]), ...(b.objekte || []).filter(o => !(DATEN.objektarten[o.objekt] || {}).platte).map(o => (x0 + o.feld[0]) + ',' + (y0 + o.feld[1]))]);
+      const tuer = Object.keys(r.tueren).find(dir => eingangsFelder(dir).some(f => fest.has(f.join(','))));
+      const d = dg();
+      if (tuer) grund = 'versperrt die Tür ' + TUERNAME(tuer);
+      else if (d.start.raum === Z.raum && fest.has(Math.floor(d.start.feld[0]) + ',' + Math.floor(d.start.feld[1]))) grund = 'verdeckt den Startpunkt';
+      else if (def.zugang && !def.zugang.some(([dx, dy]) => { const c = x0 + dx, rr = y0 + dy; return innen(c, rr) && !im.has(c + ',' + rr) && DATEN.kacheln[r.karte[rr][c]] === 'boden' && !(r.objekte || []).some(o => o.feld[0] === c && o.feld[1] === rr && (DATEN.objektarten[o.objekt] || {}).fest); })) grund = 'kein freier Zugang – etwas mehr Platz lassen';
+    }
+    return { def, b, x0, y0, w, h, zellen, grund };
+  }
+  function zeichneBaustein(g, r, maus) {   // halbdurchsichtige Vorschau unter der Maus
+    const pl = plazierung(r, maus), F = { '#': 'rgba(69,74,85,.9)', '~': 'rgba(11,9,16,.92)', '.': 'rgba(61,107,53,.55)' };
+    for (const [c, rr, ch] of pl.zellen) { g.fillStyle = F[ch] || F['.']; g.fillRect(c * T, rr * T, T, T); }
+    g.globalAlpha = 0.85;
+    for (const o of pl.b.objekte || []) E.vorschauObjekt(g, { ...o, feld: [pl.x0 + o.feld[0], pl.y0 + o.feld[1]] }, null);
+    for (const e of pl.b.gegner || []) { const bi = GEGNERBILD[e.gegner], k = (DATEN.gegnerarten[e.gegner] || {}).groesse || 1; if (bi) g.drawImage(bi[0], (pl.x0 + e.feld[0]) * T + 16 - 16 * k, (pl.y0 + e.feld[1]) * T + 16 - 24 * k, 32 * k, 32 * k); }
+    g.globalAlpha = 1;
+    g.strokeStyle = pl.grund ? '#d0574a' : '#8abd4f'; g.lineWidth = 3; g.setLineDash([6, 4]);
+    g.strokeRect(pl.x0 * T + 1.5, pl.y0 * T + 1.5, pl.w * T - 3, pl.h * T - 3); g.setLineDash([]);
+    if (pl.grund) { g.font = 'bold 13px sans-serif'; g.textAlign = 'center'; const x = (pl.x0 + pl.w / 2) * T, y = Math.max(16, pl.y0 * T - 8); g.fillStyle = '#120d14'; g.fillRect(x - 130, y - 14, 260, 19); g.fillStyle = '#ff9c8f'; g.fillText(pl.grund, x, y); }
+  }
+  function setzeBaustein(c, rr) {
+    const r = E.raum(), pl = plazierung(r, [c, rr]);
+    if (pl.grund) { melde('Passt hier nicht: ' + pl.grund + '.'); E.renderRechts(); return; }
+    E.merke();
+    const KZ = KZEICHEN(), ch = { '#': KZ.mauer, '.': KZ.boden, '~': KZ.abgrund };
+    for (const [x, y, z] of pl.zellen) {
+      const zeile = [...r.karte[y]]; zeile[x] = ch[z]; r.karte[y] = zeile.join('');
+      r.objekte = r.objekte.filter(o => o.feld[0] !== x || o.feld[1] !== y); r.gegner = r.gegner.filter(e => e.feld[0] !== x || e.feld[1] !== y);
+    }
+    for (const o of pl.b.objekte || []) r.objekte.push({ ...E.kopie(o), feld: [pl.x0 + o.feld[0], pl.y0 + o.feld[1]] });
+    for (const e of pl.b.gegner || []) r.gegner.push({ ...E.kopie(e), feld: [pl.x0 + e.feld[0], pl.y0 + e.feld[1]] });
+    if (pl.b.ereignisse) r.ereignisse = [...(r.ereignisse || []), ...E.kopie(pl.b.ereignisse)];
+    if (pl.b.raum) Object.assign(r, pl.b.raum);
+    E.sortiere(r);
+    melde(`„${pl.def.name}“ gesetzt – Strg+Z nimmt ihn zurück.`);
+    Z.werkzeug = { art: 'auswahl', wert: null }; Z.auswahl = null;
+    E.aenderung(); E.renderWerkzeuge(); E.renderRechts();
+  }
+  function bausteinBild(id) {   // kleine Vorschau für die Auswahlliste
+    const pl = { b: BAUSTEINE[id].baue(bausteinVorgabe(id)) }, s = 6, h = pl.b.karte.length, w = Math.max(...pl.b.karte.map(z => z.length));
+    const c = document.createElement('canvas'); c.width = w * s; c.height = h * s;
+    const g = c.getContext('2d'), F = { '#': '#454a55', '~': '#0b0910', '.': '#3d6b35' }, OF = { truhe: '#f4cd5e', block: '#b07a48', platte: '#cfd6cf', kristall: '#7fbcdc', pflock: '#8098cc' };
+    pl.b.karte.forEach((z, y) => [...z].forEach((ch, x) => { if (ch !== ' ') { g.fillStyle = F[ch]; g.fillRect(x * s, y * s, s, s); } }));
+    for (const o of pl.b.objekte || []) { g.fillStyle = OF[o.objekt] || '#ece8d6'; g.fillRect(o.feld[0] * s + 1, o.feld[1] * s + 1, s - 2, s - 2); }
+    for (const e of pl.b.gegner || []) { g.fillStyle = '#d0574a'; g.beginPath(); g.arc(e.feld[0] * s + s / 2, e.feld[1] * s + s / 2, s / 2.2, 0, 7); g.fill(); }
+    return c.toDataURL();
+  }
+  function parFeld(id, n, v) {
+    const d = dg(), p = planVon(d), opt = (liste, wahl) => liste.map(([k, t]) => `<option value="${esc(k)}"${String(wahl) === String(k) ? ' selected' : ''}>${esc(t)}</option>`).join('');
+    const sel = liste => `<select data-bp="${n}">${opt(liste, v)}</select>`;
+    if (n === 'inhalt') return sel(Object.entries(DATEN.gegenstaende).map(([k, x]) => [k, x.name || k]));
+    if (n === 'gegner') return sel(Object.keys(DATEN.gegnerarten).filter(k => !DATEN.gegnerarten[k].boss).map(k => [k, k]));
+    if (n === 'boss') return sel(bossArten().map(k => [k, bossName(k)]));
+    if (n === 'kristalltyp') return sel(Object.entries(DATEN.kristalltypen).map(([k, x]) => [k, (x.name || k) + ' (' + x.farben.join('/') + ')']));
+    if (n === 'anzahl') return `<input type="number" min="1" max="4" data-bp="anzahl" value="${esc(v)}">`;
+    if (n === 'sekunden') return `<input type="number" min="1" max="30" step="0.5" data-bp="sekunden" value="${esc(v)}">`;
+    if (n === 'herz') return `<label class="klein"><input type="checkbox" data-bp="herz"${v ? ' checked' : ''}> ja</label>`;
+    if (n === 'sperre') {
+      const sq = d ? dungeonSignale(DATEN, d).quellen : {};
+      const plan = Object.values(p.elemente).filter(e => e.art === 'signal' && e.signal).map(e => [e.signal, `Signal „${e.signal}“ (${e.name})`]);
+      const andere = Object.keys(sq).filter(s => !s.startsWith('hat:') && !s.includes('=') && !plan.some(x => x[0] === s)).map(s => [s, `Signal „${s}“`]);
+      const dinge = Object.entries(DATEN.gegenstaende).filter(([k]) => k !== 'schluessel').map(([k, x]) => ['hat:' + k, 'man hat: ' + (x.name || k)]);
+      const alle = [...plan, ...andere, ...dinge];
+      if (!alle.some(x => x[0] === v)) alle.unshift([v, `Signal „${v}“`]);
+      return sel(alle) + `<input data-bp="sperre" placeholder="anderes Signal …" class="cneusignal">`;
+    }
+    return `<input data-bp="${n}" value="${esc(v)}">`;
+  }
+  function bausteinPanel() {
+    const id = Z.baustein = BAUSTEINE[Z.baustein] ? Z.baustein : 'truhe_sperre', def = BAUSTEINE[id], par = bausteinVorgabe(id);
+    return `<div class="cbausteinkasten"><h3>Baustein setzen</h3>${meldungHtml()}
+      <div class="cbausteinliste">${Object.entries(BAUSTEINE).map(([k, b]) => `<button data-c="bwahl" data-id="${k}" class="${k === id ? 'an' : ''}" title="${esc(b.text)}"><img src="${bausteinBild(k)}" alt=""><span>${esc(b.name)}</span></button>`).join('')}</div>
+      <div class="cbox"><b>${esc(def.name)}</b><p class="klein">${esc(def.text)}</p>
+        ${def.par.map(n => E.feld(PARNAME[n], parFeld(id, n, par[n]))).join('')}
+        <small class="erkl">Mit der Maus über den Raum fahren: grün = passt, rot = passt nicht (Grund steht dabei). Klick setzt ihn, danach ist wieder „Auswählen“ aktiv.</small></div></div>`;
+  }
+  function melde(text) { Z.bausteinMeldung = { text, bis: Date.now() + 6000, raum: Z.raum }; }
+  const meldungHtml = () => Z.bausteinMeldung && Date.now() < Z.bausteinMeldung.bis && Z.bausteinMeldung.raum === Z.raum ? `<p class="chinweis">${esc(Z.bausteinMeldung.text)}</p>` : '';
+  function bausteinEingabe(t) {
+    const id = Z.baustein, par = bausteinVorgabe(id), n = t.dataset.bp;
+    if (n === 'herz') par.herz = t.checked;
+    else if (n === 'anzahl') par.anzahl = Math.max(1, Math.min(4, Number(t.value) || 1));
+    else if (n === 'sekunden') par.sekunden = Math.max(1, Number(t.value) || 3);
+    else if (n === 'signal' || (n === 'sperre' && t.tagName === 'INPUT')) { const s = E.signalName(t.value); if (!s) return; par[n] = s; }
+    else par[n] = t.value;
+    E.renderRechts(); E.zeichneRaum();
+  }
+  // Passende Bausteine für ein Element des Plans, Einstellungen schon vorbelegt
+  function vorschlaege(d, p, id, status = 'offen') {
+    const el = p.elemente[id], br = (el.braucht || []).map(y => p.elemente[y]).filter(Boolean);
+    const sperre = br.map(y => y.art === 'signal' ? y.signal : y.art === 'gegenstand' && y.gegenstand !== 'grosser_schluessel' ? 'hat:' + y.gegenstand : null).find(Boolean);
+    if (status === 'warn') return sperre ? [['sperre', { sperre }]] : [];   // steht schon da, nur die Sperre fehlt
+    const inhalt = el.art === 'schluessel' ? 'schluessel' : el.gegenstand;
+    const kampfHier = br.some(y => y.art === 'boss' && y.raum === el.raum);
+    if (el.art === 'boss') return [['bossarena', { boss: el.gegner, herz: true }]];
+    if (el.art === 'signal') {
+      const s = { signal: el.signal };
+      if (el.quelle === 'gegner') return [['gegner_signal', s], ['signal_kampf', s]];
+      if (el.quelle === 'ereignis' || el.quelle === 'kampf') return [['signal_kampf', s], ['gehege2', s]];
+      return [['gehege1', s], ['gehege2', s], ['schalter', s]];
+    }
+    if (el.quelle === 'drop') return [['drop', { inhalt }], ['kampftruhe', { inhalt }]];
+    const l = [];
+    if (kampfHier) l.push(['kampftruhe', { inhalt }]);
+    if (sperre) l.push(['truhe_sperre', { inhalt, sperre }]);
+    l.push(['insel', { inhalt }], ['kampftruhe', { inhalt }], ['zeitlauf', { inhalt }], ['kristall_schleuse', { inhalt }], ['truhe', { inhalt }]);
+    return l.filter((x, i) => l.findIndex(y => y[0] === x[0]) === i);
+  }
+  function waehleBaustein(b, par) {
+    Z.baustein = b;
+    Z.bausteinPar = Z.bausteinPar || {};
+    Z.bausteinPar[b] = Object.assign(bausteinVorgabe(b), par || {});
+    if (b === 'zeitlauf') Z.bausteinPar[b].zeit = freiesSignal(planSchreibenNurLesen(), 'zeitlauf');
+    Z.werkzeug = { art: 'baustein', wert: b };
+  }
+  const planSchreibenNurLesen = () => planVon(dg());
+  function klickEditor(b) {   // Knöpfe des Creators in der rechten Spalte des Editors
+    const c = b.dataset.c, d = dg();
+    if (c === 'bwahl') { waehleBaustein(b.dataset.id); E.renderWerkzeuge(); E.renderRechts(); E.zeichneRaum(); }
+    else if (c === 'bvorschlag' && d && d.plan) {
+      const v = [...vorschlaege(d, d.plan, b.dataset.id), ...vorschlaege(d, d.plan, b.dataset.id, 'warn')].find(x => x[0] === b.dataset.b);
+      waehleBaustein(b.dataset.b, v && v[1]); E.renderWerkzeuge(); E.renderRechts(); E.zeichneRaum();
+    }
   }
 
   // ---------- Daten ändern ----------
@@ -448,11 +834,11 @@ const Creator = (() => {
     const erste = x => x.a.punkte.length ? Math.min(...x.a.punkte.map(y => ord.nr[y.id])) : 1e9;
     liste.sort((a, b) => erste(a) - erste(b) || (Number(a.r.nr) || 0) - (Number(b.r.nr) || 0));
     const mit = liste.filter(x => x.a.punkte.length), fertig = mit.filter(x => x.a.status === 'fertig').length;
-    const zeigen = Z.cfilter === 'offen' ? liste.filter(x => x.a.status === 'offen' || x.a.status === 'frei') : liste;
-    const STATUS = { fertig: '✓ Auftrag erfüllt', offen: 'Auftrag offen', frei: 'leer – frei gestalten', gestaltet: 'gestaltet' };
-    return `<div class="cspalte breit cscroll">${kopf(4, 'Räume bauen', 'Jeder Raum hat jetzt einen Auftrag: was darin stehen muss, damit der Plan aufgeht. Gebaut wird im Editor („Im Editor bauen“) – dort steht der Auftrag rechts oben, und die Haken setzen sich von selbst, sobald Truhe, Platte oder Boss stehen. Am besten in der Reihenfolge des Ablaufs, Raum für Raum.',
+    const zeigen = Z.cfilter === 'offen' ? liste.filter(x => x.a.status !== 'fertig' && x.a.status !== 'gestaltet') : liste;
+    const STATUS = { fertig: '✓ Auftrag erfüllt', offen: 'Auftrag offen', warn: '⚠ Sperre prüfen', pruefe: '… wird geprüft', frei: 'leer – frei gestalten', gestaltet: 'gestaltet' };
+    return `<div class="cspalte breit cscroll">${kopf(4, 'Räume bauen', 'Jeder Raum hat jetzt einen Auftrag: was darin stehen muss und was man dafür vorher braucht. Gebaut wird im Editor („Im Editor bauen“) – dort steht der Auftrag rechts oben, und die Haken setzen sich von selbst. Für offene Punkte gibt es passende <b>Bausteine</b>: anklicken, im Raum absetzen, fertig. Am besten in der Reihenfolge des Ablaufs, Raum für Raum.',
       [[mit.length > 0 && fertig === mit.length, `${fertig} von ${mit.length} Aufträgen erfüllt`]],
-      `<p>Der Auftrag prüft nur, <i>ob</i> etwas im Raum steht. Ob man es in der richtigen Reihenfolge erreicht – z. B. die Truhe erst mit der Laterne –, zeigt Schritt 5. Dafür sorgen Türen (Schloss, Tor, Bedingung), Abgründe, Pflöcke oder Truhen, die erst unter einer Bedingung erscheinen.</p>
+      `<p>Je Element prüft der Editor drei Dinge, sofort und für diesen Raum allein: <b>steht es da</b> (Truhe, Platte, Gegner …), <b>kommt man von einem Eingang hin</b>, und <b>hält jede Abhängigkeit</b> – entweder im Raum (ohne das Benötigte unerreichbar, z. B. hinter Pflöcken oder einem Abgrund) oder an der Tür herein (Schloss, Tor, Bedingung). ⚠ heißt: von einem Eingang aus geht es auch ohne. Liegt die Sperre weiter vorn im Dungeon, bestätigt das Schritt 5.</p>
        <p>„Teil A/B“ zeigt, in welchem Raumteil etwas steht, sobald ein Raum durch Mauern, Abgründe oder Pflöcke geteilt ist (im Editor: Ansicht „Raumteile“).</p>
        <p>Räume ohne Element sind Verbindungsräume: Gegner, Hindernisse, kleine Rätsel nach Lust und Laune.</p>`)}
       <div class="cfortschritt" title="${fertig} von ${mit.length}"><div style="width:${mit.length ? Math.round(fertig / mit.length * 100) : 0}%"></div></div>
@@ -460,7 +846,7 @@ const Creator = (() => {
       <div class="crraster">${zeigen.map(({ rid, r, a }) => `<div class="crkarte ${a.status}">
         <img class="crbild" src="${miniBild(r, 6)}" alt="" data-c="bauen" data-raum="${rid}" title="Im Editor bauen">
         <div class="crinhalt"><h4>${d.start.raum === rid ? '★ ' : ''}${raumText(d, rid)} <small class="cstatus">${STATUS[a.status]}</small></h4>
-          ${a.punkte.length ? auftragListe(d, p, a, ord) : ''}
+          ${a.punkte.length ? auftragListe(d, p, a, ord, rid) : ''}
           ${a.notiz ? `<p class="cnotiz">${esc(a.notiz)}</p>` : ''}
           ${a.teile && a.teile.teile.length > 1 ? `<p class="klein">Raumteile: ${a.teile.teile.map(t => `<b>${t.name}</b>${t.tueren.length ? ' (Tür ' + t.tueren.map(TUERNAME).join(', ') + ')' : ''}`).join(' · ')}</p>` : ''}
           <div class="knoepfe"><button data-c="bauen" data-raum="${rid}" class="haupt">Im Editor bauen</button><button data-c="testen" data-raum="${rid}">▶ Raum testen</button></div></div></div>`).join('')}</div></div>`;
@@ -616,6 +1002,8 @@ const Creator = (() => {
       ['Elemente', '<b>Boss</b> (Ziel oder Zwischenboss) · <b>Großer Schlüssel</b> (öffnet die große Schlosstür) · <b>Kleiner Schlüssel</b> (öffnet eine Schlosstür, wird verbraucht) · <b>Gegenstand</b> (Laterne, Waffen, Herzcontainer; öffnet Tore für genau diesen Gegenstand) · <b>Rätsel / Schalter</b> (liefert ein Signal: Platte, Ereignis, besiegter Gegner).'],
       ['Wie aus dem Plan ein Dungeon wird', 'Die Kette entsteht aus <b>Sperren</b>: Eine Schlosstür vor dem Raum mit der Truhe heißt „braucht einen kleinen Schlüssel“. Ein Tor für die Laterne heißt „braucht die Laterne“. Eine Tür mit Bedingung „muehlrad“ heißt „braucht das Rätsel Mühlrad“. Sperren gibt es auch innerhalb eines Raums: Abgründe, Pflöcke (über Signal oder Kristall), Truhen, die erst unter einer Bedingung erscheinen.'],
       ['Aufträge', 'Jeder Raum, in dem ein Element liegt, bekommt einen Auftrag: z. B. „Laterne – liegt in einer Truhe“, „Signal „muehlrad“ auslösen – Platte“. Im Editor steht der Auftrag rechts oben, die Haken setzen sich von selbst. So kannst du Raum für Raum abarbeiten.'],
+      ['Was der Auftrag prüft', 'Je Element, sofort und nur für diesen Raum: <b>steht es da</b>, <b>kommt man von einem Eingang hin</b> (mit Schieben, Platten, Zeitschaltern; Kristallfarben in jeder Kombination), und <b>hält jede Abhängigkeit</b>? Gesichert ist sie, wenn das Element ohne das Benötigte unerreichbar ist (Raumteil hinter Pflöcken, Abgrund, Kampf) oder wenn jede Tür herein es verlangt – oder der Raum davor schon. ⚠ heißt: von einem Eingang aus geht es auch ohne. Den ganzen Dungeon mit allen Wegen prüft Schritt 5.'],
+      ['Bausteine', 'Fertige Rätsel zum Absetzen, alle mit dem Löser geprüft: Truhe hinter Sperre, Sperre (Pflock), Block auf Platte, zwei Blöcke auf zwei Platten, Schalter, Truhe auf der Insel, Truhe nach dem Kampf, Gegner trägt etwas, Kampf löst Signal aus, Gegner mit Signal, Zeitlauf, Kristall-Schleuse, Boss, Truhe. Im Editor über „Bausteine“ in der Werkzeugleiste – oder direkt aus einem offenen Auftrag („Baustein: …“), dann sind Inhalt und Signal schon passend eingestellt. Die Vorschau folgt der Maus: grün passt, rot nicht (ragt über den Rand, versperrt eine Tür, kein Zugang). Ein Klick setzt ihn, Strg+Z nimmt ihn zurück. Danach darfst du alles umbauen – der Auftrag prüft weiter mit.'],
       ['Umschalten', '„⇄ Editor“ oben rechts wechselt in die Detailansicht – es bleibt derselbe Dungeon, auch Rückgängig (Strg+Z) wirkt in beiden. „⇄ Creator“ führt zurück. Der Plan wird mit dem Dungeon gespeichert und exportiert.'],
       ['Tipps', 'Klein anfangen: 5–8 Räume, ein Schlüssel, ein Gegenstand, ein Rätsel. Jeder Gegenstand sollte mehr als einmal gebraucht werden (die Laterne für dunkle Räume <i>und</i> ein Tor). Abkürzungen zurück zum Anfang (Riegel) machen lange Wege angenehm. Das Beispiel (Schritt 1, „Beispiel laden“) zeigt einen kleinen, vollständigen Plan.'],
     ];
@@ -708,6 +1096,10 @@ const Creator = (() => {
         break;
       }
       case 'bauen': Z.raum = rid; Z.ansicht = 'dungeon'; Z.auswahl = null; Z.modus = 'editor'; E.render(); break;
+      case 'bvorschlag': {
+        const v = [...vorschlaege(d, planVon(d), id), ...vorschlaege(d, planVon(d), id, 'warn')].find(x => x[0] === b.dataset.b);
+        Z.raum = rid; Z.ansicht = 'dungeon'; Z.auswahl = null; Z.modus = 'editor'; waehleBaustein(b.dataset.b, v && v[1]); E.render(); break;
+      }
       case 'testen': E.teste(rid); break;
       case 'filter': Z.cfilter = b.dataset.n; render(); break;
     }
@@ -759,6 +1151,11 @@ const Creator = (() => {
 
   // ---------- Darstellen ----------
   let verbunden = false;
+  function renderLeiste() {
+    const st = schrittStand(dg());
+    E.$('#ed-schritte').innerHTML = SCHRITTE.slice(1).map(([n, t]) => `<button data-c="schritt" data-n="${n}" class="cschritt${Z.cschritt === n ? ' an' : ''}${st[n].ok ? ' fertig' : ''}"><span class="cnum">${st[n].ok ? '✓' : n}</span>${t}${st[n].text ? `<small>${esc(st[n].text)}</small>` : ''}</button>`).join('<span class="cpfeil">›</span>')
+      + `<button data-c="schritt" data-n="6" class="cschritt${Z.cschritt === 6 ? ' an' : ''}">? Hilfe</button>`;
+  }
   function verbinde() {
     const w = E.$('#ed-creatoransicht'), nav = E.$('#ed-schritte');
     nav.addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (b) klick(b); });
@@ -773,9 +1170,8 @@ const Creator = (() => {
   function render() {
     if (!verbunden) verbinde();
     if (typeof Loeser === 'undefined') E.loeserBereit().then(() => { if (Editor.offen && Z.modus === 'creator') render(); }, () => {});
-    const w = E.$('#ed-creatoransicht'), d = dg(), st = schrittStand(d);
-    E.$('#ed-schritte').innerHTML = SCHRITTE.slice(1).map(([n, t]) => `<button data-c="schritt" data-n="${n}" class="cschritt${Z.cschritt === n ? ' an' : ''}${st[n].ok ? ' fertig' : ''}"><span class="cnum">${st[n].ok ? '✓' : n}</span>${t}${st[n].text ? `<small>${esc(st[n].text)}</small>` : ''}</button>`).join('<span class="cpfeil">›</span>')
-      + `<button data-c="schritt" data-n="6" class="cschritt${Z.cschritt === 6 ? ' an' : ''}">? Hilfe</button>`;
+    const w = E.$('#ed-creatoransicht'), d = dg();
+    renderLeiste();
     const scroll = [...w.querySelectorAll('.cscroll')].map(el => el.scrollTop), oben = w.scrollTop;
     let html;
     if (Z.cschritt === 6) html = renderHilfe();
@@ -854,6 +1250,15 @@ const Creator = (() => {
   #editor .cauftrag{list-style:none;padding:0;margin:4px 0} #editor .cauftrag li{display:flex;gap:6px;align-items:flex-start;margin:4px 0;font-size:12.5px}
   #editor .cauftrag li>span:last-child{flex:1} #editor .cauftrag small{display:block;color:#a9b2b0} #editor .cauftrag .cwarn{color:#e0a33a} #editor .cauftrag .cteil{display:inline;color:#7fbcdc}
   #editor .chaken{width:16px;flex:none;font-weight:bold} #editor .cauftrag li.ok .chaken{color:#8abd4f} #editor .cauftrag li.offen .chaken{color:#e0a33a}
+  #editor .cauftrag li.warn .chaken,#editor .cauftrag .csperre.warn{color:#f4cd5e} #editor .cauftrag li.unerreichbar .chaken,#editor .cauftrag li.fehler .chaken,#editor .cauftrag .crot{color:#ff9c8f}
+  #editor .cauftrag li.pruefe .chaken{color:#848e92} #editor .cauftrag .csperre.ok,#editor .cauftrag .cok{color:#8abd4f} #editor .cauftrag .csperre.offen{color:#848e92}
+  #editor .cvorschlag{display:block;margin-top:3px;font-size:11.5px;color:#a9b2b0} #editor .cvorschlag button{margin:2px 2px 0 0}
+  #editor .ceingaenge{font-size:11.5px;color:#a9b2b0;margin:2px 0 4px}
+  #editor .crkarte.warn,#editor .cauftragkasten.warn{border-left-color:#f4cd5e} #editor .cauftragkasten h3 small{font-weight:normal;color:#a9b2b0}
+  #editor .cbausteinkasten{margin:0 0 10px;padding:6px 8px;background:#1c1e26;border:1px solid #2e313b;border-left:4px solid #8098cc;border-radius:4px} #editor .cbausteinkasten h3{margin-top:2px}
+  #editor .cbausteinliste{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:4px 0 8px} #editor .cbausteinliste button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 2px;font-size:11px;line-height:1.2}
+  #editor .cbausteinliste img{height:36px;max-width:64px;image-rendering:pixelated;object-fit:contain} #editor .cbausteinkasten .cbox{background:#16181f;margin:0}
+  #editor .cneusignal{margin-top:4px;width:100%;box-sizing:border-box}
   #editor .cauftragkasten{margin:0 0 10px;padding:6px 8px;background:#1c1e26;border:1px solid #2e313b;border-left:4px solid #e0a33a;border-radius:4px} #editor .cauftragkasten.fertig{border-left-color:#58933b}
   #editor .cauftragkasten h3{margin-top:2px}
   #editor .cergebnis{margin:8px 0;padding:8px 10px;border-radius:4px;border:1px solid #454a55} #editor .cergebnis.gruen{background:#1f4226;border-color:#58933b;color:#cfe8b8}
@@ -867,5 +1272,5 @@ const Creator = (() => {
   #editor .fehltritte,#editor .warnliste{margin:4px 0;padding-left:18px} #editor .fehltritte>li{margin:6px 0;color:#ff9c8f} #editor .warnliste li{color:#f4cd5e;margin:3px 0}`;
   const stil = document.createElement('style'); stil.textContent = CSS; document.head.appendChild(stil);
 
-  return { render, auftragKasten, quellen, ordnung };
+  return { render, auftragKasten, quellen, ordnung, bausteinPanel, bausteinEingabe, zeichneBaustein, setzeBaustein, klickEditor, BAUSTEINE, plazierung };
 })();

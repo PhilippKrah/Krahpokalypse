@@ -389,6 +389,7 @@ const Editor = (() => {
       return;
     }
     if (w.art === 'start') { if (erster && innen(c, rr)) { merke(); dg().start = { raum: Z.raum, feld: [c + 0.5, rr + 0.5] }; aenderung(); renderRechts(); } return; }
+    if (w.art === 'baustein') { if (erster && typeof Creator !== 'undefined') Creator.setzeBaustein(c, rr); return; }
     if (!innen(c, rr)) return;
     const setzeKachel = ch => { const z = [...r.karte[rr]]; z[c] = ch; r.karte[rr] = z.join(''); };
     const raus = () => { if (iO >= 0) r.objekte.splice(iO, 1); const j = r.gegner.findIndex(g => g.feld[0] === c && g.feld[1] === rr); if (j >= 0) r.gegner.splice(j, 1); };
@@ -492,6 +493,7 @@ const Editor = (() => {
       g.fillStyle = '#120d14'; g.fillText(TUERZEICHEN[art], x + w / 2, y + h / 2 + 4);
     }
     if (Z.teile) zeichneTeile(g, r);
+    if (Z.werkzeug.art === 'baustein' && Z.maus && typeof Creator !== 'undefined') Creator.zeichneBaustein(g, r, Z.maus);
     g.strokeStyle = 'rgba(255,251,236,.08)'; g.lineWidth = 1;
     for (let c = 1; c < SPALTEN; c++) { g.beginPath(); g.moveTo(c * T + 0.5, 0); g.lineTo(c * T + 0.5, HOEHE); g.stroke(); }
     for (let rr = 1; rr < ZEILEN; rr++) { g.beginPath(); g.moveTo(0, rr * T + 0.5); g.lineTo(BREITE, rr * T + 0.5); g.stroke(); }
@@ -501,7 +503,7 @@ const Editor = (() => {
       const { a: p, b: q, rechts } = Z.rechteck, x = Math.min(p[0], q[0]) * T, y = Math.min(p[1], q[1]) * T, w = (Math.abs(p[0] - q[0]) + 1) * T, h = (Math.abs(p[1] - q[1]) + 1) * T;
       g.fillStyle = rechts ? 'rgba(208,87,74,.25)' : 'rgba(244,205,94,.2)'; g.fillRect(x, y, w, h);
       g.strokeStyle = rechts ? '#d0574a' : '#f4cd5e'; g.lineWidth = 2; g.setLineDash([6, 4]); g.strokeRect(x + 1, y + 1, w - 2, h - 2); g.setLineDash([]);
-    } else if (Z.maus && innen(...Z.maus)) { g.strokeStyle = 'rgba(255,251,236,.7)'; g.lineWidth = 2; g.strokeRect(Z.maus[0] * T + 1, Z.maus[1] * T + 1, T - 2, T - 2); }
+    } else if (Z.maus && innen(...Z.maus) && Z.werkzeug.art !== 'baustein') { g.strokeStyle = 'rgba(255,251,236,.7)'; g.lineWidth = 2; g.strokeRect(Z.maus[0] * T + 1, Z.maus[1] * T + 1, T - 2, T - 2); }
   }
   const KZ = { w: 46, h: 34 };   // Zelle der Dungeon-Karte
   function kartenRahmen() {
@@ -583,6 +585,10 @@ const Editor = (() => {
     gruppe('Form', [form('pinsel', 'Pinsel'), form('rechteck', 'Rechteck')]);
     { const b = document.createElement('button'); b.className = 'wz' + (Z.teile ? ' an' : ''); b.textContent = 'Raumteile'; b.title = 'Zusammenhängende Flächen einfärben, Türen ihrem Teil zuordnen';
       b.onclick = () => { Z.teile = !Z.teile; renderWerkzeuge(); if (Z.teile) loeserBereit().then(() => { renderRechts(); zeichneRaum(); }); else { renderRechts(); zeichneRaum(); } }; gruppe('Ansicht', [b]); }
+    if (typeof Creator !== 'undefined') {   // Bausteine (creator.js): fertige Rätsel als Stempel, Auswahl und Einstellungen rechts
+      const b = document.createElement('button'); b.className = 'wz' + (Z.werkzeug.art === 'baustein' ? ' an' : ''); b.textContent = 'Bausteine'; b.title = 'Fertige Rätsel-Bausteine: auswählen, einstellen, in den Raum setzen';
+      b.onclick = () => { Z.werkzeug = { art: 'baustein', wert: Z.baustein || 'truhe_sperre' }; renderWerkzeuge(); renderRechts(); zeichneRaum(); }; gruppe('Bausteine', [b]);
+    }
     gruppe('Gelände', [
       knopf('kachel', KACHELZEICHEN.mauer, 'Mauer', symbol(g => mauerKrone(g, 0, 0, zufall(3)))),
       knopf('kachel', KACHELZEICHEN.boden, 'Boden', symbol(g => zeichneBild(g, 'gras_0', 0, 0))),
@@ -595,6 +601,7 @@ const Editor = (() => {
   function renderVorlage() {   // Zeile unter der Werkzeugleiste: was gerade gesetzt wird, mit welchen Einstellungen
     const el = $('#ed-vorlage'), w = Z.werkzeug;
     if (!el) return;
+    if (w.art === 'baustein') { el.innerHTML = 'Baustein setzen: rechts auswählen und einstellen, dann im Raum klicken – die Vorschau zeigt, wo er landet (grün passt, rot nicht) · Strg+Z nimmt ihn zurück'; return; }
     if (w.art === 'weg') { el.innerHTML = 'Weg zeichnen: Felder anklicken, der Gegner läuft sie der Reihe nach ab und beginnt dann von vorn · rechte Maustaste nimmt den letzten Punkt weg · fertig: anderes Werkzeug wählen'; return; }
     const namen = { auswahl: 'Auswählen: Objekt oder Gegner anklicken, rechts einstellen.', pipette: 'Pipette: Feld anklicken – übernimmt Gelände, Gegner oder Objekt samt Einstellungen.',
       radierer: 'Radierer: entfernt Objekte und Gegner, sonst wird das Feld zu Boden.', start: 'Startpunkt: Feld anklicken, dort beginnt der Dungeon.' };
@@ -725,7 +732,7 @@ const Editor = (() => {
         `<div class="knoepfe"><button data-a="alleGleichen" title="Alle Objekte dieser Art im Raum bekommen diese Einstellungen">Auf alle ${esc(a.objekt)} im Raum übertragen</button><button data-a="auswahlweg" class="gefahr">Entfernen</button></div>`;
     }
     const f = Z.fuellen;
-    el.innerHTML = `${typeof Creator !== 'undefined' ? Creator.auftragKasten(Z.raum) : ''}${Z.teile ? teileHtml(r) : ''}
+    el.innerHTML = `${typeof Creator !== 'undefined' && Z.werkzeug.art === 'baustein' ? Creator.bausteinPanel() : ''}${typeof Creator !== 'undefined' ? Creator.auftragKasten(Z.raum) : ''}${Z.teile ? teileHtml(r) : ''}
       <h3>Raum ${esc(r.nr)} <small>(${esc(Z.raum)})</small></h3>
       ${feld('Titel', textfeld('r.titel', r.titel))}
       <div class="zeile">${feld('Nr.', textfeld('r.nr', r.nr))}${feld('Licht', auswahlfeld('r.licht', typeof r.licht === 'number' ? 'hell' : (r.licht || 'hell'), { hell: 'hell', daemmrig: 'dämmrig', dunkel: 'dunkel', finster: 'finster' }))}</div>
@@ -1452,6 +1459,10 @@ const Editor = (() => {
       Idee und Endboss, Ablauf (rückwärts: was braucht man wofür?), Raumplan (Räume, Türen, Elemente in Räume legen), Räume bauen (je Raum ein Auftrag) und Prüfen
       (der Löser vergleicht den gebauten Dungeon mit dem Plan und zeigt Abkürzungen samt der Tür, an die die Sperre gehört). Der <b>Editor</b> ist für die Details:
       Gelände malen, Objekte und Gegner einstellen. Hat ein Raum einen Auftrag aus dem Creator, steht er hier rechts oben.`],
+    ['Bausteine und Aufträge', `<b>Bausteine</b> (Werkzeugleiste) sind fertige, geprüfte Rätsel zum Absetzen: Truhe hinter Sperre, Sperre (Pflock), Block auf Platte, Schalter, Insel mit Block-Brücke,
+      Truhe nach dem Kampf, Gegner mit Gegenstand oder Signal, Zeitlauf, Kristall-Schleuse, Boss. Rechts auswählen und einstellen, die Vorschau folgt der Maus (grün passt, rot nicht), Klick setzt ihn.
+      Hat der Dungeon einen Plan aus dem Creator, steht rechts oben der <b>Auftrag</b> des Raums: was hier stehen muss, ob man es von einem Eingang aus erreicht und ob jede geplante
+      Abhängigkeit hält (im Raum oder an der Tür herein). Für offene Punkte schlägt er passende Bausteine vor.`],
     ['Grundidee', `Ein <b>Dungeon</b> besteht aus Räumen auf einem Raster. Jeder Raum ist 20 × 15 Felder groß; der Rand ist Mauer, Türen liegen an festen Stellen: in der Mitte jeder Seite und auf Wunsch zwei weitere je Wand (links/rechts bzw. oben/unten).
       Du malst Gelände, setzt Objekte und Gegner, stellst Türen ein und testest sofort. Alles wird automatisch im Browser gespeichert – <b>Export</b> sichert es als Datei.`],
     ['Räume und Karte', `Links die Dungeon-Karte: Raum anklicken = bearbeiten, „+“ = neuen Raum anlegen (neben dem gewählten gleich mit Tür). ★ ist der Startraum.
@@ -1706,6 +1717,7 @@ const Editor = (() => {
       else if (b.dataset.ktyp) { Z.kristallTyp = b.dataset.ktyp; renderKristalle(); }
       else if (b.dataset.waffe) { Z.waffe = b.dataset.waffe; renderWaffen(); }
       else if (b.dataset.raumwahl) { Z.raum = b.dataset.raumwahl; Z.ansicht = 'dungeon'; Z.auswahl = null; render(); }
+      else if (b.dataset.c && typeof Creator !== 'undefined') Creator.klickEditor(b);   // Auftrag und Bausteine (creator.js)
       else if (b.dataset.a) aktion(b.dataset.a, b);
     });
     wurzel.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('vorgaben')) Z.vorgabenOffen = e.target.open; }, true);
@@ -1715,6 +1727,7 @@ const Editor = (() => {
       else if (t.dataset.a === 'kopie' && t.value) kopiereDungeon(t.value);
       else if (t.id === 'ed-datei' && t.files[0]) importiere(t.files[0]);
       else if (t.dataset.tz !== undefined) teileEingabe(t);
+      else if (t.dataset.bp !== undefined && typeof Creator !== 'undefined') Creator.bausteinEingabe(t);
       else if (t.closest('#ed-rechts')) eingabe(e);
       else if (t.closest('#ed-gegneransicht')) gegnerEingabe(e);
       else if (t.closest('#ed-waffenansicht')) waffenEingabe(e);
@@ -1820,7 +1833,7 @@ const Editor = (() => {
   // Für creator.js: Zustand und Hilfsfunktionen des Editors (alles Weitere bleibt intern)
   const intern = {
     Z, get eigene() { return eigene; }, dg, raum, $: sel => wurzel.querySelector(sel), esc, kopie, slug, signalName, feld, bildUrl, farbName, kristallTyp,
-    merke, speichern, render, zeigeWarnungen, renderRechts, zeichneRaum, raumBei, legeRaumAn, tuerSetzen, tuerArt, loeserDaten, loeserBereit, teste, schliesse,
+    merke, speichern, aenderung, render, zeigeWarnungen, renderRechts, renderWerkzeuge, zeichneRaum, vorschauObjekt, sortiere, raumBei, legeRaumAn, tuerSetzen, tuerArt, loeserDaten, loeserBereit, teste, schliesse,
     TUERARTEN, TUERFARBE, TUERZEICHEN, RICHTUNGSNAME, rahmenKarte, neuerDungeon, kopiereDungeon,
   };
   return { oeffne, schliesse, get offen() { return offen; }, intern };

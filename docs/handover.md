@@ -261,9 +261,27 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   ihn, Export nimmt ihn mit). Löser dafür erweitert: `verboten`, `zielBits`,
   `nurErreichbar`, `pruefePlan`, je Wegschritt `neu`; Kampf gilt jetzt auch in
   Bossräumen und Räumen mit „geräumt“-Abfrage als gewonnen.
-  Nächste Etappen (abgestimmt): **3** Raumaufträge im Detail (je Raumteil, mit
-  Prüfung der Sperren im Raum) und Rätsel-Bausteine; **4** Vorschläge und
-  Generierung für einzelne Räume.
+  **Etappe 3: Aufträge im Detail und Bausteine.** Der Auftrag eines Raums (Editor
+  rechts oben und Creator-Schritt 4) prüft je Element sofort und nur für diesen
+  Raum (Löser `pruefeRaum` im Worker, Ergebnisse zwischengespeichert): steht es
+  da · erreichbar ab welchem Eingang (Kristallfarben in jeder Kombination) · hält
+  jede geplante Abhängigkeit – im Raum (ohne das Benötigte unerreichbar), an der
+  Tür herein oder „weiter vorn“ (Tür-Graph: der Nachbarraum ist ohne es nicht
+  erreichbar); ⚠ sonst, dazu Eingänge mit Türart, Raumteil, „im Test erreicht“.
+  Zustand dabei: alle dauerhaften Signale und Gegenstände außer dem, was laut Plan
+  erst danach kommt; bestätigt Schritt 5 eine Abhängigkeit, gilt sie auch hier.
+  **Bausteine** (Werkzeug „Bausteine“ im Editor, 14 Stück): Truhe hinter Sperre,
+  Sperre (Pflock), Block auf Platte, zwei Blöcke/zwei Platten (Ereignis), Schalter,
+  Truhe auf der Insel, Truhe nach dem Kampf, Gegner trägt etwas, Kampf löst Signal
+  aus, Gegner mit Signal, Zeitlauf, Kristall-Schleuse, Boss, Truhe. Einstellungen
+  rechts, Vorschau unter der Maus (grün/rot mit Grund: Rand, Tür, Startpunkt,
+  Zugang), Klick setzt, Strg+Z nimmt zurück. Offene Auftragspunkte schlagen
+  passende Bausteine mit vorbelegtem Inhalt/Signal vor (auch aus Schritt 4 heraus,
+  dann öffnet sich der Editor im Raum). Jeder Baustein ist per Löser geprüft
+  (mit Bedingung erreichbar, ohne nicht; keine Einsperr-Fallen; Zeitlauf 1,9 s
+  bei 4 s). Definitionen in `creator.js` (`BAUSTEINE`, Gelände + Objekte relativ).
+  Nächste Etappe (abgestimmt): **4** Vorschläge und Generierung für ganze Räume
+  aus ihrem Auftrag.
   Merkposten für später (vom Nutzer so gewünscht): mehrere Etagen (Treppen,
   Löcher nach unten), Erzählung über die Umgebung, große Räume mit mitlaufender
   Kamera, die Kernmechanik des Tutorials (nicht „Rückstoß“ – kommt später),

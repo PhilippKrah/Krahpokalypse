@@ -436,17 +436,52 @@
     return { basis, ohne };
   }
 
-  const Loeser = { loese, pruefePlan, raumteile, erreichbarAb, baueRaeume, analyse, eingang, TUERNAME };
+  // ---------- Raumauftrag prüfen (Creator, je Raum) ----------
+  // auftrag: { eingaenge: [{ id, zelle: [c, r] }], ziele: [{ id, art: 'truhe' | 'gegner' | 'signal', key, zelle, zellen, signal }],
+  //            laeufe: [{ id, signale: [], besitz: [], geraeumt }] }
+  // Ergebnis: je Lauf und Eingang die erreichten Ziel-IDs. Kristallfarben: jede Kombination der Typen, die der Raum kennt
+  // (Kristalle schaltet man meist auch anderswo um) – erreicht ist, was in irgendeiner Kombination erreichbar ist.
+  function pruefeRaum(D, dg, rid, auftrag, grenze = 40000) {
+    const raum = baueRaeume(D, { raeume: { [rid]: dg.raeume[rid] } })[rid];
+    const typen = [...new Set([...[...raum.bezug].filter(s => s.includes('=')).map(s => s.startsWith('=') ? s.slice(1) : s.split('=')[0]), ...raum.kristalle.map(k => k.typ)])].filter(t => D.kristalltypen[t]);
+    let kombis = [{}];
+    for (const t of typen) kombis = kombis.flatMap(k => D.kristalltypen[t].farben.map(f => Object.assign({}, k, { [t]: f })));
+    kombis = kombis.slice(0, 27);
+    const nahAn = (a, i) => a.reach[i] || [0, 1, 2, 3].some(n => { const j = nachbar(i, n); return j >= 0 && a.reach[j]; });
+    const trifft = (a, z) => z.art === 'truhe' ? a.truhen.has(z.key) : z.art === 'gegner' ? nahAn(a, zelle(z.zelle[0], z.zelle[1]))
+      : a.sig.has(z.signal) || (z.zellen || []).some(f => a.reach[zelle(f[0], f[1])]);
+    const merk = new Map(), aus = {}; let voll = true;
+    for (const l of auftrag.laeufe) {
+      const erg = {};
+      for (const e of auftrag.eingaenge) {
+        const st = zelle(e.zelle[0], e.zelle[1]), erreicht = new Set();
+        for (const krist of kombis) {
+          const key = st + '|' + l.signale.slice().sort().join(',') + '|' + l.besitz.slice().sort().join(',') + '|' + JSON.stringify(krist) + '|' + (l.geraeumt !== false);
+          let a = merk.get(key);
+          if (!a) { a = analyse(D, raum, st, raum.bloecke.slice().sort((x, y) => x - y), new Set(), { sig: new Set(l.signale), items: new Set(l.besitz), krist, geraeumt: l.geraeumt !== false }, grenze); merk.set(key, a); }
+          if (!a.voll) voll = false;
+          for (const z of auftrag.ziele) if (!erreicht.has(z.id) && trifft(a, z)) erreicht.add(z.id);
+        }
+        erg[e.id] = [...erreicht];
+      }
+      aus[l.id] = erg;
+    }
+    return { laeufe: aus, voll };
+  }
+
+  const Loeser = { loese, pruefePlan, pruefeRaum, raumteile, erreichbarAb, baueRaeume, analyse, eingang, TUERNAME };
   if (typeof module !== 'undefined' && module.exports) module.exports = Loeser;
   wurzel.Loeser = Loeser;
   // Als Worker: { daten, dungeon, optionen } → { fortschritt } … { ergebnis }; { daten, dungeon, ab: [Raum, Tür, Zustand] } → { ab };
-  // { daten, dungeon, plan: auftrag } → { fortschritt: { lauf, von, zustaende } } … { plan }; Fehler → { fehler }
+  // { daten, dungeon, plan: auftrag } → { fortschritt: { lauf, von, zustaende } } … { plan };
+  // { daten, dungeon, raeume: [{ rid, schluessel, auftrag }] } → { raeume: [{ rid, schluessel, ergebnis }] }; Fehler → { fehler }
   if (typeof document === 'undefined' && typeof importScripts === 'function') {
     wurzel.onmessage = e => {
       try {
         const { daten, dungeon, optionen, ab } = e.data;
         if (ab) wurzel.postMessage({ ab: erreichbarAb(daten, dungeon, ...ab) });   // [Raum, Tür, Zustand]
         else if (e.data.plan) wurzel.postMessage({ plan: pruefePlan(daten, dungeon, e.data.plan, m => wurzel.postMessage({ fortschritt: m })) });
+        else if (e.data.raeume) wurzel.postMessage({ raeume: e.data.raeume.map(x => ({ rid: x.rid, schluessel: x.schluessel, ergebnis: pruefeRaum(daten, dungeon, x.rid, x.auftrag) })) });
         else wurzel.postMessage({ ergebnis: loese(daten, dungeon, Object.assign({}, optionen, { fortschritt: n => wurzel.postMessage({ fortschritt: n }) })) });
       }
       catch (err) { wurzel.postMessage({ fehler: String(err && err.stack || err) }); }
