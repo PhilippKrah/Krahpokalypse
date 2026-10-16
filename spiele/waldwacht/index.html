@@ -89,14 +89,18 @@
   #schlagknopf{right:max(28px,env(safe-area-inset-right));bottom:max(40px,env(safe-area-inset-bottom));width:96px;height:96px;
     border:3px solid #120d14;background:rgba(208,87,74,.75);color:#fffbec;font:bold 15px/90px sans-serif;text-align:center}
   #schlagknopf.an{background:rgba(244,205,94,.9);transform:scale(.92)}
+  #neustartknopf{right:max(46px,env(safe-area-inset-right));bottom:max(156px,env(safe-area-inset-bottom));width:56px;height:56px;
+    border:3px solid #120d14;background:rgba(18,13,20,.55);color:#fffbec;font:bold 28px/50px sans-serif;text-align:center}
+  #neustartknopf.an{background:rgba(244,205,94,.9);color:#120d14}
   body.editor>canvas,body.editor>.hilfe,body.editor>.tb{display:none!important}
 </style>
 </head>
 <body>
 <canvas id="c" width="640" height="480"></canvas>
-<p class="hilfe"><kbd>WASD</kbd>/<kbd>Pfeile</kbd> laufen · <kbd>Leertaste</kbd> lesen, öffnen, Schwert · <kbd>R</kbd> Neustart · <kbd>M</kbd> Ton · <kbd>Esc</kbd> Menü</p>
+<p class="hilfe"><kbd>WASD</kbd>/<kbd>Pfeile</kbd> laufen · <kbd>Leertaste</kbd> lesen, öffnen, Schwert · <kbd>R</kbd> halten: Neustart · <kbd>M</kbd> Ton · <kbd>Esc</kbd> Menü</p>
 <div id="stick" class="tb"><div id="knauf"></div></div>
 <div id="schlagknopf" class="tb">Aktion</div>
+<div id="neustartknopf" class="tb" title="Halten: Raum neu starten">↺</div>
 
 <script type="application/json" id="spieldaten">
 {
@@ -3510,10 +3514,10 @@ addEventListener('blur', () => { gehalten.clear(); TOUCH.richtung.clear(); });
 // Linke Bildschirmhälfte: Steuerstick, der dort entsteht, wo der Daumen aufsetzt (8 Richtungen).
 // Rechte Hälfte: wie Leertaste (lesen, öffnen, Schwert). Nach dem Ende startet ein Tipp neu. Im Menü: Eintrag antippen.
 // Touch schreibt dieselben Befehle wie die Tastatur (TOUCH.richtung neben gehalten, gedrueckt gemeinsam).
-const TOUCH = { aktiv: false, stick: null, schlagId: null, richtung: new Set() };
-const elStick = document.getElementById('stick'), elKnauf = document.getElementById('knauf'), elSchlag = document.getElementById('schlagknopf');
+const TOUCH = { aktiv: false, stick: null, schlagId: null, neustartId: null, richtung: new Set() };
+const elStick = document.getElementById('stick'), elKnauf = document.getElementById('knauf'), elSchlag = document.getElementById('schlagknopf'), elNeustart = document.getElementById('neustartknopf');
 const STICK = { tot: 14, weg: 44 };   // Totzone und größter Ausschlag in CSS-Pixeln
-const halt = t => gehalten.has(t) || TOUCH.richtung.has(t) || (t === 'schlag' && TOUCH.schlagId !== null);
+const halt = t => gehalten.has(t) || TOUCH.richtung.has(t) || (t === 'schlag' && TOUCH.schlagId !== null) || (t === 'neustart' && TOUCH.neustartId !== null);
 function touchAn() {
   if (TOUCH.aktiv) return;
   TOUCH.aktiv = true; document.body.classList.add('touch'); skaliere();
@@ -3532,6 +3536,8 @@ addEventListener('pointerdown', e => {
   touchAn(); e.preventDefault();
   if (!S) { menueTipp((e.clientY - b.top) / b.height * HOEHE); return; }
   if (S.zustand !== 'spiel') { gedrueckt.add('neustart'); return; }
+  const nb = elNeustart.getBoundingClientRect();   // Neustart-Knopf: halten startet den Raum neu
+  if (e.clientX >= nb.left && e.clientX <= nb.right && e.clientY >= nb.top && e.clientY <= nb.bottom) { TOUCH.neustartId = e.pointerId; elNeustart.classList.add('an'); return; }
   if (e.clientX < innerWidth / 2) {
     if (!TOUCH.stick) { TOUCH.stick = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; stickZeigen(e.clientX, e.clientY); }
   } else { gedrueckt.add('schlag'); TOUCH.schlagId = e.pointerId; elSchlag.classList.add('an'); }
@@ -3550,6 +3556,7 @@ addEventListener('pointermove', e => {
 function touchEnde(e) {
   if (TOUCH.stick && e.pointerId === TOUCH.stick.id) stickLos();
   if (e.pointerId === TOUCH.schlagId) { TOUCH.schlagId = null; elSchlag.classList.remove('an'); }
+  if (e.pointerId === TOUCH.neustartId) { TOUCH.neustartId = null; elNeustart.classList.remove('an'); }
 }
 addEventListener('pointerup', touchEnde); addEventListener('pointercancel', touchEnde);
 addEventListener('contextmenu', e => { if (TOUCH.aktiv) e.preventDefault(); });
@@ -4555,6 +4562,13 @@ function pruefeBeute(h) {   // Herzen: einsammeln heilt ein ganzes Herz, nach ei
   });
 }
 
+// R (bzw. ↺ am Handy) halten: Raum frisch wie beim erneuten Betreten – Blöcke, Gegner, Platten zurück, Fortschritt bleibt,
+// keine Heilung. Rettet aus jeder Sackgasse im Raum (eingesperrt, Block falsch geschoben). Halten statt Tippen, weil R neben W liegt.
+const NEUSTART_HALTEN = 0.8;
+function raumNeu() {
+  S.text = null; S.neustartHalt = -1;   // -1: erst nach dem Loslassen wieder zählen
+  betreteRaum(S.raum.id, S.eintritt); ton('tuer');
+}
 function neustartImRaum() {   // Game Over: Herzen voll, Raum frisch (Fortschritt bleibt), am Eintrittspunkt
   S.zustand = 'spiel'; S.held.lp = S.maxLp; S.held.unverwundbar = 0; S.text = null;
   betreteRaum(S.raum.id, S.eintritt);
@@ -4568,6 +4582,11 @@ function schritt() {
   }
   if (S.stopp > 0) { S.stopp--; gedrueckt.clear(); return; }   // kurzes Standbild beim Treffer
   S.zeit += DT;
+  if (!halt('neustart')) S.neustartHalt = 0;
+  else if (S.zustand === 'spiel' && !S.wechsel && !S.einlauf && S.eintritt && S.neustartHalt >= 0) {
+    S.neustartHalt = (S.neustartHalt || 0) + DT;
+    if (S.neustartHalt >= NEUSTART_HALTEN) { raumNeu(); gedrueckt.clear(); return; }
+  }
   if (S.wechsel) {
     S.wechsel.t += DT / CFG.wechsel.dauer;
     if (S.wechsel.t >= 1) S.wechsel = null;
@@ -4821,6 +4840,13 @@ function zeichneHud(h) {
   ctx.drawImage(SCHLUESSEL, 40, 27);
   schreibe(String(S.inventar.schluessel || 0), 72, 26, 2, PAL.creme, false);
   if (S.ausEditor) schreibe('TEST - ESC: ZURÜCK ZUM EDITOR', 40, HOEHE - 14, 1, PAL.gold2, false);
+  if (S.neustartHalt > 0) {   // R wird gehalten: Balken füllt sich
+    const w = 160, x0 = (BREITE - w) / 2, y0 = 62;
+    ctx.fillStyle = 'rgba(18,13,20,.75)'; ctx.fillRect(x0 - 10, y0 - 22, w + 20, 40);
+    schreibe('RAUM NEU STARTEN', BREITE / 2, y0 - 16, 1, PAL.creme);
+    ctx.fillStyle = PAL.fels1; ctx.fillRect(x0, y0, w, 8);
+    ctx.fillStyle = PAL.gold2; ctx.fillRect(x0, y0, Math.round(w * Math.min(1, S.neustartHalt / NEUSTART_HALTEN)), 8);
+  }
   const boss = S.gegner.find(g => (g.a.balken || (g.a.boss ? 'gross' : '')) === 'gross' && !g.besiegt && g.bossTod === undefined && g.warten <= 0);   // großer Lebensbalken unten
   if (boss) {
     const w = 280, x0 = (BREITE - w) / 2, y0 = HOEHE - 28;

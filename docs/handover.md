@@ -210,6 +210,10 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   ein Stein weg, der eine Ecke abriegeln konnte. `kristallgruft.py --fallen`
   prüft das für jede erschiebbare Blockstellung (überall 0 Fallen; in allen
   anderen Dungeons gab es keine).
+  Allgemeines Sicherheitsnetz: **R halten** (am Handy der ↺-Knopf über „Aktion“)
+  startet den aktuellen Raum neu – Blöcke, Gegner und Platten wie beim erneuten
+  Betreten, Fortschritt bleibt, keine Heilung (sonst wäre es ein Heil-Trick).
+  Halten statt Tippen (0,8 s, mit Balken), weil R neben W liegt.
   Merkposten für später (vom Nutzer so gewünscht): mehrere Etagen (Treppen,
   Löcher nach unten), Erzählung über die Umgebung, große Räume mit mitlaufender
   Kamera, die Kernmechanik des Tutorials (nicht „Rückstoß“ – kommt später),
