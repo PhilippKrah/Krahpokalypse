@@ -280,8 +280,24 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   dann öffnet sich der Editor im Raum). Jeder Baustein ist per Löser geprüft
   (mit Bedingung erreichbar, ohne nicht; keine Einsperr-Fallen; Zeitlauf 1,9 s
   bei 4 s). Definitionen in `creator.js` (`BAUSTEINE`, Gelände + Objekte relativ).
-  Nächste Etappe (abgestimmt): **4** Vorschläge und Generierung für ganze Räume
-  aus ihrem Auftrag.
+  **Etappe 4: ganze Räume vorschlagen.** „✨ Raum vorschlagen“ (Creator-Schritt 4
+  je Raum, im Editor beim Auftrag bzw. „Raum gestalten“) erzeugt drei Varianten
+  (`baueVariante` in `creator.js`): Stil fürs Gelände (Säulenhalle, Abgründe mit
+  Stegen, Waldlichtung, Kammern, Ruine), die Bausteine des Auftrags – wo die Türen
+  herein eine Abhängigkeit nicht sichern, mit Sperre im Raum (Bausteine kennen dafür
+  die interne Einstellung `nurMit`: Pflock im Gehege-Zugang, Nische, Bedingung am
+  Ereignis bzw. an der Kampf-Truhe) –, freie Wege (0-1-Suche räumt Stil-Hindernisse
+  zwischen Türen, Startpunkt und Baustein-Zugängen) und Gegner (keine/wenige/einige/
+  viele, nicht in Bossräumen). Jede Variante prüft der Löser (Auftrag erfüllt, alle
+  Türen untereinander erreichbar, keine Einsperr-Falle), bis zu 12 Versuche je
+  Variante. Im Editor „Ansehen“ (Vorschau im Raum, Klick in den Raum beendet sie),
+  „Übernehmen“ ersetzt Gelände, Objekte, Gegner, Ereignisse (Strg+Z). Getestet:
+  296/300 Varianten auf Anhieb gültig (Rest: Einsperr-Fallen, werden verworfen);
+  fünfmal alle Räume des Beispiels (plus Zusatz-Elementen mit Sperre im Raum)
+  erzeugt – jedes Mal lösbar, keine Sackgasse, alle 8 Abhängigkeiten halten.
+  Damit sind die vier abgestimmten Etappen des Creators fertig. Mögliche nächste
+  Schritte: mehr Stile und Bausteine, Raumgrößen, Mobil-Bedienung des Creators,
+  Randomizer auf Basis von Plan und Löser.
   Merkposten für später (vom Nutzer so gewünscht): mehrere Etagen (Treppen,
   Löcher nach unten), Erzählung über die Umgebung, große Räume mit mitlaufender
   Kamera, die Kernmechanik des Tutorials (nicht „Rückstoß“ – kommt später),

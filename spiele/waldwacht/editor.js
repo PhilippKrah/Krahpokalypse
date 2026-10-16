@@ -373,6 +373,7 @@ const Editor = (() => {
   function anwenden(c, rr, erster, rechts, still = false) {
     const r = raum();
     if (!r) return;
+    if (typeof Creator !== 'undefined' && Creator.vorschauRaum()) { if (erster) Creator.vorschauEnde(); return; }   // erst die Vorschau eines Vorschlags beenden
     const w = rechts ? { art: 'radierer' } : Z.werkzeug;
     const iO = r.objekte.findIndex(o => o.feld[0] === c && o.feld[1] === rr), iG = r.gegner.findIndex(g => g.feld[0] === c && g.feld[1] === rr);
     if (w.art === 'pipette') { if (erster) pipette(c, rr); return; }
@@ -447,7 +448,7 @@ const Editor = (() => {
     else zeichneBild(g, t.bild, x, y, t.spiegeln === 'schachbrett' && (c + rr) % 2 === 1);
   }
   function zeichneRaum() {
-    const cv = $('#ed-raum'), r = raum();
+    const cv = $('#ed-raum'), vorschau = typeof Creator !== 'undefined' && Creator.vorschauRaum(), r = vorschau || raum();
     if (!cv) return;
     const g = cv.getContext('2d');
     g.imageSmoothingEnabled = false;
@@ -492,8 +493,9 @@ const Editor = (() => {
       g.fillStyle = farbe; g.globalAlpha = 0.55; g.fillRect(x, y, w, h); g.globalAlpha = 1;
       g.fillStyle = '#120d14'; g.fillText(TUERZEICHEN[art], x + w / 2, y + h / 2 + 4);
     }
-    if (Z.teile) zeichneTeile(g, r);
-    if (Z.werkzeug.art === 'baustein' && Z.maus && typeof Creator !== 'undefined') Creator.zeichneBaustein(g, r, Z.maus);
+    if (Z.teile && !vorschau) zeichneTeile(g, r);
+    if (Z.werkzeug.art === 'baustein' && Z.maus && typeof Creator !== 'undefined' && !vorschau) Creator.zeichneBaustein(g, r, Z.maus);
+    if (vorschau) { g.fillStyle = 'rgba(18,13,20,.75)'; g.fillRect(0, 0, BREITE, 22); g.fillStyle = '#c99ad8'; g.font = 'bold 13px sans-serif'; g.textAlign = 'center'; g.fillText('VORSCHAU – rechts „Übernehmen“, Klick in den Raum beendet die Vorschau', BREITE / 2, 15); }
     g.strokeStyle = 'rgba(255,251,236,.08)'; g.lineWidth = 1;
     for (let c = 1; c < SPALTEN; c++) { g.beginPath(); g.moveTo(c * T + 0.5, 0); g.lineTo(c * T + 0.5, HOEHE); g.stroke(); }
     for (let rr = 1; rr < ZEILEN; rr++) { g.beginPath(); g.moveTo(0, rr * T + 0.5); g.lineTo(BREITE, rr * T + 0.5); g.stroke(); }
@@ -1462,7 +1464,8 @@ const Editor = (() => {
     ['Bausteine und Aufträge', `<b>Bausteine</b> (Werkzeugleiste) sind fertige, geprüfte Rätsel zum Absetzen: Truhe hinter Sperre, Sperre (Pflock), Block auf Platte, Schalter, Insel mit Block-Brücke,
       Truhe nach dem Kampf, Gegner mit Gegenstand oder Signal, Zeitlauf, Kristall-Schleuse, Boss. Rechts auswählen und einstellen, die Vorschau folgt der Maus (grün passt, rot nicht), Klick setzt ihn.
       Hat der Dungeon einen Plan aus dem Creator, steht rechts oben der <b>Auftrag</b> des Raums: was hier stehen muss, ob man es von einem Eingang aus erreicht und ob jede geplante
-      Abhängigkeit hält (im Raum oder an der Tür herein). Für offene Punkte schlägt er passende Bausteine vor.`],
+      Abhängigkeit hält (im Raum oder an der Tür herein). Für offene Punkte schlägt er passende Bausteine vor. „✨ Ganzen Raum vorschlagen“ erzeugt drei geprüfte Varianten
+      (Stil, Bausteine für den Auftrag, Wege, Gegner); „Ansehen“ zeigt sie im Raum, „Übernehmen“ ersetzt den Raum.`],
     ['Grundidee', `Ein <b>Dungeon</b> besteht aus Räumen auf einem Raster. Jeder Raum ist 20 × 15 Felder groß; der Rand ist Mauer, Türen liegen an festen Stellen: in der Mitte jeder Seite und auf Wunsch zwei weitere je Wand (links/rechts bzw. oben/unten).
       Du malst Gelände, setzt Objekte und Gegner, stellst Türen ein und testest sofort. Alles wird automatisch im Browser gespeichert – <b>Export</b> sichert es als Datei.`],
     ['Räume und Karte', `Links die Dungeon-Karte: Raum anklicken = bearbeiten, „+“ = neuen Raum anlegen (neben dem gewählten gleich mit Tür). ★ ist der Startraum.
@@ -1728,6 +1731,7 @@ const Editor = (() => {
       else if (t.id === 'ed-datei' && t.files[0]) importiere(t.files[0]);
       else if (t.dataset.tz !== undefined) teileEingabe(t);
       else if (t.dataset.bp !== undefined && typeof Creator !== 'undefined') Creator.bausteinEingabe(t);
+      else if (t.dataset.cv !== undefined && typeof Creator !== 'undefined') Creator.vorschlagEingabe(t);
       else if (t.closest('#ed-rechts')) eingabe(e);
       else if (t.closest('#ed-gegneransicht')) gegnerEingabe(e);
       else if (t.closest('#ed-waffenansicht')) waffenEingabe(e);

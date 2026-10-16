@@ -284,7 +284,7 @@ const Creator = (() => {
     });
     return { status: sperren.some(s => s.status === 'luecke') ? 'warn' : 'ok', ab, sperren, voll: lok.e.voll };
   }
-  function auftrag(d, p, q, rid, ord = ordnung(p)) {
+  function auftrag(d, p, q, rid, ord = ordnung(p), lokFest) {
     const r = d.raeume[rid], teile = teileVon(d, rid), teilBei = f => teile && f ? (teile.teile[(teile.feld[f[1]] || [])[f[0]]] || {}).name : null;
     let punkte = ord.liste.filter(id => p.elemente[id].raum === rid).map(id => {
       const el = p.elemente[id], qq = q[id], hier = qq.orte.filter(o => o.raum === rid);
@@ -305,7 +305,7 @@ const Creator = (() => {
       const getestet = ok && fp && hier.some(o => o.art === 'truhe' && o.feld && nw.erreicht.includes('truhe:' + o.feld.join(',')));
       return { id, el, text, ok, hinweis, getestet, teil: teile && teile.teile.length > 1 ? t.join('/') : '', braucht: (el.braucht || []).filter(b => p.elemente[b]) };
     });
-    const lok = punkte.some(x => x.ok) ? lokalErgebnis(d, p, q, rid) : null;
+    const lok = punkte.some(x => x.ok) ? (lokFest !== undefined ? lokFest : lokalErgebnis(d, p, q, rid)) : null;
     punkte = punkte.map(x => ({ ...x, pr: bewerte(d, p, rid, lok, x) }));
     const leer = istLeer(r), st = punkte.map(x => x.pr.status);
     const status = !punkte.length ? (leer ? 'frei' : 'gestaltet') : st.includes('offen') ? 'offen' : st.some(s => s === 'warn' || s === 'unerreichbar' || s === 'fehler') ? 'warn' : st.includes('pruefe') ? 'pruefe' : 'fertig';
@@ -345,51 +345,58 @@ const Creator = (() => {
   // Kasten im Editor (rechte Spalte): was dieser Raum laut Plan leisten muss
   function auftragKasten(rid) {
     const d = dg();
-    if (!d || !d.plan || !d.raeume[rid]) return '';
-    const p = d.plan, ord = ordnung(p), a = auftrag(d, p, quellen(d, p), rid, ord);
-    if (!a.punkte.length && !a.notiz) return '';
+    if (!d || !d.raeume[rid]) return '';
+    const p = planVon(d), ord = ordnung(p), a = auftrag(d, p, quellen(d, p), rid, ord), vor = vorschlagHtml(d, rid, true);
+    const knopf = `<button data-c="vorschlagen" data-raum="${rid}" title="Drei geprüfte Varianten für den ganzen Raum: Gelände, Bausteine für den Auftrag, Gegner">✨ Ganzen Raum vorschlagen</button>`;
+    if (!a.punkte.length && !a.notiz) return `<div class="cauftragkasten frei" id="c-auftrag"><h3>Raum gestalten</h3>${Z.werkzeug.art !== 'baustein' ? meldungHtml() : ''}<p class="klein">Kein Auftrag – ein Verbindungsraum.</p>${vor || `<div class="knoepfe">${knopf}</div>`}</div>`;
     const STATUS = { fertig: '✓ erfüllt', offen: 'offen', warn: '⚠ prüfen', pruefe: '… wird geprüft' };
-    return `<div class="cauftragkasten ${a.status}" id="c-auftrag"><h3>Auftrag aus dem Creator <small>${STATUS[a.status] || ''}</small></h3>${Z.werkzeug.art !== 'baustein' ? meldungHtml() : ''}${auftragListe(d, p, a, ord, rid)}${a.notiz ? `<p class="cnotiz">${esc(a.notiz)}</p>` : ''}
+    return `<div class="cauftragkasten ${a.status}" id="c-auftrag"><h3>Auftrag aus dem Creator <small>${STATUS[a.status] || ''}</small></h3>${Z.werkzeug.art !== 'baustein' ? meldungHtml() : ''}${vor}${auftragListe(d, p, a, ord, rid)}${a.notiz ? `<p class="cnotiz">${esc(a.notiz)}</p>` : ''}
       <small class="erkl">Geprüft wird dieser Raum für sich: Steht alles da, kommt man von einem Eingang hin, und hält jede Abhängigkeit im Raum oder an der Tür herein? Den ganzen Dungeon prüft Schritt 5 im Creator.</small>
-      <div class="knoepfe"><button data-a2="modus">⇄ Zum Creator</button></div></div>`;
+      <div class="knoepfe">${vor ? '' : knopf}<button data-a2="modus">⇄ Zum Creator</button></div></div>`;
   }
 
   // ---------- Bausteine: fertige Rätsel als Stempel für den Editor ----------
   // Je Baustein: Gelände-Ausschnitt (# Mauer, . Boden, ~ Abgrund, Leerzeichen = bleibt, wie es ist), Objekte und Gegner relativ
   // dazu, auf Wunsch Ereignisse und Raum-Einstellungen. zugang: Felder außerhalb, von denen mindestens eines frei sein muss,
   // damit man hineinkommt. Alle Bausteine sind mit dem Löser geprüft (lösbar, man sperrt sich nicht ein).
+  const und = (...b) => { const l = b.filter(x => x !== undefined && x !== null).flatMap(x => x && x.alle ? x.alle : [x]); return l.length === 1 ? l[0] : { alle: l }; };
+  const nische = (sperre, inhalt, gegner) => gegner   // Nische mit Pflock davor (Gegner bekommen eine tiefere, damit man sie nicht durch den Pflock trifft)
+    ? { karte: ['#####', '#...#', '#...#', '#...#', '##.##'], zugang: [[2, 5]], objekte: [{ objekt: 'pflock', feld: [2, 4], oben_wenn: { nicht: sperre }, farbe: 'weiss' }], gegner: [{ ...gegner, feld: [2, 1] }] }
+    : { karte: ['#####', '#...#', '#...#', '##.##'], zugang: [[2, 4]], objekte: [{ ...inhalt, feld: [2, 1] }, { objekt: 'pflock', feld: [2, 3], oben_wenn: { nicht: sperre }, farbe: 'weiss' }] };
   const BAUSTEINE = {
     truhe_sperre: { name: 'Truhe hinter Sperre', par: ['inhalt', 'sperre'], zugang: [[2, 4]],
       text: 'Die Truhe steht in einer Nische, davor ein Pflock. Er senkt sich erst, wenn die Bedingung gilt – ein Signal (Rätsel in einem anderen Raum) oder ein Gegenstand. So hält „braucht …“ im Raum selbst.',
       baue: p => ({ karte: ['#####', '#...#', '#...#', '##.##'], objekte: [{ objekt: 'truhe', feld: [2, 1], inhalt: p.inhalt }, { objekt: 'pflock', feld: [2, 3], oben_wenn: { nicht: p.sperre }, farbe: 'weiss' }] }) },
     gehege1: { name: 'Block auf Platte', par: ['signal'], zugang: [[3, 5]],
       text: 'Ein Gehege mit einem Block und einer Platte. Liegt der Block auf der Platte, gilt das Signal dauerhaft. Ringsum Abgrund statt Mauer: wer sich verschiebt, springt hinein und fängt neu an.',
-      baue: p => ({ karte: ['~~~~~~~', '~.....~', '~.....~', '~.....~', '~~~.~~~'], objekte: [{ objekt: 'block', feld: [2, 2] }, { objekt: 'platte', feld: [5, 2], signal: p.signal, wer: 'block', merken: true }] }) },
+      baue: p => ({ karte: ['~~~~~~~', '~.....~', '~.....~', '~.....~', '~~~.~~~'], objekte: [{ objekt: 'block', feld: [2, 2] }, { objekt: 'platte', feld: [5, 2], signal: p.signal, wer: 'block', merken: true },
+        ...(p.nurMit ? [{ objekt: 'pflock', feld: [3, 4], oben_wenn: { nicht: p.nurMit }, farbe: 'weiss' }] : [])] }) },
     gehege2: { name: 'Zwei Blöcke, zwei Platten', par: ['signal'], zugang: [[4, 6]],
       text: 'Zwei Blöcke müssen gleichzeitig auf zwei Platten liegen – dann löst ein Ereignis das Signal aus (dauerhaft). Mit Abgrund-Rand gegen Sackgassen.',
       baue: p => ({ karte: ['~~~~~~~~~', '~.......~', '~.......~', '~.......~', '~.......~', '~~~~.~~~~'],
-        objekte: [{ objekt: 'block', feld: [2, 2] }, { objekt: 'block', feld: [2, 3] }, { objekt: 'platte', feld: [6, 2], signal: p.signal + '-a', wer: 'block' }, { objekt: 'platte', feld: [6, 3], signal: p.signal + '-b', wer: 'block' }],
+        objekte: [{ objekt: 'block', feld: [2, 2] }, { objekt: 'block', feld: [2, 3] }, { objekt: 'platte', feld: [6, 2], signal: p.signal + '-a', wer: 'block' }, { objekt: 'platte', feld: [6, 3], signal: p.signal + '-b', wer: 'block' },
+          ...(p.nurMit ? [{ objekt: 'pflock', feld: [4, 5], oben_wenn: { nicht: p.nurMit }, farbe: 'weiss' }] : [])],
         ereignisse: [{ wenn: { alle: [p.signal + '-a', p.signal + '-b'] }, schritte: [{ art: 'signal', signal: p.signal }] }] }) },
     schalter: { name: 'Schalter', par: ['signal'], zugang: [[0, 1], [0, -1], [1, 0], [-1, 0]],
       text: 'Eine Platte, auf die man tritt – sie bleibt unten, das Signal gilt danach im ganzen Dungeon. Einfach, aber gut in Kombination (z. B. auf einer Insel oder hinter einem Kampf).',
-      baue: p => ({ karte: ['.'], objekte: [{ objekt: 'platte', feld: [0, 0], signal: p.signal, wer: 'alle', merken: true }] }) },
+      baue: p => p.nurMit ? nische(p.nurMit, { objekt: 'platte', signal: p.signal, wer: 'alle', merken: true }) : ({ karte: ['.'], objekte: [{ objekt: 'platte', feld: [0, 0], signal: p.signal, wer: 'alle', merken: true }] }) },
     insel: { name: 'Truhe auf der Insel', par: ['inhalt'], zugang: [[3, -1], [-1, 0], [7, 0]],
       text: 'Die Truhe liegt hinter einem Abgrund. Einen Block hineinschieben, dann kommt man hinüber. Ein Rätsel ohne Bedingung – gut für Belohnungen.',
       baue: p => ({ karte: ['.......', '#.....#', '#.....#', '#~~~~~#', '#.....#', '#######'], objekte: [{ objekt: 'block', feld: [3, 1] }, { objekt: 'truhe', feld: [3, 4], inhalt: p.inhalt }] }) },
     kampftruhe: { name: 'Truhe nach dem Kampf', par: ['inhalt', 'gegner', 'anzahl'], zugang: [[2, -1], [2, 3], [-1, 1], [5, 1]],
       text: 'Gegner bewachen eine Stelle; die Truhe erscheint erst, wenn der Raum geräumt ist (alle Gegner im Raum zählen).',
-      baue: p => ({ karte: ['.....', '.....', '.....'], objekte: [{ objekt: 'truhe', feld: [2, 1], inhalt: p.inhalt, sichtbar_wenn: 'geraeumt' }],
+      baue: p => ({ karte: ['.....', '.....', '.....'], objekte: [{ objekt: 'truhe', feld: [2, 1], inhalt: p.inhalt, sichtbar_wenn: p.nurMit ? und('geraeumt', p.nurMit) : 'geraeumt' }],
         gegner: [[0, 0], [4, 2], [4, 0], [0, 2]].slice(0, p.anzahl).map(f => ({ gegner: p.gegner, feld: f })) }) },
     drop: { name: 'Gegner trägt etwas', par: ['inhalt', 'gegner'], zugang: [[1, -1], [1, 1], [-1, 0], [3, 0]],
       text: 'Ein Gegner trägt einen Gegenstand (z. B. einen kleinen Schlüssel) und lässt ihn fallen, wenn er besiegt ist.',
-      baue: p => ({ karte: ['...'], gegner: [{ gegner: p.gegner, feld: [1, 0], traegt: p.inhalt }] }) },
+      baue: p => p.nurMit ? nische(p.nurMit, null, { gegner: p.gegner, traegt: p.inhalt }) : ({ karte: ['...'], gegner: [{ gegner: p.gegner, feld: [1, 0], traegt: p.inhalt }] }) },
     signal_kampf: { name: 'Kampf löst Signal aus', par: ['signal', 'gegner', 'anzahl'], zugang: [[2, -1], [2, 3], [-1, 1], [5, 1]],
       text: 'Ist der Raum geräumt, setzt ein Ereignis das Signal – z. B. damit sich in einem anderen Raum eine Tür öffnet.',
       baue: p => ({ karte: ['.....', '.....', '.....'], gegner: [[0, 0], [4, 2], [4, 0], [0, 2]].slice(0, p.anzahl).map(f => ({ gegner: p.gegner, feld: f })),
-        ereignisse: [{ wenn: 'geraeumt', schritte: [{ art: 'signal', signal: p.signal }] }] }) },
+        ereignisse: [{ wenn: p.nurMit ? und('geraeumt', p.nurMit) : 'geraeumt', schritte: [{ art: 'signal', signal: p.signal }] }] }) },
     gegner_signal: { name: 'Gegner mit Signal', par: ['signal', 'gegner'], zugang: [[0, -1], [0, 1], [-1, 0], [1, 0]],
       text: 'Ein einzelner Gegner; ist er besiegt, gilt das Signal.',
-      baue: p => ({ karte: ['.'], gegner: [{ gegner: p.gegner, feld: [0, 0], signal: p.signal }] }) },
+      baue: p => p.nurMit ? nische(p.nurMit, null, { gegner: p.gegner, signal: p.signal }) : ({ karte: ['.'], gegner: [{ gegner: p.gegner, feld: [0, 0], signal: p.signal }] }) },
     zeitlauf: { name: 'Zeitlauf zur Truhe', par: ['inhalt', 'sekunden'], zugang: [[-1, 0], [0, -1], [4, -1], [10, 0]],
       text: 'Auf die Platte treten, dann bleibt der Pflock einige Sekunden unten – schnell hinlaufen. Die Laufzeit prüft der Löser (Warnung, wenn es zu knapp ist).',
       baue: p => ({ karte: ['..........', '########.#', '       #.#', '       ###'],
@@ -417,8 +424,8 @@ const Creator = (() => {
       kristalltyp: Object.keys(DATEN.kristalltypen)[0] || 'kristall', boss: bossArten()[0], herz: true }, Zp[id] || {});
   }
   const KZEICHEN = () => Object.fromEntries(Object.entries(DATEN.kacheln).map(([ch, a]) => [a, ch]));
-  function plazierung(r, maus, id = Z.baustein || 'truhe_sperre') {   // wo landet der Baustein, passt er?
-    const def = BAUSTEINE[id], b = def.baue(bausteinVorgabe(id)), h = b.karte.length, w = Math.max(...b.karte.map(z => z.length));
+  function plazierung(r, maus, id = Z.baustein || 'truhe_sperre', par = bausteinVorgabe(id), rid = Z.raum, d = dg()) {   // wo landet der Baustein, passt er?
+    const def = BAUSTEINE[id], b = def.baue(par), h = b.karte.length, w = Math.max(...b.karte.map(z => z.length)), zugang = b.zugang || def.zugang;
     const x0 = maus[0] - Math.floor(w / 2), y0 = maus[1] - Math.floor(h / 2), zellen = [], im = new Set();
     b.karte.forEach((z, dy) => [...z].forEach((ch, dx) => { if (ch !== ' ') { zellen.push([x0 + dx, y0 + dy, ch]); im.add((x0 + dx) + ',' + (y0 + dy)); } }));
     const innen = (c, rr) => c >= 1 && c <= 18 && rr >= 2 && rr <= 13;
@@ -427,12 +434,23 @@ const Creator = (() => {
     else {
       const fest = new Set([...zellen.filter(z => z[2] !== '.').map(z => z[0] + ',' + z[1]), ...(b.objekte || []).filter(o => !(DATEN.objektarten[o.objekt] || {}).platte).map(o => (x0 + o.feld[0]) + ',' + (y0 + o.feld[1]))]);
       const tuer = Object.keys(r.tueren).find(dir => eingangsFelder(dir).some(f => fest.has(f.join(','))));
-      const d = dg();
       if (tuer) grund = 'versperrt die Tür ' + TUERNAME(tuer);
-      else if (d.start.raum === Z.raum && fest.has(Math.floor(d.start.feld[0]) + ',' + Math.floor(d.start.feld[1]))) grund = 'verdeckt den Startpunkt';
-      else if (def.zugang && !def.zugang.some(([dx, dy]) => { const c = x0 + dx, rr = y0 + dy; return innen(c, rr) && !im.has(c + ',' + rr) && DATEN.kacheln[r.karte[rr][c]] === 'boden' && !(r.objekte || []).some(o => o.feld[0] === c && o.feld[1] === rr && (DATEN.objektarten[o.objekt] || {}).fest); })) grund = 'kein freier Zugang – etwas mehr Platz lassen';
+      else if (d.start.raum === rid && fest.has(Math.floor(d.start.feld[0]) + ',' + Math.floor(d.start.feld[1]))) grund = 'verdeckt den Startpunkt';
+      else if (zugang && !zugang.some(([dx, dy]) => { const c = x0 + dx, rr = y0 + dy; return innen(c, rr) && !im.has(c + ',' + rr) && DATEN.kacheln[r.karte[rr][c]] === 'boden' && !(r.objekte || []).some(o => o.feld[0] === c && o.feld[1] === rr && (DATEN.objektarten[o.objekt] || {}).fest); })) grund = 'kein freier Zugang – etwas mehr Platz lassen';
     }
-    return { def, b, x0, y0, w, h, zellen, grund };
+    return { def, b, x0, y0, w, h, zellen, grund, zugang: (zugang || []).map(([dx, dy]) => [x0 + dx, y0 + dy]).filter(([c, rr]) => innen(c, rr) && !im.has(c + ',' + rr)) };
+  }
+  function wendeAn(r, pl) {   // Baustein in den Raum schreiben: Gelände, Objekte, Gegner, Ereignisse, Raum-Einstellungen
+    const KZ = KZEICHEN(), ch = { '#': KZ.mauer, '.': KZ.boden, '~': KZ.abgrund };
+    for (const [x, y, z] of pl.zellen) {
+      const zeile = [...r.karte[y]]; zeile[x] = ch[z]; r.karte[y] = zeile.join('');
+      r.objekte = r.objekte.filter(o => o.feld[0] !== x || o.feld[1] !== y); r.gegner = r.gegner.filter(e => e.feld[0] !== x || e.feld[1] !== y);
+    }
+    for (const o of pl.b.objekte || []) r.objekte.push({ ...E.kopie(o), feld: [pl.x0 + o.feld[0], pl.y0 + o.feld[1]] });
+    for (const e of pl.b.gegner || []) r.gegner.push({ ...E.kopie(e), feld: [pl.x0 + e.feld[0], pl.y0 + e.feld[1]] });
+    if (pl.b.ereignisse) r.ereignisse = [...(r.ereignisse || []), ...E.kopie(pl.b.ereignisse)];
+    if (pl.b.raum) Object.assign(r, pl.b.raum);
+    E.sortiere(r);
   }
   function zeichneBaustein(g, r, maus) {   // halbdurchsichtige Vorschau unter der Maus
     const pl = plazierung(r, maus), F = { '#': 'rgba(69,74,85,.9)', '~': 'rgba(11,9,16,.92)', '.': 'rgba(61,107,53,.55)' };
@@ -448,17 +466,7 @@ const Creator = (() => {
   function setzeBaustein(c, rr) {
     const r = E.raum(), pl = plazierung(r, [c, rr]);
     if (pl.grund) { melde('Passt hier nicht: ' + pl.grund + '.'); E.renderRechts(); return; }
-    E.merke();
-    const KZ = KZEICHEN(), ch = { '#': KZ.mauer, '.': KZ.boden, '~': KZ.abgrund };
-    for (const [x, y, z] of pl.zellen) {
-      const zeile = [...r.karte[y]]; zeile[x] = ch[z]; r.karte[y] = zeile.join('');
-      r.objekte = r.objekte.filter(o => o.feld[0] !== x || o.feld[1] !== y); r.gegner = r.gegner.filter(e => e.feld[0] !== x || e.feld[1] !== y);
-    }
-    for (const o of pl.b.objekte || []) r.objekte.push({ ...E.kopie(o), feld: [pl.x0 + o.feld[0], pl.y0 + o.feld[1]] });
-    for (const e of pl.b.gegner || []) r.gegner.push({ ...E.kopie(e), feld: [pl.x0 + e.feld[0], pl.y0 + e.feld[1]] });
-    if (pl.b.ereignisse) r.ereignisse = [...(r.ereignisse || []), ...E.kopie(pl.b.ereignisse)];
-    if (pl.b.raum) Object.assign(r, pl.b.raum);
-    E.sortiere(r);
+    E.merke(); wendeAn(r, pl);
     melde(`„${pl.def.name}“ gesetzt – Strg+Z nimmt ihn zurück.`);
     Z.werkzeug = { art: 'auswahl', wert: null }; Z.auswahl = null;
     E.aenderung(); E.renderWerkzeuge(); E.renderRechts();
@@ -543,11 +551,260 @@ const Creator = (() => {
   const planSchreibenNurLesen = () => planVon(dg());
   function klickEditor(b) {   // Knöpfe des Creators in der rechten Spalte des Editors
     const c = b.dataset.c, d = dg();
+    if (vorschlagKlick(c, b)) return;
     if (c === 'bwahl') { waehleBaustein(b.dataset.id); E.renderWerkzeuge(); E.renderRechts(); E.zeichneRaum(); }
     else if (c === 'bvorschlag' && d && d.plan) {
       const v = [...vorschlaege(d, d.plan, b.dataset.id), ...vorschlaege(d, d.plan, b.dataset.id, 'warn')].find(x => x[0] === b.dataset.b);
       waehleBaustein(b.dataset.b, v && v[1]); E.renderWerkzeuge(); E.renderRechts(); E.zeichneRaum();
     }
+  }
+
+  // ---------- Ganze Räume vorschlagen ----------
+  // Aus dem Auftrag eines Raums entstehen drei Varianten: ein Stil (Gelände, Hindernisse), die nötigen Bausteine – mit Sperre im
+  // Raum, wo die Türen herein eine Abhängigkeit nicht sichern –, freie Wege zu allen Türen und Bausteinen, dazu Gegner. Jede
+  // Variante prüft der Löser (Auftrag erfüllt, alle Türen untereinander erreichbar, keine Einsperr-Fallen); was nicht passt,
+  // wird neu gewürfelt. Ohne Auftrag (Verbindungsraum) gibt es nur Stil und Gegner.
+  const STILE = { halle: 'Säulenhalle', abgrund: 'Abgründe mit Stegen', wald: 'Waldlichtung', kammern: 'Kammern', ruine: 'Ruine' };
+  const GEGNERZAHL = { keine: 'keine Gegner', wenig: 'wenige Gegner', mittel: 'einige Gegner', viel: 'viele Gegner' };
+  const INNEN = { n: [0, 1], s: [0, -1], w: [1, 0], o: [-1, 0] };
+  function zufall(seed) {   // kleiner Zufallsgenerator mit Startwert (gleiche Zahl = gleiche Variante)
+    let a = (seed >>> 0) || 1;
+    return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+  const mische = (zf, l) => { const a = l.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(zf() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const eins = (zf, l) => l[Math.floor(zf() * l.length)];
+  const gegnerPool = () => Object.keys(DATEN.gegnerarten).filter(k => !DATEN.gegnerarten[k].boss && k !== 'sproessling');
+  function bedarf(d, p, rid, zf) {   // welche Bausteine der Auftrag braucht – mit Sperre im Raum, wo die Türen herein nicht reichen
+    const ein = eingaengeVon(d, rid), liste = [], hinweise = [];
+    for (const id of ordnung(p).liste.filter(x => p.elemente[x].raum === rid)) {
+      const el = p.elemente[id], noetig = [];
+      for (const y of (el.braucht || []).filter(b => p.elemente[b])) {
+        if (ein.length && ein.every(e => e.id !== 'start' && tuerSperrt(d, p, rid, e.id, y).ja)) continue;   // sichern schon die Türen herein
+        const ey = p.elemente[y];
+        if (ey.art === 'signal' && ey.signal) noetig.push(ey.signal);
+        else if (ey.art === 'gegenstand' && ey.gegenstand !== 'grosser_schluessel') noetig.push('hat:' + ey.gegenstand);
+        else if (ey.art === 'boss' && ey.raum === rid) noetig.push('geraeumt');
+        else hinweise.push(`${el.name} braucht ${ey.name} – das sichert nur eine Tür (${ey.art === 'schluessel' ? 'Schloss' : ey.art === 'boss' ? 'Kampf' : 'großes Schloss'}), im Raumplan einstellen`);
+      }
+      const nurMit = noetig.length ? und(...noetig) : null, inhalt = el.art === 'schluessel' ? 'schluessel' : el.gegenstand, g = eins(zf, gegnerPool());
+      let b;
+      if (el.art === 'boss') b = ['bossarena', { boss: el.gegner, herz: true }];
+      else if (el.art === 'signal') {
+        const s = { signal: el.signal, nurMit };
+        b = el.quelle === 'gegner' ? ['gegner_signal', { ...s, gegner: g }] : el.quelle === 'ereignis' || el.quelle === 'kampf' ? ['signal_kampf', { ...s, gegner: g, anzahl: 2 + Math.floor(zf() * 2) }]
+          : [eins(zf, ['gehege1', 'gehege1', 'gehege2', 'schalter']), s];
+      } else if (el.quelle === 'drop') b = ['drop', { inhalt, gegner: g, nurMit }];
+      else if (nurMit) b = nurMit === 'geraeumt' ? ['kampftruhe', { inhalt, gegner: g, anzahl: 2 }] : ['truhe_sperre', { inhalt, sperre: nurMit }];
+      else b = [eins(zf, ['insel', 'kampftruhe', 'zeitlauf', 'truhe', 'insel']), { inhalt, gegner: g, anzahl: 2, sekunden: 4 }];
+      const par = { inhalt: 'schluessel', signal: 'schalter', gegner: 'fuchs', anzahl: 2, sekunden: 4, kristalltyp: Object.keys(DATEN.kristalltypen)[0], boss: bossArten()[0], herz: true, ...b[1] };
+      if (b[0] === 'zeitlauf') par.zeit = freiesSignal(p, 'zeitlauf-' + nrVon(d, rid));
+      liste.push({ id, b: b[0], par });
+    }
+    return { liste, hinweise };
+  }
+  function baueVariante(d, p, rid, stil, opt, seed) {
+    const zf = zufall(seed), r0 = d.raeume[rid], K = (c, rr) => c + ',' + rr, KZ = KZEICHEN();
+    const R = { ...E.kopie(r0), karte: E.rahmenKarte(), objekte: [], gegner: [], ereignisse: [] };
+    delete R.kampf;
+    const dT = { ...d, raeume: { ...d.raeume, [rid]: R } }, belegt = new Map();
+    const tuerFelder = Object.keys(R.tueren).flatMap(eingangsFelder);
+    for (const dir of Object.keys(R.tueren)) for (const [c, rr] of eingangsFelder(dir)) { const [dx, dy] = INNEN[dir[0]]; for (let s = 0; s < 2; s++) belegt.set(K(c + dx * s, rr + dy * s), 'tuer'); }
+    const start = d.start.raum === rid ? [Math.floor(d.start.feld[0]), Math.floor(d.start.feld[1])] : null;
+    if (start) for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) belegt.set(K(start[0] + dx, start[1] + dy), 'start');
+    // 1. Bausteine des Auftrags, die großen zuerst, möglichst weit weg von den Türen
+    const be = bedarf(d, p, rid, zf), gesetzt = [];
+    const flaeche = x => { const b = BAUSTEINE[x.b].baue(x.par); return b.karte.length * Math.max(...b.karte.map(z => z.length)); };
+    for (const x of be.liste.sort((a, b) => flaeche(b) - flaeche(a))) {
+      const kand = [];
+      for (let rr = 2; rr <= 13; rr++) for (let c = 1; c <= 18; c++) {
+        const pl = plazierung(R, [c, rr], x.b, x.par, rid, dT);
+        if (pl.grund || !pl.zugang.length) continue;
+        if (pl.zellen.some(([zc, zr]) => belegt.has(K(zc, zr)))) continue;
+        const frei = pl.zugang.filter(([zc, zr]) => !['baustein', 'rand'].includes(belegt.get(K(zc, zr))));
+        if (!frei.length) continue;
+        const mx = pl.x0 + pl.w / 2, my = pl.y0 + pl.h / 2, weit = Math.min(...tuerFelder.map(([tc, tr]) => Math.abs(tc - mx) + Math.abs(tr - my)), 99);
+        kand.push({ pl, frei, wert: Math.min(weit, 9) + zf() * 5 });
+      }
+      if (!kand.length) return null;
+      kand.sort((a, b) => b.wert - a.wert);
+      const { pl, frei } = kand[Math.floor(zf() * Math.min(3, kand.length))];
+      wendeAn(R, pl);
+      for (const [c, rr] of pl.zellen) belegt.set(K(c, rr), 'baustein');
+      for (const [c, rr] of pl.zellen) for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) if (!belegt.has(K(c + dx, rr + dy))) belegt.set(K(c + dx, rr + dy), 'rand');
+      for (const [c, rr] of frei) belegt.set(K(c, rr), 'zugang');
+      gesetzt.push({ x, pl, zugang: frei[0] });
+    }
+    // 2. Stil: Gelände und Hindernisse auf den freien Feldern
+    const frei = (c, rr) => c >= 1 && c <= 18 && rr >= 2 && rr <= 13 && !belegt.has(K(c, rr)) && DATEN.kacheln[R.karte[rr][c]] === 'boden' && !R.objekte.some(o => o.feld[0] === c && o.feld[1] === rr);
+    const kachel = (c, rr, art) => { const z = [...R.karte[rr]]; z[c] = KZ[art]; R.karte[rr] = z.join(''); };
+    const objekt = (c, rr, o) => R.objekte.push({ objekt: o, feld: [c, rr] });
+    const spiegel = c => 19 - c;
+    if (stil === 'halle') {
+      const xs = eins(zf, [[3, 6], [4, 7], [3, 7]]), ys = eins(zf, [[4, 7, 10], [5, 10], [4, 11]]), art = eins(zf, ['mauer', 'stein', 'stumpf', 'mauer2']);
+      for (const x of xs) for (const y of ys) for (const c of [x, spiegel(x) - (art === 'mauer2' ? 1 : 0)]) {
+        const zellen = art === 'mauer2' ? [[c, y], [c + 1, y], [c, y + 1], [c + 1, y + 1]] : [[c, y]];
+        if (!zellen.every(([a, b]) => frei(a, b))) continue;
+        for (const [a, b] of zellen) art === 'stein' || art === 'stumpf' ? objekt(a, b, art) : kachel(a, b, 'mauer');
+      }
+      for (const c of [2, 17]) if (frei(c, 2)) objekt(c, 2, 'fackel');
+    } else if (stil === 'abgrund') {
+      const n = 2 + Math.floor(zf() * 3), sym = zf() < 0.5;
+      for (let i = 0; i < n; i++) {
+        const w = 2 + Math.floor(zf() * 4), h = 2 + Math.floor(zf() * 3), c0 = 2 + Math.floor(zf() * (16 - w)), r0 = 3 + Math.floor(zf() * (10 - h));
+        for (let c = c0; c < c0 + w; c++) for (let rr = r0; rr < r0 + h; rr++) for (const cc of sym ? [c, spiegel(c)] : [c]) if (frei(cc, rr)) kachel(cc, rr, 'abgrund');
+      }
+    } else if (stil === 'wald') {
+      const arten = ['beerenbusch', 'stumpf', 'stein', 'holzstapel', 'beerenbusch'], n = 5 + Math.floor(zf() * 4);
+      for (let i = 0; i < n; i++) {
+        let c = 2 + Math.floor(zf() * 16), rr = 3 + Math.floor(zf() * 10); const art = eins(zf, arten);
+        for (let s = 0; s < 3 + Math.floor(zf() * 4); s++) {
+          if (frei(c, rr)) objekt(c, rr, zf() < 0.8 ? art : eins(zf, arten));
+          const [dx, dy] = eins(zf, [[1, 0], [-1, 0], [0, 1], [0, -1]]); c += dx; rr += dy;
+        }
+      }
+    } else if (stil === 'kammern') {
+      const senkrecht = zf() < 0.6;
+      for (const pos of senkrecht ? [eins(zf, [6, 7]), eins(zf, [12, 13])] : [eins(zf, [5, 6]), eins(zf, [9, 10])]) {
+        const laenge = senkrecht ? 12 : 18, luecken = new Set([Math.floor(zf() * laenge), Math.floor(zf() * laenge)]);
+        for (let i = 0; i < laenge; i++) {
+          if ([...luecken].some(l => Math.abs(l - i) <= 1)) continue;
+          const [c, rr] = senkrecht ? [pos, 2 + i] : [1 + i, pos];
+          if (frei(c, rr)) kachel(c, rr, 'mauer');
+        }
+      }
+    } else if (stil === 'ruine') {
+      const n = 4 + Math.floor(zf() * 4);
+      for (let i = 0; i < n; i++) {
+        let c = 2 + Math.floor(zf() * 16), rr = 3 + Math.floor(zf() * 10); const [dx, dy] = eins(zf, [[1, 0], [0, 1]]);
+        for (let s = 0; s < 2 + Math.floor(zf() * 3); s++) { if (frei(c, rr)) kachel(c, rr, 'mauer'); c += dx; rr += dy; }
+        if (zf() < 0.6) { const [ec, er] = [c + dy, rr + dx]; if (frei(ec, er)) kachel(ec, er, 'mauer'); }
+      }
+      for (let i = 0; i < 4; i++) { const c = 2 + Math.floor(zf() * 16), rr = 3 + Math.floor(zf() * 10); if (frei(c, rr)) objekt(c, rr, 'stein'); }
+    }
+    // 3. Wege: Türen, Startpunkt und Zugänge der Bausteine müssen zusammenhängen – Hindernisse auf dem kürzesten Weg räumen
+    const punkte = [...Object.keys(R.tueren).map(dir => eingangsFelder(dir)[0]), ...(start ? [start] : []), ...gesetzt.map(g => g.zugang)];
+    verbinde(R, punkte, belegt);
+    // 4. Gegner (nicht in Bossräumen), weg von den Türen
+    const anzahl = be.liste.some(x => x.b === 'bossarena') ? 0 : { keine: 0, wenig: 1 + Math.floor(zf() * 2), mittel: 2 + Math.floor(zf() * 2), viel: 4 + Math.floor(zf() * 3) }[opt.gegner] || 0;
+    const typen = mische(zf, gegnerPool()).slice(0, zf() < 0.5 ? 1 : 2), plaetze = [];
+    for (let rr = 3; rr <= 12; rr++) for (let c = 2; c <= 17; c++) if (frei(c, rr) && !R.gegner.some(e => e.feld[0] === c && e.feld[1] === rr) && Math.min(...tuerFelder.map(([tc, tr]) => Math.abs(tc - c) + Math.abs(tr - rr)), 99) >= 4) plaetze.push([c, rr]);
+    mische(zf, plaetze).slice(0, anzahl).forEach((f, i) => R.gegner.push({ gegner: typen[i % typen.length], feld: f }));
+    E.sortiere(R);
+    const pr = pruefeVariante(d, p, rid, R);
+    return { R, stil, seed, ok: pr.ok, probleme: pr.probleme, pr, bausteine: gesetzt.map(g => g.pl.def.name), gegner: R.gegner.filter(e => !(DATEN.gegnerarten[e.gegner] || {}).boss).length, hinweise: be.hinweise };
+  }
+  function verbinde(R, punkte, belegt) {   // 0-1-Suche: freie Felder kosten nichts, Stil-Hindernisse eins, Bausteine sind tabu
+    const KZ = KZEICHEN(), I = (c, rr) => rr * 20 + c;
+    const tabu = (c, rr) => c < 1 || c > 18 || rr < 2 || rr > 13 || belegt.get(c + ',' + rr) === 'baustein';
+    const offen = (c, rr) => DATEN.kacheln[R.karte[rr][c]] === 'boden' && !R.objekte.some(o => o.feld[0] === c && o.feld[1] === rr && (DATEN.objektarten[o.objekt] || {}).fest);
+    const NB = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const flut = () => { const da = new Set([I(...punkte[0])]), q = [punkte[0]]; while (q.length) { const [c, rr] = q.shift(); for (const [dx, dy] of NB) { const a = c + dx, b = rr + dy; if (!tabu(a, b) && offen(a, b) && !da.has(I(a, b))) { da.add(I(a, b)); q.push([a, b]); } } } return da; };
+    for (const p0 of punkte.slice(1)) {
+      const da = flut();
+      if (da.has(I(...p0))) continue;
+      const dist = new Map([[I(...p0), 0]]), vor = new Map(), dq = [p0];
+      let ziel = null;
+      while (dq.length) {
+        const [c, rr] = dq.shift(), dc = dist.get(I(c, rr));
+        if (da.has(I(c, rr))) { ziel = [c, rr]; break; }
+        for (const [dx, dy] of NB) {
+          const a = c + dx, b = rr + dy; if (tabu(a, b)) continue;
+          const w = offen(a, b) ? 0 : 1, nd = dc + w;
+          if (nd < (dist.has(I(a, b)) ? dist.get(I(a, b)) : 1e9)) { dist.set(I(a, b), nd); vor.set(I(a, b), [c, rr]); w ? dq.push([a, b]) : dq.unshift([a, b]); }
+        }
+      }
+      for (let f = ziel; f; f = vor.get(I(...f))) {
+        const [c, rr] = f;
+        if (!offen(c, rr)) { const z = [...R.karte[rr]]; z[c] = KZ.boden; R.karte[rr] = z.join(''); R.objekte = R.objekte.filter(o => o.feld[0] !== c || o.feld[1] !== rr); }
+        if (f[0] === p0[0] && f[1] === p0[1]) break;
+      }
+    }
+  }
+  function pruefeVariante(d, p, rid, R) {   // Löser: Auftrag erfüllt? Türen untereinander erreichbar? Einsperr-Fallen?
+    const dT = { ...d, raeume: { ...d.raeume, [rid]: R } }, D = E.loeserDaten(), probleme = [];
+    const sq = dungeonSignale(DATEN, dT).quellen, tueren = Object.keys(R.tueren);
+    const voll = { kristalle: {}, signale: Object.keys(sq).filter(s => !s.startsWith('hat:') && !s.includes('=')), besitz: Object.keys(sq).filter(s => s.startsWith('hat:')).map(s => s.slice(4)) };
+    if (tueren.length) {
+      const a = Loeser.erreichbarAb(D, dT, rid, tueren[0], voll);
+      const fehlt = tueren.filter(t => !a.tueren.includes(t));
+      if (fehlt.length) probleme.push('Tür ' + fehlt.map(TUERNAME).join(', ') + ' nicht erreichbar');
+      if (a.fallen) probleme.push('man kann sich einsperren');
+    }
+    const q = quellen(dT, p), la = lokalAuftrag(dT, p, q, rid);
+    let lok = null;
+    if (la) { try { lok = { a: la, e: Loeser.pruefeRaum(D, dT, rid, la, 8000) }; } catch (e) { lok = { a: la, e: { fehler: String(e) } }; } }
+    const auf = auftrag(dT, p, q, rid, ordnung(p), lok);
+    for (const x of auf.punkte) if (x.pr.status !== 'ok') probleme.push(`${x.el.name}: ${{ offen: 'fehlt', warn: 'Sperre fehlt', unerreichbar: 'nicht erreichbar', fehler: 'Prüfung fehlgeschlagen' }[x.pr.status] || x.pr.status}`);
+    return { ok: !probleme.length, probleme: probleme.length, liste: probleme, auf };
+  }
+  function starteVorschlaege(rid) {
+    const d = dg();
+    if (!d || !d.raeume[rid]) return;
+    const opt = (Z.cvor && Z.cvor.opt) || { stil: 'gemischt', gegner: 'mittel' };
+    const V = Z.cvor = { rid, dungeon: Z.dungeon, opt, varianten: [], laeuft: true, zeige: null };
+    zeigeVorschlaege();
+    E.loeserBereit().then(() => {
+      const basis = Math.floor(Math.random() * 1e9);
+      const stile = opt.stil === 'gemischt' ? mische(zufall(basis), Object.keys(STILE)).slice(0, 3) : [opt.stil, opt.stil, opt.stil];
+      let k = 0, versuch = 0, bester = null;
+      const schritt = () => {
+        if (Z.cvor !== V) return;
+        if (k >= 3) { V.laeuft = false; zeigeVorschlaege(); return; }
+        let v = null;
+        try { v = baueVariante(dg(), planVon(dg()), rid, stile[k], opt, basis + k * 1009 + versuch * 7919); } catch (e) { console.warn('Vorschlag:', e); }
+        if (v && (!bester || v.probleme < bester.probleme)) bester = v;
+        versuch++;
+        if ((bester && bester.ok) || versuch >= 12) { if (bester) V.varianten.push(bester); bester = null; versuch = 0; k++; zeigeVorschlaege(); }
+        setTimeout(schritt, 0);
+      };
+      setTimeout(schritt, 0);
+    }, () => { V.laeuft = false; V.fehler = 'Löser nicht geladen'; zeigeVorschlaege(); });
+  }
+  function zeigeVorschlaege() { if (!Editor.offen) return; if (Z.modus === 'creator') render(); else { E.renderRechts(); E.zeichneRaum(); } }
+  function vorschauRaum() {   // Variante, die der Editor gerade statt des Raums zeigt
+    const V = Z.cvor;
+    return V && Z.modus === 'editor' && V.zeige !== null && V.rid === Z.raum && V.dungeon === Z.dungeon && V.varianten[V.zeige] ? V.varianten[V.zeige].R : null;
+  }
+  function vorschauEnde() { if (Z.cvor) Z.cvor.zeige = null; E.renderRechts(); E.zeichneRaum(); }
+  function uebernimm(i) {
+    const V = Z.cvor, d = dg(), v = V && V.varianten[i];
+    if (!v || !d.raeume[V.rid]) return;
+    const r = d.raeume[V.rid];
+    if (!istLeer(r) && !confirm(`Raum ${nrVon(d, V.rid)} „${r.titel}“ wird durch den Vorschlag ersetzt (Gelände, Objekte, Gegner, Ereignisse). Strg+Z nimmt es zurück. Weiter?`)) return;
+    E.merke();
+    r.karte = v.R.karte; r.objekte = v.R.objekte; r.gegner = v.R.gegner; r.ereignisse = v.R.ereignisse;
+    if (v.R.kampf) r.kampf = true; else delete r.kampf;
+    E.speichern(); E.zeigeWarnungen();
+    melde(`Vorschlag „${STILE[v.stil]}“ übernommen – Strg+Z nimmt ihn zurück.`);
+    Z.cvor = null;
+    if (Z.modus === 'creator') render(); else { E.renderRechts(); E.zeichneRaum(); }
+  }
+  function vorschlagHtml(d, rid, eng) {
+    const V = Z.cvor;
+    if (!V || V.rid !== rid || V.dungeon !== Z.dungeon) return '';
+    const o = V.opt, wahl = (n, l) => `<select data-cv="${n}">${Object.entries(l).map(([k, t]) => `<option value="${k}"${o[n] === k ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+    const karten = V.varianten.map((v, i) => `<div class="cvariante${V.zeige === i ? ' an' : ''}">${eng ? `<button class="cbildknopf" data-c="vzeige" data-n="${i}" title="Im Raum ansehen"><img src="${miniBild(v.R, 5)}" alt=""></button>` : `<img src="${miniBild(v.R, 8)}" alt="">`}
+      <div><b>${esc(STILE[v.stil])}</b> <small class="${v.ok ? 'cok' : 'cwarn'}">${v.ok ? '✓ geprüft' : '⚠ ' + esc(v.pr.liste.join(', '))}</small>
+        <small class="cerst">${v.bausteine.length ? 'Bausteine: ' + esc(v.bausteine.join(', ')) + ' · ' : ''}${v.gegner} Gegner</small>
+        ${v.hinweise.map(h => `<small class="cwarn">${esc(h)}</small>`).join('')}
+        <div class="knoepfe">${eng ? `<button data-c="vzeige" data-n="${i}" class="cklein">${V.zeige === i ? 'wird gezeigt' : 'Ansehen'}</button>` : ''}<button data-c="vnimm" data-n="${i}" class="cklein haupt">Übernehmen</button></div></div></div>`).join('');
+    return `<div class="cvorschlagkasten"><h3>Vorschläge für ${raumText(d, rid)}</h3>
+      <div class="knoepfe">${wahl('stil', { gemischt: 'Stil: gemischt', ...Object.fromEntries(Object.entries(STILE).map(([k, t]) => [k, 'Stil: ' + t])) })}${wahl('gegner', GEGNERZAHL)}
+        <button data-c="vneu" data-raum="${rid}"${V.laeuft ? ' disabled' : ''}>Neu würfeln</button><button data-c="vzu" class="cklein">Schließen</button></div>
+      <small class="erkl">Aus dem Auftrag: die nötigen Bausteine (mit Sperre im Raum, wo die Tür herein nicht reicht), ein Stil fürs Gelände, freie Wege, Gegner. Jede Variante ist mit dem Löser geprüft. ${eng ? '„Ansehen“ zeigt sie im Raum, ein Klick in den Raum beendet die Vorschau.' : ''} Übernommen ist sie ein ganz normaler Raum – umbauen erwünscht.</small>
+      <div class="cvarianten${eng ? ' eng' : ''}">${karten}${V.laeuft ? `<p class="klein">Erzeuge Variante ${V.varianten.length + 1} von 3 …</p>` : ''}</div>${V.fehler ? `<p class="crot">${esc(V.fehler)}</p>` : ''}</div>`;
+  }
+  function vorschlagEingabe(t) {
+    if (!Z.cvor) return;
+    Z.cvor.opt = { ...Z.cvor.opt, [t.dataset.cv]: t.value };
+    starteVorschlaege(Z.cvor.rid);
+  }
+  function vorschlagKlick(c, b) {   // gemeinsam für Creator und Editor; true = behandelt
+    if (c === 'vorschlagen' || c === 'vneu') { starteVorschlaege(b.dataset.raum || Z.raum); return true; }
+    if (c === 'vzu') { Z.cvor = null; zeigeVorschlaege(); return true; }
+    if (c === 'vnimm') { uebernimm(Number(b.dataset.n)); return true; }
+    if (c === 'vzeige' && Z.cvor) { Z.cvor.zeige = Z.cvor.zeige === Number(b.dataset.n) ? null : Number(b.dataset.n); E.renderRechts(); E.zeichneRaum(); return true; }
+    return false;
   }
 
   // ---------- Daten ändern ----------
@@ -836,11 +1093,12 @@ const Creator = (() => {
     const mit = liste.filter(x => x.a.punkte.length), fertig = mit.filter(x => x.a.status === 'fertig').length;
     const zeigen = Z.cfilter === 'offen' ? liste.filter(x => x.a.status !== 'fertig' && x.a.status !== 'gestaltet') : liste;
     const STATUS = { fertig: '✓ Auftrag erfüllt', offen: 'Auftrag offen', warn: '⚠ Sperre prüfen', pruefe: '… wird geprüft', frei: 'leer – frei gestalten', gestaltet: 'gestaltet' };
-    return `<div class="cspalte breit cscroll">${kopf(4, 'Räume bauen', 'Jeder Raum hat jetzt einen Auftrag: was darin stehen muss und was man dafür vorher braucht. Gebaut wird im Editor („Im Editor bauen“) – dort steht der Auftrag rechts oben, und die Haken setzen sich von selbst. Für offene Punkte gibt es passende <b>Bausteine</b>: anklicken, im Raum absetzen, fertig. Am besten in der Reihenfolge des Ablaufs, Raum für Raum.',
+    return `<div class="cspalte breit cscroll">${kopf(4, 'Räume bauen', 'Jeder Raum hat jetzt einen Auftrag: was darin stehen muss und was man dafür vorher braucht. Gebaut wird im Editor („Im Editor bauen“) – dort steht der Auftrag rechts oben, und die Haken setzen sich von selbst. Für offene Punkte gibt es passende <b>Bausteine</b>: anklicken, im Raum absetzen, fertig. Oder „✨ Raum vorschlagen“: drei geprüfte Varianten für den ganzen Raum. Am besten in der Reihenfolge des Ablaufs, Raum für Raum.',
       [[mit.length > 0 && fertig === mit.length, `${fertig} von ${mit.length} Aufträgen erfüllt`]],
       `<p>Je Element prüft der Editor drei Dinge, sofort und für diesen Raum allein: <b>steht es da</b> (Truhe, Platte, Gegner …), <b>kommt man von einem Eingang hin</b>, und <b>hält jede Abhängigkeit</b> – entweder im Raum (ohne das Benötigte unerreichbar, z. B. hinter Pflöcken oder einem Abgrund) oder an der Tür herein (Schloss, Tor, Bedingung). ⚠ heißt: von einem Eingang aus geht es auch ohne. Liegt die Sperre weiter vorn im Dungeon, bestätigt das Schritt 5.</p>
        <p>„Teil A/B“ zeigt, in welchem Raumteil etwas steht, sobald ein Raum durch Mauern, Abgründe oder Pflöcke geteilt ist (im Editor: Ansicht „Raumteile“).</p>
        <p>Räume ohne Element sind Verbindungsräume: Gegner, Hindernisse, kleine Rätsel nach Lust und Laune.</p>`)}
+      ${Z.cvor && Z.cvor.dungeon === Z.dungeon && d.raeume[Z.cvor.rid] ? vorschlagHtml(d, Z.cvor.rid, false) : ''}
       <div class="cfortschritt" title="${fertig} von ${mit.length}"><div style="width:${mit.length ? Math.round(fertig / mit.length * 100) : 0}%"></div></div>
       <div class="knoepfe"><button data-c="filter" data-n="alle" class="${Z.cfilter !== 'offen' ? 'an' : ''}">Alle Räume</button><button data-c="filter" data-n="offen" class="${Z.cfilter === 'offen' ? 'an' : ''}">Nur offene</button></div>
       <div class="crraster">${zeigen.map(({ rid, r, a }) => `<div class="crkarte ${a.status}">
@@ -849,7 +1107,7 @@ const Creator = (() => {
           ${a.punkte.length ? auftragListe(d, p, a, ord, rid) : ''}
           ${a.notiz ? `<p class="cnotiz">${esc(a.notiz)}</p>` : ''}
           ${a.teile && a.teile.teile.length > 1 ? `<p class="klein">Raumteile: ${a.teile.teile.map(t => `<b>${t.name}</b>${t.tueren.length ? ' (Tür ' + t.tueren.map(TUERNAME).join(', ') + ')' : ''}`).join(' · ')}</p>` : ''}
-          <div class="knoepfe"><button data-c="bauen" data-raum="${rid}" class="haupt">Im Editor bauen</button><button data-c="testen" data-raum="${rid}">▶ Raum testen</button></div></div></div>`).join('')}</div></div>`;
+          <div class="knoepfe"><button data-c="bauen" data-raum="${rid}" class="haupt">Im Editor bauen</button><button data-c="vorschlagen" data-raum="${rid}">✨ Raum vorschlagen</button><button data-c="testen" data-raum="${rid}">▶ Raum testen</button></div></div></div>`).join('')}</div></div>`;
   }
 
   // ---------- Schritt 5: Prüfen ----------
@@ -1004,6 +1262,7 @@ const Creator = (() => {
       ['Aufträge', 'Jeder Raum, in dem ein Element liegt, bekommt einen Auftrag: z. B. „Laterne – liegt in einer Truhe“, „Signal „muehlrad“ auslösen – Platte“. Im Editor steht der Auftrag rechts oben, die Haken setzen sich von selbst. So kannst du Raum für Raum abarbeiten.'],
       ['Was der Auftrag prüft', 'Je Element, sofort und nur für diesen Raum: <b>steht es da</b>, <b>kommt man von einem Eingang hin</b> (mit Schieben, Platten, Zeitschaltern; Kristallfarben in jeder Kombination), und <b>hält jede Abhängigkeit</b>? Gesichert ist sie, wenn das Element ohne das Benötigte unerreichbar ist (Raumteil hinter Pflöcken, Abgrund, Kampf) oder wenn jede Tür herein es verlangt – oder der Raum davor schon. ⚠ heißt: von einem Eingang aus geht es auch ohne. Den ganzen Dungeon mit allen Wegen prüft Schritt 5.'],
       ['Bausteine', 'Fertige Rätsel zum Absetzen, alle mit dem Löser geprüft: Truhe hinter Sperre, Sperre (Pflock), Block auf Platte, zwei Blöcke auf zwei Platten, Schalter, Truhe auf der Insel, Truhe nach dem Kampf, Gegner trägt etwas, Kampf löst Signal aus, Gegner mit Signal, Zeitlauf, Kristall-Schleuse, Boss, Truhe. Im Editor über „Bausteine“ in der Werkzeugleiste – oder direkt aus einem offenen Auftrag („Baustein: …“), dann sind Inhalt und Signal schon passend eingestellt. Die Vorschau folgt der Maus: grün passt, rot nicht (ragt über den Rand, versperrt eine Tür, kein Zugang). Ein Klick setzt ihn, Strg+Z nimmt ihn zurück. Danach darfst du alles umbauen – der Auftrag prüft weiter mit.'],
+      ['Ganze Räume vorschlagen', '„✨ Raum vorschlagen“ (Schritt 4 und im Editor beim Auftrag) erzeugt drei Varianten für den ganzen Raum: einen <b>Stil</b> fürs Gelände (Säulenhalle, Abgründe mit Stegen, Waldlichtung, Kammern, Ruine), die <b>Bausteine</b>, die der Auftrag braucht – mit einer Sperre im Raum, wo die Tür herein eine Abhängigkeit nicht sichert –, freie Wege zu allen Türen und Bausteinen und <b>Gegner</b> (keine, wenige, einige, viele). Jede Variante prüft der Löser: Auftrag erfüllt, alle Türen untereinander erreichbar, keine Einsperr-Falle; was nicht passt, wird neu gewürfelt. Im Editor zeigt „Ansehen“ die Variante im Raum, „Übernehmen“ ersetzt den Raum (Strg+Z nimmt es zurück). Danach ist es ein ganz normaler Raum zum Weiterbauen. Kleine und große Schlüssel sowie Bosse anderswo sichert der Vorschlag nicht im Raum – dafür gibt es Türen; er sagt dann, welche.'],
       ['Umschalten', '„⇄ Editor“ oben rechts wechselt in die Detailansicht – es bleibt derselbe Dungeon, auch Rückgängig (Strg+Z) wirkt in beiden. „⇄ Creator“ führt zurück. Der Plan wird mit dem Dungeon gespeichert und exportiert.'],
       ['Tipps', 'Klein anfangen: 5–8 Räume, ein Schlüssel, ein Gegenstand, ein Rätsel. Jeder Gegenstand sollte mehr als einmal gebraucht werden (die Laterne für dunkle Räume <i>und</i> ein Tor). Abkürzungen zurück zum Anfang (Riegel) machen lange Wege angenehm. Das Beispiel (Schritt 1, „Beispiel laden“) zeigt einen kleinen, vollständigen Plan.'],
     ];
@@ -1056,6 +1315,7 @@ const Creator = (() => {
     if (c === 'neu') { E.neuerDungeon(); Z.cwahl = null; render(); return; }
     if (c === 'beispiel') { beispiel(); return; }
     if (c === 'pruefen') { pruefe(); return; }
+    if (vorschlagKlick(c, b)) return;
     if (c === 'stopp') { stoppe(); render(); return; }
     if (!d) return;
     switch (c) {
@@ -1163,7 +1423,7 @@ const Creator = (() => {
       if (e.target.closest('input,select,textarea,label,summary,option')) return;
       const b = e.target.closest('[data-c]'); if (b) klick(b);
     });
-    w.addEventListener('change', e => { const t = e.target; if (t.dataset.cf) feldAenderung(t); else if (t.dataset.c) auswahl(t); });
+    w.addEventListener('change', e => { const t = e.target; if (t.dataset.cf) feldAenderung(t); else if (t.dataset.cv) vorschlagEingabe(t); else if (t.dataset.c) auswahl(t); });
     addEventListener('keydown', e => { if (e.key === 'Escape' && Editor.offen && Z.modus === 'creator' && Z.chand) { Z.chand = null; render(); } });
     verbunden = true;
   }
@@ -1259,6 +1519,12 @@ const Creator = (() => {
   #editor .cbausteinliste{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:4px 0 8px} #editor .cbausteinliste button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 2px;font-size:11px;line-height:1.2}
   #editor .cbausteinliste img{height:36px;max-width:64px;image-rendering:pixelated;object-fit:contain} #editor .cbausteinkasten .cbox{background:#16181f;margin:0}
   #editor .cneusignal{margin-top:4px;width:100%;box-sizing:border-box}
+  #editor .cvorschlagkasten{margin:0 0 12px;padding:8px 10px;background:#1c1e26;border:1px solid #2e313b;border-left:4px solid #b07cc6;border-radius:6px} #editor .cvorschlagkasten h3{margin-top:2px}
+  #editor .cvarianten{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:8px} #editor .cvarianten.eng{grid-template-columns:1fr}
+  #editor .cvariante{display:flex;flex-direction:column;gap:6px;padding:6px;background:#16181f;border:1px solid #2e313b;border-radius:6px} #editor .cvarianten.eng .cvariante{flex-direction:row}
+  #editor .cvariante.an{border-color:#b07cc6;box-shadow:0 0 0 1px #b07cc6} #editor .cvariante img{width:100%;max-width:320px;image-rendering:pixelated;border:1px solid #2e313b}
+  #editor .cvarianten.eng .cvariante img{width:100px;display:block} #editor .cbildknopf{padding:0;border:0;background:none;flex:none;align-self:flex-start} #editor .cvariante small{display:block} #editor .cvariante .knoepfe{margin:4px 0 0}
+  #editor .cauftragkasten.frei{border-left-color:#8098cc}
   #editor .cauftragkasten{margin:0 0 10px;padding:6px 8px;background:#1c1e26;border:1px solid #2e313b;border-left:4px solid #e0a33a;border-radius:4px} #editor .cauftragkasten.fertig{border-left-color:#58933b}
   #editor .cauftragkasten h3{margin-top:2px}
   #editor .cergebnis{margin:8px 0;padding:8px 10px;border-radius:4px;border:1px solid #454a55} #editor .cergebnis.gruen{background:#1f4226;border-color:#58933b;color:#cfe8b8}
@@ -1272,5 +1538,6 @@ const Creator = (() => {
   #editor .fehltritte,#editor .warnliste{margin:4px 0;padding-left:18px} #editor .fehltritte>li{margin:6px 0;color:#ff9c8f} #editor .warnliste li{color:#f4cd5e;margin:3px 0}`;
   const stil = document.createElement('style'); stil.textContent = CSS; document.head.appendChild(stil);
 
-  return { render, auftragKasten, quellen, ordnung, bausteinPanel, bausteinEingabe, zeichneBaustein, setzeBaustein, klickEditor, BAUSTEINE, plazierung };
+  return { render, auftragKasten, quellen, ordnung, bausteinPanel, bausteinEingabe, zeichneBaustein, setzeBaustein, klickEditor, BAUSTEINE, plazierung,
+    vorschauRaum, vorschauEnde, vorschlagEingabe, baueVariante, starteVorschlaege, STILE };
 })();
