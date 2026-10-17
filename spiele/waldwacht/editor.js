@@ -294,28 +294,37 @@ const Editor = (() => {
   // ---------- Automatisch befüllen ----------
   // Rahmen bleibt, Inneres wird neu: Abgründe, Hindernisse, Gegner. Die Felder vor den Türen bleiben frei, und alle
   // Türen (und der Startpunkt) müssen untereinander erreichbar bleiben – sonst wird der letzte Schritt zurückgenommen.
+  // Plant der Creator getrennte Wege durch den Raum, kommen zuerst Trennmauern hinein, und zusammenhängen muss nur je Weg.
   function befuelle(r, nachfragen = true) {
     if (nachfragen && (r.objekte.length || r.gegner.length) && !confirm('Inhalt des Raums ersetzen?')) return;
     const f = Z.fuellen, karte = rahmenKarte().map(z => [...z]), objekte = [], gegner = [];
-    const schutz = new Set(), ziele = [];
+    const schutz = new Set(), ziele = [], d = dg(), hier = d && raum() === r;
+    let gruppen = hier && typeof Creator !== 'undefined' ? Creator.planWege(d, d.plan || {}, Z.raum) : [];
+    if (gruppen.length > 1) {
+      const R = { karte: rahmenKarte() }, start = d.start.raum === Z.raum ? d.start.feld.map(Math.floor) : null;
+      let ok = false;
+      for (let versuch = 0; versuch < 8 && !ok; versuch++) { R.karte = rahmenKarte(); ok = Creator.trenneWege(R, gruppen, new Map(), [], start, Math.random); }
+      if (ok) R.karte.forEach((z, rr) => { karte[rr] = [...z]; });
+      else { alert('Die getrennten Wege aus dem Raumplan ließen sich hier nicht anlegen (Türen zu dicht beieinander) – der Raum wird ohne Trennung befüllt.'); gruppen = []; }
+    }
+    const wegVon = {}; gruppen.forEach((l, i) => l.forEach(k => { wegVon[k] = i; }));
     for (const dir of Object.keys(r.tueren)) {
       const [x, y, w, h] = TUER_RECHTECK[dir], [dx, dy] = RICHTUNG[dir];
       for (let rr = y / T; rr < (y + h) / T; rr++) for (let c = x / T; c < (x + w) / T; c++) for (let k = 1; k <= 3; k++) {
         const cc = c - dx * k, ry = rr - dy * k;
-        if (innen(cc, ry)) { schutz.add(cc + ',' + ry); if (k === 1) ziele.push([cc, ry]); }
+        if (innen(cc, ry)) { schutz.add(cc + ',' + ry); if (k === 1) ziele.push([cc, ry, wegVon[dir] || 0]); }
       }
     }
-    const d = dg();
-    if (d && d.start.raum === Z.raum && raum() === r) {
+    if (hier && d.start.raum === Z.raum) {
       const [sx, sy] = d.start.feld.map(Math.floor);
       for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) schutz.add((sx + a) + ',' + (sy + b));
-      ziele.push([sx, sy]);
+      ziele.push([sx, sy, wegVon.start || 0]);
     }
-    if (!ziele.length) ziele.push([9, 8]);
+    if (!ziele.length) ziele.push([9, 8, 0]);
     const belegt = (c, rr) => objekte.some(o => o.feld[0] === c && o.feld[1] === rr) || gegner.some(g => g.feld[0] === c && g.feld[1] === rr);
     const begehbar = (c, rr) => karte[rr][c] === '.' && !objekte.some(o => o.feld[0] === c && o.feld[1] === rr && DATEN.objektarten[o.objekt].fest && !DATEN.objektarten[o.objekt].schneidbar);
-    const zusammen = () => {
-      const [c0, r0] = ziele[0], da = new Set([c0 + ',' + r0]), offen = [[c0, r0]];
+    const zusammen = () => [...new Set(ziele.map(z => z[2]))].every(g => {   // je Weg: alle seine Türen (und der Start) hängen zusammen
+      const eigene = ziele.filter(z => z[2] === g), [c0, r0] = eigene[0], da = new Set([c0 + ',' + r0]), offen = [[c0, r0]];
       while (offen.length) {
         const [c, rr] = offen.pop();
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
@@ -323,8 +332,8 @@ const Editor = (() => {
           if (!da.has(n) && innen(c + dx, rr + dy) && begehbar(c + dx, rr + dy)) { da.add(n); offen.push([c + dx, rr + dy]); }
         }
       }
-      return ziele.every(([c, rr]) => da.has(c + ',' + rr));
-    };
+      return eigene.every(([c, rr]) => da.has(c + ',' + rr));
+    });
     const freiesFeld = (abstand = 0) => {
       for (let i = 0; i < 200; i++) {
         const c = 1 + Math.floor(Math.random() * (SPALTEN - 2)), rr = 2 + Math.floor(Math.random() * (ZEILEN - 3));
@@ -778,18 +787,23 @@ const Editor = (() => {
   }
 
   // Test-Vorgaben: Womit startet der Raumtest? Vorgabe aus der Logik (was man frühestens beim Betreten hat), änderbar.
-  function vorgaben(raumId) {
-    if (Z.vorgaben[raumId]) return Z.vorgaben[raumId];
-    const v = Z.pruefung && Z.pruefung.logik.vorher && Z.pruefung.logik.vorher[raumId];
-    const r = dg().raeume[raumId], erste = Object.keys(r.tueren)[0];
-    return { eingang: dg().start.raum === raumId ? 'start' : erste || 'mitte', signale: v ? v.signale : [], besitz: v ? v.besitz : [], schluessel: v ? v.schluessel : 0, ausLogik: !!v };
+  // Der Eingang zählt mit: Führen unabhängige Wege durch den Raum, kommt man über jede Tür mit anderem Stand herein.
+  function vorgabenAusLogik(raumId, eingang) {
+    const L = Z.pruefung && Z.pruefung.logik, r = dg().raeume[raumId];
+    const ein = eingang || (dg().start.raum === raumId ? 'start' : L && L.ersterEingang && r.tueren[L.ersterEingang[raumId]] ? L.ersterEingang[raumId] : Object.keys(r.tueren)[0] || 'mitte');
+    const v = L && ((L.vorherTuer || {})[raumId + ':' + ein] || (L.vorher || {})[raumId]);
+    return { eingang: ein, signale: v ? v.signale : [], besitz: v ? v.besitz : [], schluessel: v ? v.schluessel : 0, ausLogik: !!v };
+  }
+  function vorgaben(raumId) {   // { nurEingang }: nur der Eingang ist gewählt, der Rest folgt der Logik
+    const v = Z.vorgaben[raumId];
+    return !v ? vorgabenAusLogik(raumId) : v.nurEingang ? vorgabenAusLogik(raumId, v.eingang) : v;
   }
   function vorgabenHtml(r, d) {
     const v = vorgaben(Z.raum), q = Object.keys(dungeonSignale(DATEN, DATEN.dungeons[Z.dungeon]).quellen).filter(n => !n.includes('=') && !n.startsWith('hat:'));
     const eingaenge = { ...(d.start.raum === Z.raum ? { start: 'Startpunkt' } : {}), ...Object.fromEntries(Object.keys(r.tueren).map(dir => [dir, 'Tür ' + TUERNAME(dir)])), mitte: 'Raummitte' };
     const gegenst = Object.entries(DATEN.gegenstaende).filter(([, g]) => !(g.wirkung || {}).schluessel);
     const kurz = [v.signale.length ? v.signale.map(n => '„' + n + '“').join(', ') : '', v.besitz.map(id => (DATEN.gegenstaende[id] || {}).name || id).join(', '), v.schluessel ? v.schluessel + ' Schlüssel' : ''].filter(Boolean).join(' · ') || 'nichts';
-    return `<details class="vorgaben"${Z.vorgabenOffen ? ' open' : ''}><summary class="klein">Test-Vorgaben: ${esc(eingaenge[v.eingang] || 'Tür')} · ${esc(kurz)}${Z.vorgaben[Z.raum] ? ' (angepasst)' : v.ausLogik ? ' (aus der Logik)' : ''}</summary>
+    return `<details class="vorgaben"${Z.vorgabenOffen ? ' open' : ''}><summary class="klein">Test-Vorgaben: ${esc(eingaenge[v.eingang] || 'Tür')} · ${esc(kurz)}${v.ausLogik ? ' (aus der Logik)' : Z.vorgaben[Z.raum] && !Z.vorgaben[Z.raum].nurEingang ? ' (angepasst)' : ''}</summary>
       <small class="erkl">Der Raumtest startet so, als hätte man das schon – vorgegeben ist, was man laut Logik frühestens beim Betreten hat. So testest du einen Raum, ohne den Dungeon davor durchzuspielen.</small>
       ${feld('Eingang', wahlHtml('data-vg="eingang"', v.eingang, eingaenge))}
       ${q.length ? `<div class="klein">Signale schon ausgelöst:</div>${q.map(n => `<label class="klein"><input type="checkbox" data-vg="signal" data-n="${esc(n)}"${v.signale.includes(n) ? ' checked' : ''}> ${esc(n)}</label>`).join('')}` : ''}
@@ -828,7 +842,9 @@ const Editor = (() => {
       vorlageAus(a); aenderung(); renderRechts(); return;
     }
     if (t.dataset.vg) {   // Test-Vorgaben (nur für diese Sitzung)
-      const v = Z.vorgaben[Z.raum] = { ...vorgaben(Z.raum), ausLogik: false }; Z.vorgabenOffen = true;
+      const alt = vorgaben(Z.raum); Z.vorgabenOffen = true;
+      if (t.dataset.vg === 'eingang' && alt.ausLogik) { Z.vorgaben[Z.raum] = { eingang: t.value, nurEingang: true }; renderRechts(); return; }   // anderer Eingang, Stand aus der Logik
+      const v = Z.vorgaben[Z.raum] = { ...alt, ausLogik: false };
       if (t.dataset.vg === 'eingang') v.eingang = t.value;
       else if (t.dataset.vg === 'schluessel') v.schluessel = Math.max(0, Number(t.value) || 0);
       else { const k = t.dataset.vg === 'signal' ? 'signale' : 'besitz'; v[k] = t.checked ? [...new Set([...v[k], t.dataset.n])] : v[k].filter(x => x !== t.dataset.n); }
@@ -1471,7 +1487,7 @@ const Editor = (() => {
       Du malst Gelände, setzt Objekte und Gegner, stellst Türen ein und testest sofort. Alles wird automatisch im Browser gespeichert – <b>Export</b> sichert es als Datei.`],
     ['Räume und Karte', `Links die Dungeon-Karte: Raum anklicken = bearbeiten, „+“ = neuen Raum anlegen (neben dem gewählten gleich mit Tür). ★ ist der Startraum.
       Rechts die Einstellungen des Raums: Titel, Licht, Kampfraum (Türen erst offen, wenn alle Gegner besiegt sind), Einstiegstext, Wellen, Türen, Ereignisse.
-      „Automatisch befüllen“ verteilt Hindernisse, Büsche, Abgründe und Gegner so, dass alle Türen erreichbar bleiben.`],
+      „Automatisch befüllen“ verteilt Hindernisse, Büsche, Abgründe und Gegner so, dass alle Türen erreichbar bleiben – plant der Creator getrennte Wege durch den Raum, zieht es zuerst Trennmauern und hält je Weg die Türen verbunden.`],
     ['Malen', `Werkzeuge oben: <b>Auswählen</b> (Objekt/Gegner anklicken und rechts einstellen), <b>Pipette</b> (übernimmt ein Feld samt Einstellungen; auch Alt+Klick),
       <b>Radierer</b> (auch rechte Maustaste), <b>Startpunkt</b>. Form <b>Rechteck</b> (oder Umschalt+Ziehen) füllt Flächen. Ein eingestelltes Objekt ist Vorlage für alle weiteren seiner Art.
       Strg+Z macht rückgängig.`],
@@ -1501,7 +1517,8 @@ const Editor = (() => {
       Angriffsphase unverwundbar → Erschöpft-Phase benommen → zurück, dazu „Schutz bei Trefferserie“.`],
     ['Prüfung und Logik', `Oben rechts steht der Prüfstatus: grün = alles lösbar, gelb = Hinweise, rot = Fehler. Die Prüfung läuft kurz nach jeder Änderung und spielt den Dungeon
       gedanklich durch (Reiter <b>Logik</b>): Welche Räume sind in welcher Stufe erreichbar, was gibt es dort, welche Tür braucht was? Sie findet z. B. einen Gegner, dessen Signal
-      seine eigene Tür öffnen soll, Schlüssel-Fallen und Räume ohne Rückweg. Ob ein Rätsel <i>innerhalb</i> eines Raums lösbar ist, prüft sie nicht – dafür gibt es den <b>Löser</b> (unten) und „Raum testen“.`],
+      seine eigene Tür öffnen soll, Schlüssel-Fallen und Räume ohne Rückweg. Sie rechnet je Raumteil: Trennen Mauern, feste Objekte oder Abgründe (ohne Block im Raum) die Türen eines Raums,
+      sind das unabhängige Wege – wer durch eine Tür hereinkommt, erreicht nur die Türen und Truhen auf deren Weg. Ob ein Rätsel <i>innerhalb</i> eines Raumteils lösbar ist (Pflöcke, Blöcke, Kristalle), prüft sie nicht – dafür gibt es den <b>Löser</b> (unten) und „Raum testen“.`],
     ['Raumteile', `Knopf <b>Raumteile</b> (Werkzeugleiste, Gruppe „Ansicht“) färbt die zusammenhängenden Flächen des Raums ein und schreibt an jede Tür den Buchstaben ihres Teils.
       Mauern, Abgründe und hochgefahrene Pflöcke trennen, Blöcke gelten als verschiebbar. So siehst du sofort, welche Türen zusammengehören – und ob eine Tür z. B. nur über einen anderen Raum erreichbar ist.
       Rechts stellst du den <b>Zustand</b> ein: Farbe jedes Kristalltyps, Signale und Gegenstände, die der Raum abfragt. Mit <b>Ab Eingang erreichbar</b> rechnet der Editor ab einer Tür alles durch –
@@ -1516,7 +1533,8 @@ const Editor = (() => {
       und wird beim Darüberlaufen aufgehoben. Gut für Schlüssel nach einem Kampf, ohne eine Truhe aufzustellen. Logik und Löser kennen Drops wie Truhen.`],
     ['Testen, Vorgaben und Nachweise', `„▶ Raum testen“ startet direkt in diesem Raum, „▶ Dungeon testen“ am Startpunkt. Esc führt zurück in den Editor. Im Spiel: M schaltet den Ton.
       Die <b>Test-Vorgaben</b> unter dem Knopf legen fest, womit der Raumtest beginnt: Eingang, schon ausgelöste Signale, Gegenstände, Schlüssel. Vorgegeben ist,
-      was man laut Logik frühestens beim Betreten des Raums hat – du musst den Dungeon davor also nicht durchspielen.
+      was man laut Logik frühestens beim Betreten des Raums hat, und zwar durch die gewählte Tür (bei getrennten Wegen kommt man über jede Tür mit anderem Stand herein) – du musst den Dungeon davor also nicht durchspielen.
+      Ohne eigene Wahl ist der Eingang die Tür, durch die man den Raum laut Logik zuerst betritt.
       Jeder Testlauf wird ausgewertet: Welche Türen und Truhen eines Raums hast du erreicht? Das ist der <b>Nachweis</b>. <b>Rätselräume</b> (mit Abgründen, Blöcken, Platten,
       Kristallen, Pflöcken oder bedingten Truhen) gelten erst als geprüft, wenn ein Testlauf jedes Ziel erreicht hat – auf der Karte grüner Punkt, sonst gelb oder hohl.
       Mehrere Testläufe ergänzen sich; ändert sich der Raum, ist der Nachweis veraltet.`],
@@ -1543,7 +1561,7 @@ const Editor = (() => {
       case 'testdungeon': teste(null); break;
       case 'meldungweg': Z.meldung = null; renderLinks(); break;
       case 'nachweisweg': { merke(); const n = dg().nachweise; if (n) delete n[Z.raum]; aenderung(); renderRechts(); break; }
-      case 'vorgabenlogik': delete Z.vorgaben[Z.raum]; renderRechts(); break;
+      case 'vorgabenlogik': Z.vorgaben[Z.raum] = { eingang: vorgaben(Z.raum).eingang, nurEingang: true }; renderRechts(); break;
       case 'testraum': teste(Z.raum); break;
       case 'startraum': merke(); d.start = { raum: Z.raum, feld: [9.5, 8.5] }; aenderung(); renderRechts(); break;
       case 'raumloeschen': loescheRaum(); break;
