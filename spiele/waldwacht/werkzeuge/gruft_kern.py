@@ -287,6 +287,38 @@ def sokoban(raum, start, ziel, ctx, max_z=200000, bloecke=None):
                     q.append((b, gef, (bl - {b}) | {hin}, n + 1))
     return None
 
+def fallen(raum, ctx, gehege=None, max_z=600000):
+    """Sucht alle Blockstellungen, die man von den Türen aus erschieben kann, und meldet die, in denen der Held
+    eingesperrt ist: keine Tür und kein (ungefüllter) Abgrund mehr erreichbar. Ein Sturz in den Abgrund bringt ihn
+    zum Raumeingang zurück; raus und wieder rein setzt die Blöcke zurück. gehege (c0, r0, c1, r1): Blöcke, die es
+    verlassen, gelten als weg – das hält die Suche klein, wenn draußen ohnehin überall Abgrund oder Tür erreichbar ist.
+    Gibt (Anzahl Stellungen, Liste der Fallen) zurück; Anzahl None = Suche abgebrochen."""
+    bloecke = {tuple(o['feld']) for o in raum.objekte if o['objekt'] == 'block'}
+    fest = blockiert(raum, ctx, set(), bloecke)
+    loch = {(c, r) for r in range(H) for c in range(W) if raum.k[r][c] == '~'}
+    ausgaenge = {e for d in raum.tueren for e in eingang(d)}
+    drin = (lambda p: gehege[0] <= p[0] <= gehege[2] and gehege[1] <= p[1] <= gehege[3]) if gehege else (lambda p: True)
+    gesehen, fallen_ = set(), []
+    for st in sorted(ausgaenge):
+        q = deque([(st, frozenset(), frozenset(bloecke))])
+        while q:
+            p, gef, bl = q.popleft()
+            reg = flut(p, ((fest - gef) | bl) - {p})
+            key = (min(reg), gef, bl)
+            if key in gesehen: continue
+            gesehen.add(key)
+            if len(gesehen) > max_z: return None, fallen_
+            if not (reg & ausgaenge) and not any((c + dc, r + dr) in loch - gef for c, r in reg for dc, dr in NACHBARN):
+                fallen_.append((p, sorted(bl), sorted(gef)))
+            for b in bl:
+                for dc, dr in NACHBARN:
+                    steh, hin = (b[0] - dc, b[1] - dr), (b[0] + dc, b[1] + dr)
+                    if steh not in reg or not innen(*hin) or hin in bl: continue
+                    if not drin(hin): q.append((b, gef, bl - {b})); continue
+                    if hin in loch and hin not in gef: q.append((b, gef | {hin}, bl - {b}))
+                    elif hin not in fest: q.append((b, gef, (bl - {b}) | {hin}))
+    return len(gesehen), fallen_
+
 def abstand(raum, ctx, von, nach_felder, gefuellt=frozenset()):
     blk = blockiert(raum, ctx, set(gefuellt), set()) - {von}
     dist = {von: 0}; q = deque([von])

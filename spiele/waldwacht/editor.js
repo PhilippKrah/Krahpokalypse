@@ -1,5 +1,7 @@
 // Waldwacht – Editor für Dungeons, Räume, Objekte, Gegner, Gegnerarten und Kristalltypen.
-// Wird vom Spiel erst geladen, wenn im Menü „EDITOR“ gewählt wird, und nutzt dessen Daten, Grafik und Funktionen
+// Zwei Modi im selben Fenster: Editor (alles im Detail) und Creator (creator.js: planen in Arbeitsschritten); der Creator
+// greift über Editor.intern auf Zustand und Hilfsfunktionen zu.
+// Wird vom Spiel erst geladen, wenn im Menü „EDITOR“ oder „CREATOR“ gewählt wird, und nutzt dessen Daten, Grafik und Funktionen
 // (DATEN, baueHintergrund, zeichneBild, Sprites, GEGNERBILD, pruefeDaten, uebernehmeEigene, starteDungeon …).
 // Gespeichert wird im Browser (localStorage, EIGENE_SCHLUESSEL) im selben JSON-Format wie der Block spieldaten:
 //   { format: 1, dungeons: { id: dungeon }, gegnerarten: { id: gegnerart }, kristalltypen: { id: kristalltyp }, waffen: { id: waffe } }
@@ -10,6 +12,7 @@ const Editor = (() => {
   // ---------- Zustand ----------
   let offen = false, wurzel = null, eigene = ladeEigene(), rueckgaengig = [];
   const Z = {
+    modus: 'editor',               // editor | creator
     ansicht: 'dungeon',            // dungeon | gegner | kristalle
     dungeon: null, raum: null,
     werkzeug: { art: 'kachel', wert: '#' },   // bei Objekten optional vorlage: Einstellungen für neu gesetzte
@@ -17,12 +20,14 @@ const Editor = (() => {
     auswahl: null,                 // { liste: 'objekte' | 'gegner', i }
     gegnerArt: null, gPhase: null, kristallTyp: null, waffe: null, vorgaben: {}, vorgabenOffen: false, meldung: null,
     maus: null, malt: false, rechteck: null,
+    teile: false, teileZustand: null, teileAb: '', teileAbRaum: null,   // Raumteile-Ansicht: an/aus, gewählter Zustand, Eingang für „erreichbar ab“
+    loeser: null,                  // letzter Lauf des Lösers: { dungeon, stand, laeuft, fortschritt, ergebnis, fehler, sekunden }
     fuellen: { hindernisse: 'mittel', buesche: true, abgruende: false, gegner: 3, arten: ['fuchs'], auto: true },
   };
   try { Object.assign(Z.fuellen, JSON.parse(localStorage.getItem('waldwacht.editor') || '{}')); } catch (e) { /* Voreinstellung */ }
 
   const LICHT = ['hell', 'daemmrig', 'dunkel', 'finster'];
-  const SCHRITTARTEN = { signal: 'Signal setzen', warte: 'warten', warteBis: 'warten bis', text: 'Text zeigen' };
+  const SCHRITTARTEN = { signal: 'Signal setzen', warte: 'warten', warteBis: 'warten bis', text: 'Text zeigen', ende: 'Dungeon geschafft (Abspann)' };
   const TUERARTEN = { keine: 'keine', offen: 'offen', schloss: 'Schloss (kleiner Schlüssel)', gross: 'Großes Schloss (großer Schlüssel)', gegenstand: 'Tor für einen Gegenstand',
     riegel: 'Riegel (geht nur von der anderen Seite auf)', kampf: 'Kampf (offen, wenn geräumt)', bedingung: 'Bedingung' };
   const TUERFARBE = { offen: '#cfd6cf', schloss: '#f4cd5e', gross: '#d0574a', gegenstand: '#8abd4f', riegel: '#986438', kampf: '#d0574a', bedingung: '#8098cc' };
@@ -225,15 +230,16 @@ const Editor = (() => {
   }
   function raumBei(x, y) { const d = dg(); return d ? Object.entries(d.raeume).find(([, r]) => r.pos && r.pos[0] === x && r.pos[1] === y) : null; }
   function nachbar(dir) { const r = raum(); return r && r.pos ? raumBei(r.pos[0] + RICHTUNG[dir][0], r.pos[1] + RICHTUNG[dir][1]) : null; }
-  function legeRaumAn(x, y, verbindeMit) {
-    const d = dg(), id = neueRaumId(d), nr = Object.keys(d.raeume).length + 1, r = leererRaum(nr, [x, y]);
+  function legeRaumAn(x, y, verbindeMit, leer = false) {
+    const d = dg(), id = neueRaumId(d), nr = Math.max(0, ...Object.values(d.raeume).map(q => Number(q.nr) || 0)) + 1, r = leererRaum(nr, [x, y]);
     d.raeume[id] = r;
     if (verbindeMit) {   // Tür zum Raum, von dem aus angelegt wurde
       const [vid, v] = verbindeMit, dir = ['n', 'o', 's', 'w'].find(k => v.pos[0] + RICHTUNG[k][0] === x && v.pos[1] + RICHTUNG[k][1] === y);   // Mitteltür
       if (dir) { v.tueren[dir] = { ziel: id }; r.tueren[GEGENUEBER[dir]] = { ziel: vid }; }
     }
-    if (Z.fuellen.auto) befuelle(r, false);
+    if (Z.fuellen.auto && !leer) befuelle(r, false);
     Z.raum = id; Z.auswahl = null;
+    return id;
   }
   function loescheRaum() {
     const d = dg();
@@ -259,9 +265,13 @@ const Editor = (() => {
     return 'offen';
   }
   function setzeTuer(dir, art, bedingung, merken) {
-    const r = raum(), nb = nachbar(dir);
+    if (!nachbar(dir)) return;
+    merke(); tuerSetzen(Z.raum, dir, art, bedingung, merken);
+    aenderung(); renderRechts();
+  }
+  function tuerSetzen(rid, dir, art, bedingung, merken) {   // Tür in Raum rid (Wand dir) setzen; die Gegentür bekommt mindestens das Ziel
+    const r = dg().raeume[rid], nb = r && r.pos ? raumBei(r.pos[0] + RICHTUNG[dir][0], r.pos[1] + RICHTUNG[dir][1]) : null;
     if (!nb) return;
-    merke();
     const [nid, n] = nb, g = GEGENUEBER[dir];
     if (art === 'keine') { delete r.tueren[dir]; delete n.tueren[g]; }
     else {
@@ -277,9 +287,8 @@ const Editor = (() => {
         t.offen_wenn = bedingung === undefined ? (erstes ? erstes[0] : { alle: ['geraeumt'] }) : bedingung; if (merken) t.merken = true;
       }
       r.tueren[dir] = t;
-      n.tueren[g] = n.tueren[g] ? { ...n.tueren[g], ziel: Z.raum } : { ziel: Z.raum };
+      n.tueren[g] = n.tueren[g] ? { ...n.tueren[g], ziel: rid } : { ziel: rid };
     }
-    aenderung(); renderRechts();
   }
 
   // ---------- Automatisch befüllen ----------
@@ -364,6 +373,7 @@ const Editor = (() => {
   function anwenden(c, rr, erster, rechts, still = false) {
     const r = raum();
     if (!r) return;
+    if (typeof Creator !== 'undefined' && Creator.vorschauRaum()) { if (erster) Creator.vorschauEnde(); return; }   // erst die Vorschau eines Vorschlags beenden
     const w = rechts ? { art: 'radierer' } : Z.werkzeug;
     const iO = r.objekte.findIndex(o => o.feld[0] === c && o.feld[1] === rr), iG = r.gegner.findIndex(g => g.feld[0] === c && g.feld[1] === rr);
     if (w.art === 'pipette') { if (erster) pipette(c, rr); return; }
@@ -380,6 +390,7 @@ const Editor = (() => {
       return;
     }
     if (w.art === 'start') { if (erster && innen(c, rr)) { merke(); dg().start = { raum: Z.raum, feld: [c + 0.5, rr + 0.5] }; aenderung(); renderRechts(); } return; }
+    if (w.art === 'baustein') { if (erster && typeof Creator !== 'undefined') Creator.setzeBaustein(c, rr); return; }
     if (!innen(c, rr)) return;
     const setzeKachel = ch => { const z = [...r.karte[rr]]; z[c] = ch; r.karte[rr] = z.join(''); };
     const raus = () => { if (iO >= 0) r.objekte.splice(iO, 1); const j = r.gegner.findIndex(g => g.feld[0] === c && g.feld[1] === rr); if (j >= 0) r.gegner.splice(j, 1); };
@@ -437,7 +448,7 @@ const Editor = (() => {
     else zeichneBild(g, t.bild, x, y, t.spiegeln === 'schachbrett' && (c + rr) % 2 === 1);
   }
   function zeichneRaum() {
-    const cv = $('#ed-raum'), r = raum();
+    const cv = $('#ed-raum'), vorschau = typeof Creator !== 'undefined' && Creator.vorschauRaum(), r = vorschau || raum();
     if (!cv) return;
     const g = cv.getContext('2d');
     g.imageSmoothingEnabled = false;
@@ -469,6 +480,7 @@ const Editor = (() => {
       else { g.fillStyle = '#d0574a'; g.fillRect(e.feld[0] * T + 6, e.feld[1] * T + 6, 20, 20); }
       const sig = e.signal || art.signal;
       if (sig || art.boss) { g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#f4cd5e'; g.fillText(art.boss ? 'BOSS ' + (art.boss.name || '') : 'Signal: ' + sig, e.feld[0] * T + 16, e.feld[1] * T - 10 * k); }
+      if (e.traegt) { g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#7fbcdc'; g.fillText('trägt: ' + ((DATEN.gegenstaende[e.traegt] || {}).name || e.traegt), e.feld[0] * T + 16, e.feld[1] * T - 10 * k - (sig || art.boss ? 12 : 0)); }
     }
     const licht = typeof r.licht === 'number' ? r.licht : (CFG.licht.stufen[r.licht] ?? 1);   // Dunkelheit nur andeuten
     if (licht < 1) { g.fillStyle = `rgba(18,13,20,${(1 - licht) * 0.45})`; g.fillRect(0, 0, BREITE, HOEHE); }
@@ -481,6 +493,9 @@ const Editor = (() => {
       g.fillStyle = farbe; g.globalAlpha = 0.55; g.fillRect(x, y, w, h); g.globalAlpha = 1;
       g.fillStyle = '#120d14'; g.fillText(TUERZEICHEN[art], x + w / 2, y + h / 2 + 4);
     }
+    if (Z.teile && !vorschau) zeichneTeile(g, r);
+    if (Z.werkzeug.art === 'baustein' && Z.maus && typeof Creator !== 'undefined' && !vorschau) Creator.zeichneBaustein(g, r, Z.maus);
+    if (vorschau) { g.fillStyle = 'rgba(18,13,20,.75)'; g.fillRect(0, 0, BREITE, 22); g.fillStyle = '#c99ad8'; g.font = 'bold 13px sans-serif'; g.textAlign = 'center'; g.fillText('VORSCHAU – rechts „Übernehmen“, Klick in den Raum beendet die Vorschau', BREITE / 2, 15); }
     g.strokeStyle = 'rgba(255,251,236,.08)'; g.lineWidth = 1;
     for (let c = 1; c < SPALTEN; c++) { g.beginPath(); g.moveTo(c * T + 0.5, 0); g.lineTo(c * T + 0.5, HOEHE); g.stroke(); }
     for (let rr = 1; rr < ZEILEN; rr++) { g.beginPath(); g.moveTo(0, rr * T + 0.5); g.lineTo(BREITE, rr * T + 0.5); g.stroke(); }
@@ -490,7 +505,7 @@ const Editor = (() => {
       const { a: p, b: q, rechts } = Z.rechteck, x = Math.min(p[0], q[0]) * T, y = Math.min(p[1], q[1]) * T, w = (Math.abs(p[0] - q[0]) + 1) * T, h = (Math.abs(p[1] - q[1]) + 1) * T;
       g.fillStyle = rechts ? 'rgba(208,87,74,.25)' : 'rgba(244,205,94,.2)'; g.fillRect(x, y, w, h);
       g.strokeStyle = rechts ? '#d0574a' : '#f4cd5e'; g.lineWidth = 2; g.setLineDash([6, 4]); g.strokeRect(x + 1, y + 1, w - 2, h - 2); g.setLineDash([]);
-    } else if (Z.maus && innen(...Z.maus)) { g.strokeStyle = 'rgba(255,251,236,.7)'; g.lineWidth = 2; g.strokeRect(Z.maus[0] * T + 1, Z.maus[1] * T + 1, T - 2, T - 2); }
+    } else if (Z.maus && innen(...Z.maus) && Z.werkzeug.art !== 'baustein') { g.strokeStyle = 'rgba(255,251,236,.7)'; g.lineWidth = 2; g.strokeRect(Z.maus[0] * T + 1, Z.maus[1] * T + 1, T - 2, T - 2); }
   }
   const KZ = { w: 46, h: 34 };   // Zelle der Dungeon-Karte
   function kartenRahmen() {
@@ -570,6 +585,12 @@ const Editor = (() => {
     gruppe('Werkzeug', [knopf('auswahl', null, 'Auswählen'), knopf('pipette', null, 'Pipette'), knopf('radierer', null, 'Radierer'), knopf('start', null, 'Startpunkt')]);
     const form = (wert, titel) => { const b = document.createElement('button'); b.className = 'wz' + (Z.form === wert ? ' an' : ''); b.textContent = titel; b.onclick = () => { Z.form = wert; renderWerkzeuge(); }; return b; };
     gruppe('Form', [form('pinsel', 'Pinsel'), form('rechteck', 'Rechteck')]);
+    { const b = document.createElement('button'); b.className = 'wz' + (Z.teile ? ' an' : ''); b.textContent = 'Raumteile'; b.title = 'Zusammenhängende Flächen einfärben, Türen ihrem Teil zuordnen';
+      b.onclick = () => { Z.teile = !Z.teile; renderWerkzeuge(); if (Z.teile) loeserBereit().then(() => { renderRechts(); zeichneRaum(); }); else { renderRechts(); zeichneRaum(); } }; gruppe('Ansicht', [b]); }
+    if (typeof Creator !== 'undefined') {   // Bausteine (creator.js): fertige Rätsel als Stempel, Auswahl und Einstellungen rechts
+      const b = document.createElement('button'); b.className = 'wz' + (Z.werkzeug.art === 'baustein' ? ' an' : ''); b.textContent = 'Bausteine'; b.title = 'Fertige Rätsel-Bausteine: auswählen, einstellen, in den Raum setzen';
+      b.onclick = () => { Z.werkzeug = { art: 'baustein', wert: Z.baustein || 'truhe_sperre' }; renderWerkzeuge(); renderRechts(); zeichneRaum(); }; gruppe('Bausteine', [b]);
+    }
     gruppe('Gelände', [
       knopf('kachel', KACHELZEICHEN.mauer, 'Mauer', symbol(g => mauerKrone(g, 0, 0, zufall(3)))),
       knopf('kachel', KACHELZEICHEN.boden, 'Boden', symbol(g => zeichneBild(g, 'gras_0', 0, 0))),
@@ -582,6 +603,7 @@ const Editor = (() => {
   function renderVorlage() {   // Zeile unter der Werkzeugleiste: was gerade gesetzt wird, mit welchen Einstellungen
     const el = $('#ed-vorlage'), w = Z.werkzeug;
     if (!el) return;
+    if (w.art === 'baustein') { el.innerHTML = 'Baustein setzen: rechts auswählen und einstellen, dann im Raum klicken – die Vorschau zeigt, wo er landet (grün passt, rot nicht) · Strg+Z nimmt ihn zurück'; return; }
     if (w.art === 'weg') { el.innerHTML = 'Weg zeichnen: Felder anklicken, der Gegner läuft sie der Reihe nach ab und beginnt dann von vorn · rechte Maustaste nimmt den letzten Punkt weg · fertig: anderes Werkzeug wählen'; return; }
     const namen = { auswahl: 'Auswählen: Objekt oder Gegner anklicken, rechts einstellen.', pipette: 'Pipette: Feld anklicken – übernimmt Gelände, Gegner oder Objekt samt Einstellungen.',
       radierer: 'Radierer: entfernt Objekte und Gegner, sonst wird das Feld zu Boden.', start: 'Startpunkt: Feld anklicken, dort beginnt der Dungeon.' };
@@ -696,6 +718,8 @@ const Editor = (() => {
       const art = DATEN.gegnerarten[a.gegner] || {}, kegel = art.bemerkt && art.bemerkt.art === 'kegel';
       auswahl = feld('Gegnerart', auswahlfeld('a.gegner', a.gegner, Object.fromEntries(Object.keys(DATEN.gegnerarten).map(k => [k, k])))) +
         parameterFeld(a, ['signal', 'signalname', 'Signal beim Besiegen', 'Z. B. für eine Tür, die erst nach diesem Gegner aufgeht. Ein Gegner mit Signal kommt nicht wieder.']) +
+        feld('Trägt (fällt beim Besiegen heraus)', auswahlfeld('a.traegt', a.traegt || '', { '': '– nichts –', ...Object.fromEntries(Object.entries(DATEN.gegenstaende).map(([k, x]) => [k, x.name || k])) }),
+          'Zum Beispiel ein Schlüssel, den ein Wächter bei sich hat. Der Gegenstand bleibt liegen, bis man ihn aufhebt; der Gegner kommt nicht wieder.') +
         feld('Blickrichtung zu Beginn', auswahlfeld('a.blick', a.blick || '', { '': 'zum Helden', hoch: 'nach oben', runter: 'nach unten', links: 'nach links', rechts: 'nach rechts' }), kegel ? 'Wichtig für den Sichtkegel.' : '') +
         feld('Weg (Patrouille)', `<span class="klein">${a.weg ? a.weg.length + ' Punkte' : 'kein Weg'}</span> <button data-a="wegzeichnen">${a.weg ? 'Weg ergänzen' : 'Weg zeichnen'}</button>${a.weg ? ' <button data-a="wegloeschen">Weg löschen</button>' : ''}`,
           art.ruhig === 'patrouille' ? 'Felder anklicken – er läuft sie der Reihe nach ab und beginnt dann von vorn.' : 'Diese Gegnerart patrouilliert nicht (Bewegung „läuft einen Weg ab“ in der Gegnerart).') +
@@ -710,7 +734,7 @@ const Editor = (() => {
         `<div class="knoepfe"><button data-a="alleGleichen" title="Alle Objekte dieser Art im Raum bekommen diese Einstellungen">Auf alle ${esc(a.objekt)} im Raum übertragen</button><button data-a="auswahlweg" class="gefahr">Entfernen</button></div>`;
     }
     const f = Z.fuellen;
-    el.innerHTML = `
+    el.innerHTML = `${typeof Creator !== 'undefined' && Z.werkzeug.art === 'baustein' ? Creator.bausteinPanel() : ''}${typeof Creator !== 'undefined' ? Creator.auftragKasten(Z.raum) : ''}${Z.teile ? teileHtml(r) : ''}
       <h3>Raum ${esc(r.nr)} <small>(${esc(Z.raum)})</small></h3>
       ${feld('Titel', textfeld('r.titel', r.titel))}
       <div class="zeile">${feld('Nr.', textfeld('r.nr', r.nr))}${feld('Licht', auswahlfeld('r.licht', typeof r.licht === 'number' ? 'hell' : (r.licht || 'hell'), { hell: 'hell', daemmrig: 'dämmrig', dunkel: 'dunkel', finster: 'finster' }))}</div>
@@ -741,6 +765,7 @@ const Editor = (() => {
           ${x.art === 'signal' ? `<input data-ev="${i}" data-sk="${k}" data-sf="signal" value="${esc(x.signal || '')}" placeholder="Signal" list="ed-signalliste3">${wahlHtml(`data-ev="${i}" data-sk="${k}" data-sf="wert"`, x.wert === false ? 'aus' : 'an', { an: 'an', aus: 'aus' })}` : ''}
           ${x.art === 'warte' ? `<input type="number" step="0.5" min="0" data-ev="${i}" data-sk="${k}" data-sf="s" value="${x.s ?? 1}"> s` : ''}
           ${x.art === 'text' ? `<input data-ev="${i}" data-sk="${k}" data-sf="text" value="${esc(x.text || '')}" placeholder="Text">` : ''}
+          ${x.art === 'ende' ? '<span class="klein">nach dem letzten Text: Abspann mit Spielzeit und Truhen, dann zurück zum Menü</span>' : ''}
           <button data-a="schrittweg" data-i="${i}" data-k="${k}" title="Schritt entfernen">×</button>
           ${x.art === 'warteBis' ? `<div class="bedbreit">${bedingungsFormular('schritt.' + i + '.' + k, x.wenn)}</div>` : ''}</div>`).join('')}
         <div class="knoepfe"><button data-a="schrittneu" data-i="${i}">＋ Schritt</button><button data-a="evweg" data-i="${i}">Ereignis entfernen</button></div></div>`).join('')}
@@ -1190,6 +1215,7 @@ const Editor = (() => {
       tueren.push(`<tr><td>Raum ${nr(id)} ${TUERNAME(dir)}</td><td>→ Raum ${nr(t.ziel)}</td><td>${esc(bed)}${t.merken ? ' (bleibt offen)' : ''}</td></tr>`);
     }
     el.innerHTML = `<div class="spalte breit">
+      ${loeserHtml()}
       <h3>Prüfung: ${p.fehler.length ? `<span class="rot">${p.fehler.length} Fehler</span>` : '<span class="gruen">lösbar</span>'}${p.hinweise.length ? ` · <span class="gelb">${p.hinweise.length} Hinweise</span>` : ''}</h3>
       ${liste(p.fehler, 'fehler')}${liste(p.hinweise, 'hinweis')}
       <h3>Ablauf in Stufen</h3>
@@ -1205,6 +1231,174 @@ const Editor = (() => {
       ${tueren.length ? `<table class="tabelle">${tueren.join('')}</table>` : '<p class="klein">Keine – alle Türen sind offen.</p>'}
       <h3>Was die Prüfung kann – und was nicht</h3>
       <p class="klein">Sie spielt den Dungeon gedanklich durch: Türen je Richtung, Schlüssel (auch in ungünstiger Reihenfolge), Signale von Platten, Gegnern, Kristallen und Ereignissen, Truhen, die erst unter einer Bedingung erscheinen. Sie prüft <b>nicht</b>, ob ein Rätsel innerhalb eines Raums lösbar ist (Blöcke, Pflöcke, Abgründe) – das geht nur durch Testen.</p></div>`;
+  }
+
+  // ---------- Löser (alle Zustände) und Raumteile ----------
+  // loeser.js wird erst geladen, wenn man es braucht. Der Löser rechnet in einem Worker, damit der Editor bedienbar bleibt.
+  let loeserLaden = null, loeserWorker = null, loeserZeichnen = 0;
+  function loeserBereit() {
+    if (typeof Loeser !== 'undefined') return Promise.resolve();
+    return loeserLaden = loeserLaden || new Promise((ok, nein) => {
+      const sc = document.createElement('script'); sc.src = 'loeser.js'; sc.onload = ok; sc.onerror = () => nein(new Error('loeser.js konnte nicht geladen werden')); document.head.appendChild(sc);
+    });
+  }
+  const loeserDaten = () => ({ objektarten: DATEN.objektarten, kacheln: DATEN.kacheln, zeichen: DATEN.zeichen, kristalltypen: DATEN.kristalltypen,
+    gegenstaende: DATEN.gegenstaende, gegnerarten: DATEN.gegnerarten, waffen: DATEN.waffen, einstellungen: DATEN.einstellungen });
+  function stand() {   // Fingerabdruck des Dungeons: hat sich seit der letzten Rechnung etwas geändert?
+    const t = JSON.stringify([DATEN.dungeons[Z.dungeon], DATEN.kristalltypen, DATEN.gegenstaende]);
+    let h = 5381; for (let i = 0; i < t.length; i++) h = (Math.imul(h, 33) ^ t.charCodeAt(i)) >>> 0;
+    return h.toString(36) + t.length;
+  }
+  function starteLoeser() {
+    stoppeLoeser();
+    const L = Z.loeser = { dungeon: Z.dungeon, stand: stand(), laeuft: true, fortschritt: 0, start: Date.now() };
+    const fertig = erg => { L.laeuft = false; L.ergebnis = erg; L.sekunden = Math.round((Date.now() - L.start) / 1000); loeserWorker = null; if (Z.ansicht === 'logik') renderLogik(); };
+    const fehler = text => { L.laeuft = false; L.fehler = text; loeserWorker = null; if (Z.ansicht === 'logik') renderLogik(); };
+    const dgD = kopie(DATEN.dungeons[Z.dungeon]);
+    const imFenster = () => {   // ohne Worker (z. B. Datei direkt geöffnet): im Fenster rechnen – der Editor steht solange
+      loeserWorker = null;
+      loeserBereit().then(() => setTimeout(() => { if (Z.loeser !== L) return; try { fertig(Loeser.loese(loeserDaten(), dgD)); } catch (err) { fehler(String(err)); } }, 50), err => fehler(String(err)));
+    };
+    try {
+      let gehoert = false;
+      loeserWorker = new Worker('loeser.js');
+      loeserWorker.onmessage = e => {
+        gehoert = true;
+        if (Z.loeser !== L) return;
+        if (e.data.fortschritt) { L.fortschritt = e.data.fortschritt; if (Z.ansicht === 'logik' && Date.now() - loeserZeichnen > 400) { loeserZeichnen = Date.now(); renderLogik(); } }
+        else if (e.data.ergebnis) fertig(e.data.ergebnis);
+        else if (e.data.fehler) fehler(e.data.fehler);
+      };
+      loeserWorker.onerror = e => { e.preventDefault(); if (Z.loeser !== L) return; if (gehoert) fehler(e.message || 'Worker-Fehler'); else imFenster(); };
+      loeserWorker.postMessage({ daten: loeserDaten(), dungeon: dgD });
+    } catch (e) { imFenster(); }
+    renderLogik();
+  }
+  function stoppeLoeser() {
+    if (loeserWorker) { loeserWorker.terminate(); loeserWorker = null; }
+    if (Z.loeser && Z.loeser.laeuft) { Z.loeser.laeuft = false; Z.loeser.abgebrochen = true; }
+  }
+  function loeserHtml() {
+    const L = Z.loeser && Z.loeser.dungeon === Z.dungeon ? Z.loeser : null, e = L && L.ergebnis, d = dg();
+    const nr = id => esc((d.raeume[id] || {}).nr || id), raumKnopf = id => id && d.raeume[id] ? `<button data-raumwahl="${id}" class="klein">Raum ${nr(id)}</button>` : '';
+    const zahl = n => n.toLocaleString('de-DE');
+    let kopf = '';
+    if (!L) kopf = '<p class="klein">Noch nicht durchgerechnet.</p>';
+    else if (L.laeuft) kopf = `<p>Rechnet … ${zahl(L.fortschritt)} Zustände <button data-a="loesenstop">Abbrechen</button></p>`;
+    else if (L.fehler) kopf = `<p class="rot">Fehler: ${esc(L.fehler.split('\n')[0])}</p>`;
+    else if (L.abgebrochen && !e) kopf = '<p class="klein">Abgebrochen.</p>';
+    const veraltet = L && !L.laeuft && e && L.stand !== stand();
+    let inhalt = '';
+    if (e && !L.laeuft) {
+      const ok = e.loesbar && !e.sackgassen;
+      inhalt = `<p class="loeserstatus ${ok ? 'gruen' : e.loesbar ? 'gelb' : 'rot'}">${e.loesbar ? '✓ lösbar' : '✗ nicht lösbar'} · Ziel: ${esc(e.ziel)} · ${zahl(e.zustaende)} Zustände${e.fertig ? '' : ' (abgebrochen – zu viele)'} ·
+        ${e.sackgassen ? `<b>${zahl(e.sackgassen)} Sackgassen</b>` : 'keine Sackgasse'} · ${L.sekunden} s${veraltet ? ' · <span class="gelb">seit der Rechnung geändert</span>' : ''}</p>
+        ${e.fehltritte.length ? `<h4>Hier kann man sich verbauen</h4><small class="erkl">Schritte, nach denen das Ziel nie mehr erreichbar ist – z. B. ein Schlüssel an der falschen Tür. Abhilfe: mehr Schlüssel, Tür von beiden Seiten, Riegel, anderer Weg.</small>
+          <ul class="fehltritte">${e.fehltritte.map(f => `<li><b>${esc(f.text)}</b> ${raumKnopf(f.raum)} <small>(in ${zahl(f.anzahl)} Spielverläufen)</small>
+            <details><summary class="klein">So kommt man dahin</summary><ol>${f.weg.map(x => `<li>${esc(x.text)}${x.gewonnen && x.gewonnen.length ? ` <small>– ${esc(x.gewonnen.join(', '))}</small>` : ''}</li>`).join('')}</ol></details></li>`).join('')}</ul>` : ''}
+        ${e.warnungen.length ? `<h4>Warnungen</h4><ul class="warnliste">${e.warnungen.map(w => `<li>${esc(w.text)} ${raumKnopf(w.raum)}</li>`).join('')}</ul>` : ''}
+        ${e.nieErreicht.length ? `<h4>Nie erreicht</h4><p>${e.nieErreicht.map(r => raumKnopf(r.id)).join(' ')}</p>` : ''}
+        ${e.weg.length ? `<details class="wegliste"><summary>Kürzester Weg (${e.weg.length - 1} Schritte)</summary><ol>${e.weg.map(x => `<li>${esc(x.text)}${x.gewonnen && x.gewonnen.length ? ` <small class="gruen">– ${esc(x.gewonnen.join(', '))}</small>` : ''}</li>`).join('')}</ol></details>` : ''}`;
+    }
+    return `<div class="loeserkasten"><h3>Löser: alle Spielverläufe</h3>
+      <small class="erkl">Spielt jeden möglichen Verlauf durch – mit Raumteilen, Kristallfarben, Schlüsseln in jeder Reihenfolge, Schieberätseln, Zeitschaltern und Ereignissen. Findet den kürzesten Weg,
+        Sackgassen (wo man sich verbaut), Einsperr-Fallen mit Blöcken und zu knappe Zeitläufe. Ziel: alle Bosse besiegt (ohne Bosse: alle Räume betreten). Große Dungeons brauchen ein, zwei Minuten – du kannst währenddessen weiterbauen.</small>
+      <div class="knoepfe"><button data-a="loesen" class="haupt"${L && L.laeuft ? ' disabled' : ''}>${e ? 'Neu durchrechnen' : 'Durchrechnen'}</button></div>${kopf}${inhalt}</div>`;
+  }
+
+  const TEILFARBEN = ['#e0a33a', '#7fbcdc', '#8abd4f', '#d0574a', '#b07cc6', '#f4cd5e', '#58933b', '#8098cc', '#c99ad8', '#986438'];
+  function teileZustand() {   // gewählter Zustand für die Ansicht; Kristalltypen anfangs auf ihrer ersten Farbe
+    const z = Z.teileZustand = Z.teileZustand || { kristalle: {}, signale: [], besitz: [] };
+    for (const [k, t] of Object.entries(DATEN.kristalltypen)) if (!t.farben.includes(z.kristalle[k])) z.kristalle[k] = t.farben[0];
+    return z;
+  }
+  // Rechnung nur, wenn sich Raum oder Zustand geändert haben (Malen zeichnet ständig neu)
+  let teileMerk = { schluessel: null, t: null }, abMerk = { schluessel: null, ab: null }, abWorker = null;
+  function teileDaten() {
+    if (typeof Loeser === 'undefined') return null;
+    if (Z.teileAbRaum !== Z.raum) Z.teileAb = '';
+    const dgD = DATEN.dungeons[Z.dungeon], z = teileZustand();
+    const schluessel = JSON.stringify([Z.dungeon, Z.raum, dgD.raeume[Z.raum], z, DATEN.kristalltypen]);
+    if (teileMerk.schluessel !== schluessel) {
+      let t = null;
+      try { t = Loeser.raumteile(DATEN, dgD, Z.raum, z); } catch (e) { console.warn('Raumteile:', e); }
+      teileMerk = { schluessel, t };
+    }
+    const t = teileMerk.t;
+    const mitAb = Z.teileAb && dgD.raeume[Z.raum].tueren[Z.teileAb];
+    if (!mitAb && abWorker) { abWorker.terminate(); abWorker = null; abMerk = { schluessel: null, ab: null }; }
+    if (t) t.ab = mitAb ? abDaten(schluessel + Z.teileAb, dgD, z) : null;
+    return t;
+  }
+  function abDaten(schluessel, dgD, z) {   // „ab Eingang erreichbar“ probiert alle Blockstellungen durch – das kann dauern, deshalb im Hintergrund
+    if (abMerk.schluessel === schluessel) return abMerk.ab;
+    if (abWorker) { abWorker.terminate(); abWorker = null; }
+    const M = abMerk = { schluessel, ab: { laeuft: true } }, args = [Z.raum, Z.teileAb, kopie(z)];
+    const fertig = ab => { if (abMerk !== M) return; M.ab = ab; abWorker = null; if (Z.teile) { renderRechts(); zeichneRaum(); } };
+    const imFenster = () => { abWorker = null; try { return Loeser.erreichbarAb(DATEN, dgD, ...args); } catch (err) { return { fehler: String(err) }; } };
+    try {
+      let gehoert = false;
+      abWorker = new Worker('loeser.js');
+      abWorker.onmessage = e => { gehoert = true; fertig(e.data.ab || { fehler: e.data.fehler || 'Fehler' }); };
+      abWorker.onerror = e => { e.preventDefault(); fertig(gehoert ? { fehler: e.message || 'Worker-Fehler' } : imFenster()); };   // Worker nicht ladbar: im Fenster rechnen
+      abWorker.postMessage({ ab: args, daten: loeserDaten(), dungeon: dgD });
+    } catch (e) { M.ab = imFenster(); }
+    return M.ab;
+  }
+  function zeichneTeile(g, r) {
+    const t = teileDaten();
+    if (!t) return;
+    t.teile.forEach((teil, k) => {
+      g.fillStyle = TEILFARBEN[k % TEILFARBEN.length]; g.globalAlpha = 0.3;
+      for (const [c, rr] of teil.zellen) g.fillRect(c * T, rr * T, T, T);
+      g.globalAlpha = 1;
+      const m = teil.zellen[Math.floor(teil.zellen.length / 2)];   // Buchstabe ungefähr in der Mitte der Fläche
+      g.font = 'bold 18px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#120d14'; g.fillText(teil.name, m[0] * T + 17, m[1] * T + 23); g.fillStyle = '#fffbec'; g.fillText(teil.name, m[0] * T + 16, m[1] * T + 22);
+      for (const d of teil.tueren) {   // Tür mit dem Buchstaben ihres Teils
+        const [x, y, w, h] = TUER_RECHTECK[d], mx = x + w / 2, my = y + h / 2;
+        g.fillStyle = TEILFARBEN[k % TEILFARBEN.length]; g.beginPath(); g.arc(mx, my, 11, 0, 7); g.fill(); g.strokeStyle = '#120d14'; g.lineWidth = 2; g.stroke();
+        g.fillStyle = '#120d14'; g.font = 'bold 13px sans-serif'; g.fillText(teil.name, mx, my + 5);
+      }
+    });
+    if (t.ab && t.ab.zellen) {   // ab der gewählten Tür erreichbar (mit Schieben): Punkte
+      g.fillStyle = 'rgba(255,251,236,.85)';
+      for (const [c, rr] of t.ab.zellen) { g.beginPath(); g.arc(c * T + 16, rr * T + 16, 3, 0, 7); g.fill(); }
+    }
+  }
+  function teileHtml(r) {
+    const z = teileZustand(), t = teileDaten(), d = DATEN.dungeons[Z.dungeon];
+    if (!t) return '<div class="teilekasten"><h3>Raumteile</h3><p class="klein">Lade …</p></div>';
+    const fragen = Object.entries(dungeonSignale(DATEN, d).fragen).filter(([, wo]) => wo.some(x => x.raum === Z.raum)).map(([n]) => n);
+    const typen = [...new Set([...r.objekte.filter(o => o.kristalltyp).map(o => o.kristalltyp), ...fragen.filter(n => n.includes('=')).map(n => n.split('=')[0])])].filter(k => DATEN.kristalltypen[k]);
+    const signale = fragen.filter(n => n !== 'geraeumt' && !n.startsWith('hat:') && !n.includes('='));
+    const items = fragen.filter(n => n.startsWith('hat:')).map(n => n.slice(4));
+    const inhalt = teil => [teil.tueren.length ? 'Türen: ' + teil.tueren.map(TUERNAME).join(', ') : '', teil.truhen.length ? 'Truhe: ' + teil.truhen.map(i => (DATEN.gegenstaende[i] || {}).name || i).join(', ') : '',
+      teil.kristalle.length ? 'Kristall' : '', teil.platten.length ? 'Platte: ' + teil.platten.join(', ') : ''].filter(Boolean).join(' · ') || '<span class="klein">nur Fläche</span>';
+    const ab = t.ab;
+    return `<div class="teilekasten"><h3>Raumteile</h3>
+      <small class="erkl">Zusammenhängende Flächen im gewählten Zustand: Mauern, Abgründe und hochgefahrene Pflöcke trennen, Blöcke gelten als verschiebbar. Jede Tür trägt den Buchstaben ihres Teils.</small>
+      ${typen.length || signale.length || items.length ? `<div class="klein"><b>Zustand</b></div>` : ''}
+      ${typen.map(k => feld('Kristall ' + esc(kristallTyp(k).name), `<select data-tz="krist" data-n="${k}">${kristallTyp(k).farben.map(f => `<option value="${f}"${z.kristalle[k] === f ? ' selected' : ''}>${esc(farbName(f))}</option>`).join('')}</select>`)).join('')}
+      ${signale.map(n => `<label class="klein"><input type="checkbox" data-tz="sig" data-n="${esc(n)}"${z.signale.includes(n) ? ' checked' : ''}> Signal „${esc(n)}“</label>`).join('')}
+      ${items.map(n => `<label class="klein"><input type="checkbox" data-tz="hat" data-n="${esc(n)}"${z.besitz.includes(n) ? ' checked' : ''}> hat ${esc((DATEN.gegenstaende[n] || {}).name || n)}</label>`).join('')}
+      <ul class="teileliste">${t.teile.map((teil, k) => `<li><span class="teilmarke" style="background:${TEILFARBEN[k % TEILFARBEN.length]}">${teil.name}</span> ${inhalt(teil)}</li>`).join('')}</ul>
+      ${feld('Ab Eingang erreichbar', `<select data-tz="ab"><option value="">–</option>${Object.keys(r.tueren).map(dd => `<option value="${dd}"${Z.teileAb === dd ? ' selected' : ''}>Tür ${TUERNAME(dd)}</option>`).join('')}</select>`,
+        'Mit Schieben, Zeitschaltern und Ereignissen – die erreichbaren Felder bekommen Punkte.')}
+      ${ab && ab.laeuft ? '<p class="klein">Rechnet alle Blockstellungen durch …</p>' : ''}
+      ${ab && ab.fehler ? `<p class="klein rot">Fehler: ${esc(String(ab.fehler).split('\n')[0])}</p>` : ''}
+      ${ab && ab.zellen ? `<p class="klein">Von dort erreichbar: ${ab.tueren.length ? 'Türen ' + ab.tueren.map(TUERNAME).join(', ') : 'keine Tür'}${ab.truhen.length ? ' · Truhe: ' + ab.truhen.map(i => (DATEN.gegenstaende[i] || {}).name || i).join(', ') : ''}${ab.signale.length ? ' · löst aus: ' + ab.signale.map(x => '„' + esc(x) + '“').join(', ') : ''}${ab.kristalle.length ? ' · Kristall erreichbar' : ''}
+        <small>(${ab.stellungen.toLocaleString('de-DE')} ${ab.stellungen === 1 ? 'Blockstellung' : 'Blockstellungen'}${ab.voll ? '' : ', nicht alle'})</small></p>
+        ${ab.fallen ? `<p class="rot klein">Achtung: Man kann sich hier mit Blöcken einsperren (z. B. Held auf ${ab.beispielFalle.held}) – Abgrund oder Ausweg vorsehen.</p>` : ''}` : ''}
+      ${t.zeitlaeufe.map(zl => `<p class="klein ${zl.zuKnapp ? 'rot' : zl.knapp ? 'gelb' : ''}">Zeitschalter auf ${zl.platte}: ${zl.felder} Felder ≈ ${zl.sekunden} s bei ${zl.nachlauf} s ${zl.zuKnapp ? '– zu knapp' : zl.knapp ? '– knapp' : '✓'}</p>`).join('')}
+    </div>`;
+  }
+  function teileEingabe(t) {
+    const z = teileZustand(), n = t.dataset.n, art = t.dataset.tz;
+    if (art === 'krist') z.kristalle[n] = t.value;
+    else if (art === 'sig') z.signale = t.checked ? [...new Set([...z.signale, n])] : z.signale.filter(x => x !== n);
+    else if (art === 'hat') z.besitz = t.checked ? [...new Set([...z.besitz, n])] : z.besitz.filter(x => x !== n);
+    else if (art === 'ab') { Z.teileAb = t.value; Z.teileAbRaum = Z.raum; }
+    renderRechts(); zeichneRaum();
   }
 
   // ---------- Waffen ----------
@@ -1264,6 +1458,15 @@ const Editor = (() => {
 
   // ---------- Hilfe ----------
   const HILFE = [
+    ['Creator oder Editor?', `Zwei Modi für denselben Dungeon, umschaltbar mit <b>⇄</b> oben rechts. Der <b>Creator</b> führt in fünf Schritten vom Großen zum Kleinen:
+      Idee und Endboss, Ablauf (rückwärts: was braucht man wofür?), Raumplan (Räume, Türen, Elemente in Räume legen), Räume bauen (je Raum ein Auftrag) und Prüfen
+      (der Löser vergleicht den gebauten Dungeon mit dem Plan und zeigt Abkürzungen samt der Tür, an die die Sperre gehört). Der <b>Editor</b> ist für die Details:
+      Gelände malen, Objekte und Gegner einstellen. Hat ein Raum einen Auftrag aus dem Creator, steht er hier rechts oben.`],
+    ['Bausteine und Aufträge', `<b>Bausteine</b> (Werkzeugleiste) sind fertige, geprüfte Rätsel zum Absetzen: Truhe hinter Sperre, Sperre (Pflock), Block auf Platte, Schalter, Insel mit Block-Brücke,
+      Truhe nach dem Kampf, Gegner mit Gegenstand oder Signal, Zeitlauf, Kristall-Schleuse, Boss. Rechts auswählen und einstellen, die Vorschau folgt der Maus (grün passt, rot nicht), Klick setzt ihn.
+      Hat der Dungeon einen Plan aus dem Creator, steht rechts oben der <b>Auftrag</b> des Raums: was hier stehen muss, ob man es von einem Eingang aus erreicht und ob jede geplante
+      Abhängigkeit hält (im Raum oder an der Tür herein). Für offene Punkte schlägt er passende Bausteine vor. „✨ Ganzen Raum vorschlagen“ erzeugt drei geprüfte Varianten
+      (Stil, Bausteine für den Auftrag, Wege, Gegner); „Ansehen“ zeigt sie im Raum, „Übernehmen“ ersetzt den Raum.`],
     ['Grundidee', `Ein <b>Dungeon</b> besteht aus Räumen auf einem Raster. Jeder Raum ist 20 × 15 Felder groß; der Rand ist Mauer, Türen liegen an festen Stellen: in der Mitte jeder Seite und auf Wunsch zwei weitere je Wand (links/rechts bzw. oben/unten).
       Du malst Gelände, setzt Objekte und Gegner, stellst Türen ein und testest sofort. Alles wird automatisch im Browser gespeichert – <b>Export</b> sichert es als Datei.`],
     ['Räume und Karte', `Links die Dungeon-Karte: Raum anklicken = bearbeiten, „+“ = neuen Raum anlegen (neben dem gewählten gleich mit Tür). ★ ist der Startraum.
@@ -1298,7 +1501,19 @@ const Editor = (() => {
       Angriffsphase unverwundbar → Erschöpft-Phase benommen → zurück, dazu „Schutz bei Trefferserie“.`],
     ['Prüfung und Logik', `Oben rechts steht der Prüfstatus: grün = alles lösbar, gelb = Hinweise, rot = Fehler. Die Prüfung läuft kurz nach jeder Änderung und spielt den Dungeon
       gedanklich durch (Reiter <b>Logik</b>): Welche Räume sind in welcher Stufe erreichbar, was gibt es dort, welche Tür braucht was? Sie findet z. B. einen Gegner, dessen Signal
-      seine eigene Tür öffnen soll, Schlüssel-Fallen und Räume ohne Rückweg. Ob ein Rätsel <i>innerhalb</i> eines Raums lösbar ist, prüft sie nicht – dafür „Raum testen“.`],
+      seine eigene Tür öffnen soll, Schlüssel-Fallen und Räume ohne Rückweg. Ob ein Rätsel <i>innerhalb</i> eines Raums lösbar ist, prüft sie nicht – dafür gibt es den <b>Löser</b> (unten) und „Raum testen“.`],
+    ['Raumteile', `Knopf <b>Raumteile</b> (Werkzeugleiste, Gruppe „Ansicht“) färbt die zusammenhängenden Flächen des Raums ein und schreibt an jede Tür den Buchstaben ihres Teils.
+      Mauern, Abgründe und hochgefahrene Pflöcke trennen, Blöcke gelten als verschiebbar. So siehst du sofort, welche Türen zusammengehören – und ob eine Tür z. B. nur über einen anderen Raum erreichbar ist.
+      Rechts stellst du den <b>Zustand</b> ein: Farbe jedes Kristalltyps, Signale und Gegenstände, die der Raum abfragt. Mit <b>Ab Eingang erreichbar</b> rechnet der Editor ab einer Tür alles durch –
+      Schieben (auch in Abgründe), Platten, Zeitschalter, Ereignisse – und markiert die erreichbaren Felder mit Punkten. Dazu: welche Türen, Truhen und Signale man von dort schafft,
+      ob man sich mit Blöcken einsperren kann und ob ein Zeitschalter zu knapp ist.`],
+    ['Löser: alle Spielverläufe', `Im Reiter <b>Logik</b> rechnet „Durchrechnen“ jeden möglichen Spielverlauf durch: welcher Raumteil, welche Kristallfarbe, welche Blockstellung, welche Schlüssel, welche Truhen und Signale.
+      Ergebnis: ob das Ziel erreichbar ist (alle Bosse besiegt, ohne Bosse alle Räume betreten), der <b>kürzeste Weg</b> Schritt für Schritt und – am wichtigsten – die <b>Sackgassen</b>:
+      Schritte, nach denen das Ziel nie mehr erreichbar ist, z. B. ein kleiner Schlüssel an der falschen Tür. Zu jeder Sackgasse zeigt er, wie man dahin kommt; ein Klick auf den Raum öffnet ihn.
+      „Nie erreicht“ sind Räume, in die kein Weg führt. Die Rechnung läuft im Hintergrund weiter, du kannst währenddessen bauen – „seit der Rechnung geändert“ erinnert ans Neu-Durchrechnen.
+      Kämpfe gelten als gewonnen; ob ein Rätsel <i>geschickt</i> genug zu lösen ist, zeigt weiter nur „Raum testen“.`],
+    ['Gegner-Drops', `Ein einzelner Gegner kann einen Gegenstand <b>tragen</b> (Feld „trägt“ beim Gegner): Wird er besiegt, fällt der Gegenstand an seiner Stelle zu Boden (über einem Abgrund auf das nächste freie Feld)
+      und wird beim Darüberlaufen aufgehoben. Gut für Schlüssel nach einem Kampf, ohne eine Truhe aufzustellen. Logik und Löser kennen Drops wie Truhen.`],
     ['Testen, Vorgaben und Nachweise', `„▶ Raum testen“ startet direkt in diesem Raum, „▶ Dungeon testen“ am Startpunkt. Esc führt zurück in den Editor. Im Spiel: M schaltet den Ton.
       Die <b>Test-Vorgaben</b> unter dem Knopf legen fest, womit der Raumtest beginnt: Eingang, schon ausgelöste Signale, Gegenstände, Schlüssel. Vorgegeben ist,
       was man laut Logik frühestens beim Betreten des Raums hat – du musst den Dungeon davor also nicht durchspielen.
@@ -1317,6 +1532,8 @@ const Editor = (() => {
     if (a === 'waffeneu') { neueWaffe(null); return; }
     if (a === 'waffekopie') { neueWaffe(Z.waffe); return; }
     if (a === 'waffeweg') { if (confirm('Waffe löschen? Truhen und Startwaffen, die sie benutzen, zeigen dann einen Hinweis.')) { merke(); delete eigene.waffen[Z.waffe]; Z.waffe = null; speichern(); renderWaffen(); } return; }
+    if (a === 'loesen') { loeserBereit().catch(() => {}); starteLoeser(); return; }
+    if (a === 'loesenstop') { stoppeLoeser(); renderLogik(); return; }
     switch (a) {
       case 'neu': neuerDungeon(); break;
       case 'umbenennen': { const t = prompt('Neuer Name:', d.titel); if (t) { merke(); d.titel = t.toUpperCase(); speichern(); renderLinks(); } break; }
@@ -1405,6 +1622,7 @@ const Editor = (() => {
     display:flex;flex-direction:column;touch-action:auto;user-select:text}
   #editor header{display:flex;gap:8px;align-items:center;padding:8px 12px;background:#1c1e26;border-bottom:1px solid #2e313b;flex-wrap:wrap}
   #editor header h2{margin:0 12px 0 0;font-size:16px;color:#f4cd5e}
+  #editor .kopfreiter{display:contents} #editor.creator .nur-editor{display:none} #editor:not(.creator) .nur-creator{display:none}
   #editor .ansichten{display:flex;flex:1;overflow:auto;gap:12px;padding:12px}
   #editor h3{margin:14px 0 6px;font-size:13px;color:#f4cd5e} #editor h3 small{color:#848e92;font-weight:normal}
   #editor .spalte{flex:0 0 250px;overflow:auto} #editor #ed-rechts{flex-basis:290px} #editor .spalte.breit{flex:1 1 320px} #editor .mitte{flex:1 1 auto;min-width:320px;overflow:auto}
@@ -1455,16 +1673,28 @@ const Editor = (() => {
   #editor .nachweisliste li.ok{color:#8abd4f} #editor .nachweisliste li.teil,#editor .nachweisliste li.veraltet{color:#f4cd5e}
   #editor .schritt{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:3px 0} #editor .schritt input{width:auto;flex:1;min-width:60px} #editor .schritt .bedbreit{flex-basis:100%}
   #editor .waffenbild{width:102px;height:102px;image-rendering:pixelated;background:#2a552c;border:1px solid #2e313b}
+  #editor .loeserkasten{margin:0 0 14px;padding:8px 10px;background:#1c1e26;border:1px solid #2e313b;border-radius:4px;max-width:900px}
+  #editor .loeserkasten h3{margin-top:2px} #editor .loeserkasten h4{margin:10px 0 3px;font-size:12.5px;color:#f4cd5e}
+  #editor .loeserstatus{margin:8px 0;padding:6px 8px;border-radius:4px;border:1px solid #454a55} #editor .loeserstatus.gruen{background:#1f4226;border-color:#58933b;color:#cfe8b8}
+  #editor .loeserstatus.gelb{background:#4a3a14;border-color:#e0a33a;color:#f4cd5e} #editor .loeserstatus.rot{background:#5c1e24;border-color:#d0574a;color:#ffd9d2}
+  #editor .fehltritte,#editor .warnliste{margin:4px 0;padding-left:18px} #editor .fehltritte>li{margin:6px 0;color:#ff9c8f} #editor .fehltritte b{color:#ffd9d2}
+  #editor .fehltritte ol,#editor .wegliste ol{margin:4px 0;padding-left:22px;color:#cfd6cf;font-size:12px} #editor .warnliste li{color:#f4cd5e;margin:3px 0}
+  #editor .loeserkasten button.klein{padding:0 6px;font-size:11.5px} #editor .wegliste{margin:8px 0} #editor .wegliste summary{cursor:pointer;color:#8098cc}
+  #editor .teilekasten{margin:0 0 10px;padding:6px 8px;background:#1c1e26;border:1px solid #2e313b;border-radius:4px} #editor .teilekasten h3{margin-top:2px}
+  #editor .teileliste{margin:6px 0;padding:0;list-style:none} #editor .teileliste li{margin:3px 0;font-size:12px}
+  #editor .teilmarke{display:inline-block;min-width:18px;text-align:center;border-radius:9px;color:#120d14;font-weight:bold;margin-right:4px}
   #editor .kfarben{padding-left:20px} #editor .kfarben li{margin:4px 0} #editor .kfarben .knoepfe{display:inline-flex;margin:0 0 0 8px}
   @media (max-width:900px){#editor .ansichten{flex-direction:column} #editor .spalte{flex:none}}`;
   function baue() {
     const stil = document.createElement('style'); stil.textContent = CSS; document.head.appendChild(stil);
     wurzel = document.createElement('div'); wurzel.id = 'editor';
     wurzel.innerHTML = `
-      <header><h2>Waldwacht-Editor</h2>
-        <button data-ansicht="dungeon">Dungeons &amp; Räume</button><button data-ansicht="gegner">Gegnerarten</button><button data-ansicht="kristalle">Kristalltypen</button><button data-ansicht="waffen">Waffen</button><button data-ansicht="logik">Logik</button><button data-ansicht="hilfe">Hilfe</button>
-        <button id="ed-status" class="status" data-ansicht="logik">–</button>
-        <span style="flex:1"></span><button data-a2="zurueck" title="Strg+Z">↶ Rückgängig</button><button data-a2="spiel">Zum Spiel</button></header>
+      <header><h2 id="ed-titel">Waldwacht-Editor</h2>
+        <span class="nur-editor kopfreiter"><button data-ansicht="dungeon">Dungeons &amp; Räume</button><button data-ansicht="gegner">Gegnerarten</button><button data-ansicht="kristalle">Kristalltypen</button><button data-ansicht="waffen">Waffen</button><button data-ansicht="logik">Logik</button><button data-ansicht="hilfe">Hilfe</button>
+        <button id="ed-status" class="status" data-ansicht="logik">–</button></span>
+        <nav class="nur-creator kopfreiter" id="ed-schritte"></nav>
+        <span style="flex:1"></span><button data-a2="zurueck" title="Strg+Z">↶ Rückgängig</button>
+        <button data-a2="modus" id="ed-moduswechsel" title="Zwischen Creator (planen in Schritten) und Editor (alles im Detail) wechseln – es bleibt derselbe Dungeon">⇄ Creator</button><button data-a2="spiel">Zum Spiel</button></header>
       <div class="ansichten" id="ed-dungeonansicht">
         <div class="spalte" id="ed-links"></div>
         <div class="mitte"><div id="ed-werkzeuge"></div><div id="ed-vorlage" class="vorlage"></div><canvas id="ed-raum" width="${BREITE}" height="${HOEHE}"></canvas>
@@ -1475,7 +1705,8 @@ const Editor = (() => {
       <div class="ansichten" id="ed-kristallansicht"></div>
       <div class="ansichten" id="ed-waffenansicht"></div>
       <div class="ansichten" id="ed-logikansicht"></div>
-      <div class="ansichten" id="ed-hilfeansicht"></div>`;
+      <div class="ansichten" id="ed-hilfeansicht"></div>
+      <div class="ansichten" id="ed-creatoransicht"></div>`;
     document.body.appendChild(wurzel);
     wurzel.addEventListener('click', e => {
       const b = e.target.closest('button');
@@ -1483,11 +1714,14 @@ const Editor = (() => {
       if (b.dataset.ansicht) { Z.ansicht = b.dataset.ansicht; render(); }
       else if (b.dataset.a2 === 'zurueck') zurueck();
       else if (b.dataset.a2 === 'spiel') { schliesse(); }
+      else if (b.dataset.a2 === 'modus') { Z.modus = Z.modus === 'creator' ? 'editor' : 'creator'; if (Z.modus === 'editor' && Z.ansicht !== 'dungeon' && Z.ansicht !== 'logik') Z.ansicht = 'dungeon'; render(); }
+      else if (b.closest('#ed-creatoransicht,#ed-schritte')) return;   // Knöpfe des Creators behandelt creator.js
       else if (b.dataset.art) { Z.gegnerArt = b.dataset.art; Z.gPhase = null; renderGegner(); }
       else if (b.dataset.gphase !== undefined) { Z.gPhase = b.dataset.gphase === '' ? null : Number(b.dataset.gphase); renderGegner(); }
       else if (b.dataset.ktyp) { Z.kristallTyp = b.dataset.ktyp; renderKristalle(); }
       else if (b.dataset.waffe) { Z.waffe = b.dataset.waffe; renderWaffen(); }
       else if (b.dataset.raumwahl) { Z.raum = b.dataset.raumwahl; Z.ansicht = 'dungeon'; Z.auswahl = null; render(); }
+      else if (b.dataset.c && typeof Creator !== 'undefined') Creator.klickEditor(b);   // Auftrag und Bausteine (creator.js)
       else if (b.dataset.a) aktion(b.dataset.a, b);
     });
     wurzel.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('vorgaben')) Z.vorgabenOffen = e.target.open; }, true);
@@ -1496,6 +1730,9 @@ const Editor = (() => {
       if (t.id === 'ed-dungeonwahl') { Z.dungeon = t.value; Z.raum = dg().start.raum; Z.auswahl = null; render(); }
       else if (t.dataset.a === 'kopie' && t.value) kopiereDungeon(t.value);
       else if (t.id === 'ed-datei' && t.files[0]) importiere(t.files[0]);
+      else if (t.dataset.tz !== undefined) teileEingabe(t);
+      else if (t.dataset.bp !== undefined && typeof Creator !== 'undefined') Creator.bausteinEingabe(t);
+      else if (t.dataset.cv !== undefined && typeof Creator !== 'undefined') Creator.vorschlagEingabe(t);
       else if (t.closest('#ed-rechts')) eingabe(e);
       else if (t.closest('#ed-gegneransicht')) gegnerEingabe(e);
       else if (t.closest('#ed-waffenansicht')) waffenEingabe(e);
@@ -1539,6 +1776,15 @@ const Editor = (() => {
     });
   }
   function render() {
+    const creator = Z.modus === 'creator' && typeof Creator !== 'undefined';
+    wurzel.classList.toggle('creator', creator);
+    $('#ed-titel').textContent = creator ? 'Waldwacht-Creator' : 'Waldwacht-Editor';
+    $('#ed-moduswechsel').textContent = creator ? '⇄ Editor' : '⇄ Creator';
+    $('#ed-creatoransicht').style.display = creator ? '' : 'none';
+    if (creator) {
+      for (const v of ['dungeon', 'gegner', 'kristall', 'logik', 'waffen', 'hilfe']) $(`#ed-${v}ansicht`).style.display = 'none';
+      zeigeWarnungen(); Creator.render(); return;
+    }
     $('#ed-dungeonansicht').style.display = Z.ansicht === 'dungeon' ? '' : 'none';
     $('#ed-gegneransicht').style.display = Z.ansicht === 'gegner' ? '' : 'none';
     $('#ed-kristallansicht').style.display = Z.ansicht === 'kristalle' ? '' : 'none';
@@ -1573,7 +1819,8 @@ const Editor = (() => {
     }
     if (zeilen.length) { Z.meldung = 'Testlauf ausgewertet – ' + zeilen.join(' · '); speichern(); }
   }
-  function oeffne() {
+  function oeffne(modus) {
+    if (modus) Z.modus = modus;
     if (!wurzel) baue();
     eigene = ladeEigene();
     for (const d of Object.values(eigene.dungeons)) for (const r of Object.values(d.raeume)) for (const o of r.objekte || []) migriereObjekt(o);
@@ -1588,5 +1835,11 @@ const Editor = (() => {
     render();
   }
   function schliesse() { offen = false; wurzel.style.display = 'none'; document.body.classList.remove('editor'); skaliere(); }
-  return { oeffne, schliesse, get offen() { return offen; } };
+  // Für creator.js: Zustand und Hilfsfunktionen des Editors (alles Weitere bleibt intern)
+  const intern = {
+    Z, get eigene() { return eigene; }, dg, raum, $: sel => wurzel.querySelector(sel), esc, kopie, slug, signalName, feld, bildUrl, farbName, kristallTyp,
+    merke, speichern, aenderung, render, zeigeWarnungen, renderRechts, renderWerkzeuge, zeichneRaum, vorschauObjekt, sortiere, raumBei, legeRaumAn, tuerSetzen, tuerArt, loeserDaten, loeserBereit, teste, schliesse,
+    TUERARTEN, TUERFARBE, TUERZEICHEN, RICHTUNGSNAME, rahmenKarte, neuerDungeon, kopiereDungeon,
+  };
+  return { oeffne, schliesse, get offen() { return offen; }, intern };
 })();

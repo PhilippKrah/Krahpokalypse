@@ -1,7 +1,8 @@
 # Baut den Dungeon „Die Kristallgruft“ (33 Räume) für spiele/waldwacht/index.html.
-# Aufruf: python3 kristallgruft.py [--weg] [--sokoban] [--schreiben]
+# Aufruf: python3 kristallgruft.py [--weg] [--sokoban] [--fallen] [--schreiben]
 #   ohne Schalter: Räume bauen und Türen prüfen · --weg: Löser über alle Zustände (kürzester Weg, Sackgassen; ca. 1 min)
-#   --sokoban: Schieberätsel lösen · --schreiben: Löser, dann Dungeon, Gegnerarten und Kristalltyp in ../index.html eintragen
+#   --sokoban: Schieberätsel lösen · --fallen: kann man sich mit Blöcken einsperren? (einige Minuten)
+#   --schreiben: Löser, dann Dungeon, Gegnerarten und Kristalltyp in ../index.html eintragen
 import os, sys, json
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gruft_kern import *
@@ -10,6 +11,11 @@ SPIEL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'index.ht
 R = {}
 def raum(rid, nr, titel, pos, karte, **k):
     r = Raum(rid, nr, titel, pos, karte, **k); R[rid] = r; return r
+
+def grubenrand(r, c0, r0, c1, r1):   # Außenmauer eines Schiebe-Geheges als Abgrund: wer sich einsperrt, springt hinein
+    for y in range(r0, r1 + 1):      # (landet am Raumeingang; raus und wieder rein setzt die Blöcke zurück). Am Rätsel
+        for x in range(c0, c1 + 1):  # ändert das nichts: ein Block, der hineinfällt, wäre ohnehin verloren.
+            if (y in (r0, r1) or x in (c0, c1)) and r.k[y][x] == '#': r.k[y][x] = '~'
 
 ZU_W = {'nicht': 'westsiegel'}
 ZU_O = {'nicht': 'ostsiegel'}
@@ -57,7 +63,7 @@ BR = raum('brunnenkammer', '3', 'BRUNNENKAMMER', [-2, 0], [
     "####################",
     "####################",
     "#.E.....~~...S.....#",
-    "#.......~~......S..#",
+    "#.......~~.........#",
     "#.......~~S.B......#",
     "#...S...~~....S....#",
     "#.......~~.S.......#",
@@ -209,6 +215,7 @@ GB = raum('gebeinkammer', '11', 'GEBEINKAMMER', [-3, -2], [
     "#..................#",
     "####################"], platten={c: {'signal': 'gebein' + c, 'wer': 'block'} for c in '123'},
     truhen=[{'inhalt': 'herzcontainer', 'sichtbar_wenn': 'gebein'}])
+grubenrand(GB, 5, 3, 14, 10)
 GB.tuer('s', 'uhrwerk').tuer('o', 'knochengang')
 GB.extra['ereignisse'] = [{'wenn': {'alle': ['gebein1', 'gebein2', 'gebein3']}, 'schritte': [{'art': 'signal', 'signal': 'gebein'}]}]
 GB.aktion(req=[(10, 11)], glob=['gebein'], sokoban='gebein')
@@ -389,6 +396,7 @@ SW = raum('stauwehr', '19', 'STAUWEHR', [1, -2], [
     "#..................#",
     "#..................#",
     "####################"], platten={c: {'signal': 'wehr' + c, 'wer': 'block'} for c in '12'})
+grubenrand(SW, 9, 3, 17, 10)
 SW.tuer('s', 'ostwacht').tuer('o', 'raederwerk', offen_wenn='schleuse=lila')
 SW.extra['ereignisse'] = [{'wenn': {'alle': ['wehr1', 'wehr2']}, 'schritte': [{'art': 'signal', 'signal': 'wehr'}]}]
 SW.aktion(req=[(13, 11)], glob=['wehr'], sokoban='wehr')
@@ -588,6 +596,7 @@ WT = raum('westturm', '28', 'WESTTURM', [-1, -4], [
     "#..................#",
     "#..................#",
     "####################"], platten={c: {'signal': 'turm' + c, 'wer': 'block'} for c in '123'})
+grubenrand(WT, 2, 3, 11, 10)
 WT.tuer('o', 'torhalle').tuer('n', 'kapelle', schloss=True)
 WT.extra['ereignisse'] = [{'wenn': {'alle': ['turm1', 'turm2', 'turm3']}, 'schritte': [{'art': 'signal', 'signal': 'nord_w'}]}]
 WT.aktion(req=[(7, 11)], glob=['nord_w'], sokoban='turm')
@@ -693,7 +702,7 @@ TR.kampf = True
 TR.tuer('s', 'vorthron', offen_wenn='geraeumt')
 TR.feind('kristallwaechter', 9, 4)
 TR.extra['_sieg'] = ['sieg']
-TR.extra['ereignisse'] = [{'wenn': 'geraeumt', 'schritte': [{'art': 'text', 'text': 'Der Kristallwächter zerspringt. Die Kristallgruft ist bezwungen!'}]}]
+TR.extra['ereignisse'] = [{'wenn': 'geraeumt', 'schritte': [{'art': 'text', 'text': 'Der Kristallwächter zerspringt. Die Kristallgruft ist bezwungen!'}, {'art': 'ende'}]}]
 for c, r in ((5, 2), (14, 2), (5, 13), (14, 13)): TR.obj('fackel', c, r)
 
 # ================================================================ Gegnerarten und Kristalltyp
@@ -747,6 +756,14 @@ if '--sokoban' in sys.argv:
     for rid, start, ziel in (('schleusentor', (2, 10), lambda bl, gef: {(10, 7), (10, 8)} <= gef or {(10, 5), (10, 4)} <= gef or {(11, 6), (12, 6)} <= gef),
                              ('glockenkammer', (6, 12), lambda bl, gef: (3, 12) in bl)):
         print(rid, 'Schübe:', sokoban(R[rid], start, ziel, ctx, max_z=200000))
+
+if '--fallen' in sys.argv:   # in keinem Blockraum darf man sich so einsperren, dass weder Tür noch Abgrund erreichbar ist
+    ctx = {'sig': set(), 'krist': {K1: 0, K2: 0}, 'items': set(), 'geraeumt': True}
+    GEHEGE = {'gebeinkammer': (5, 3, 14, 10), 'stauwehr': (9, 3, 17, 10), 'westturm': (2, 3, 11, 10)}
+    for rid, r in R.items():
+        if not any(o['objekt'] == 'block' for o in r.objekte): continue
+        n, f = fallen(r, ctx, GEHEGE.get(rid))
+        print(rid, 'Stellungen:', n, 'Fallen:', len(f), f[:2] if f else '', flush=True)
 
 if '--weg' in sys.argv or '--schreiben' in sys.argv:
     L = Loeser(R, ('vorhalle', (9, 10)), (0, 0))

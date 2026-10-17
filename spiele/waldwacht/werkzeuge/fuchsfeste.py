@@ -236,7 +236,7 @@ Z.obj('truhe', 9, 7, inhalt='herzcontainer', sichtbar_wenn='geraeumt')
 Z.feind('schattenfuchs', 9, 5)
 Z.tuer('s', 'vorkammer', offen_wenn='geraeumt')
 Z.extra.update(kampf=True, einstieg='Der Schattenfuchs! Das Ende der Fuchsfeste.',
-               ereignisse=[{'wenn': 'geraeumt', 'schritte': [{'art': 'text', 'text': 'Der Schattenfuchs ist besiegt - die Fuchsfeste ist befreit! Danke fürs Spielen.'}]}])
+               ereignisse=[{'wenn': 'geraeumt', 'schritte': [{'art': 'text', 'text': 'Der Schattenfuchs ist besiegt - die Fuchsfeste ist befreit! Danke fürs Spielen.'}, {'art': 'ende'}]}])
 
 DUNGEON = {'titel': 'DIE FUCHSFESTE', 'untertitel': '23 Räume, zwei Zwischenbosse',
            'start': {'raum': 'torhalle', 'feld': [9.5, 10.5], 'waffe': 'dolch'},
