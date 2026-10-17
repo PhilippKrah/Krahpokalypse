@@ -66,6 +66,8 @@
   Einzelspiel: steht in den Spieldaten "einzelspiel": {"dungeon": <id>}, zeigt das Menü nur diesen Dungeon (Spiel starten /
   Weiterspielen), speichert beim Betreten jedes Raums (localStorage) und kennt weder Editor noch eigene Dungeons – so entsteht
   mit werkzeuge/einzelspiel.py z. B. die Fuchsfeste als eigenes Spiel (itch.io).
+  Sprache: Bildschirmtexte der Engine laufen über tx('deutscher Text'); "texte": {"deutscher Text": "Übersetzung"} in den
+  Spieldaten ersetzt sie. Die Texte in den Daten selbst übersetzt einzelspiel.py (werkzeuge/sprache_en.json).
   Testen: ?dungeon=<id>&raum=<id> startet direkt (z. B. ?dungeon=hain&raum=kristall), ?touch zeigt die Touch-Bedienung am PC.
 -->
 <html lang="de">
@@ -2653,6 +2655,8 @@ const T = 32, SPALTEN = 20, ZEILEN = 15, BREITE = 640, HOEHE = 480, DT = 1 / 60;
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const DATEN = JSON.parse(document.getElementById('spieldaten').textContent);
 const CFG = DATEN.einstellungen;
+// Bildschirmtexte: Vorgabe Deutsch; "texte" in den Spieldaten ersetzt sie (z. B. englisches Einzelspiel), {0} {1} … sind Werte
+const tx = (s, ...w) => ((DATEN.texte && DATEN.texte[s]) || s).replace(/\{(\d)\}/g, (_, i) => w[i]);
 
 // Farben aus der Gutsverwalter-Palette
 const PAL = {
@@ -3047,7 +3051,7 @@ function uebernehmeEigene(e, mitBildern = false) {   // auch vom Editor nach jed
   DATEN.waffen = { ...EINGEBAUT.waffen, ...kopie(e.waffen || {}) };
   DATEN.gegenstaende = { ...EINGEBAUT.gegenstaende };
   for (const [id, wf] of Object.entries(DATEN.waffen)) if (!DATEN.gegenstaende[id])   // jede Waffe ist auch ein Gegenstand (Truhen-Inhalt)
-    DATEN.gegenstaende[id] = { name: wf.name || id, bild: '@waffe:' + id, text: `Du hast ${wf.name ? 'eine neue Waffe gefunden: ' + wf.name : 'eine neue Waffe gefunden'}!`, wirkung: { waffe: id } };
+    DATEN.gegenstaende[id] = { name: wf.name || id, bild: '@waffe:' + id, text: wf.name ? tx('Du hast eine neue Waffe gefunden: {0}!', wf.name) : tx('Du hast eine neue Waffe gefunden!'), wirkung: { waffe: id } };
   DATEN.dungeons = { ...EINGEBAUT.dungeons };
   for (const [id, d] of Object.entries(e.dungeons)) {
     DATEN.dungeons[id] = { ...kopie(d), eigen: true };
@@ -4066,7 +4070,7 @@ function interagiere(h) {
 }
 function gibGegenstand(id) {
   const g = DATEN.gegenstaende[id];
-  if (!g) { zeigeText('Die Truhe ist leer.'); return; }
+  if (!g) { zeigeText(tx('Die Truhe ist leer.')); return; }
   S.besitz.add(id);
   for (const [k, v] of Object.entries(g.wirkung || {})) {
     if (k === 'maxLp') S.maxLp += v;
@@ -4617,7 +4621,7 @@ function neustartImRaum() {   // Game Over: Herzen voll, Raum frisch (Fortschrit
 // frisch – wie beim Neustart mit R. Ohne Speicher (z. B. gesperrt im Rahmen einer Webseite) läuft das Spiel trotzdem.
 const STAND_SCHLUESSEL = id => 'waldwacht.stand.' + id;
 const spielzeit = () => (S.zeitBasis || 0) + S.zeit;
-const zeitText = sek => { const m = Math.floor(sek / 60); return m >= 60 ? `${Math.floor(m / 60)} STD ${m % 60} MIN` : `${m} MIN`; };
+const zeitText = sek => { const m = Math.floor(sek / 60); return m >= 60 ? tx('{0} STD {1} MIN', Math.floor(m / 60), m % 60) : tx('{0} MIN', m); };
 function speichereStand() {
   if (!EINZEL || !S || S.dungeonId !== EINZEL || S.zustand !== 'spiel' || !S.raum || !S.eintritt) return;
   const st = { v: 1, raum: S.raum.id, titel: S.raum.def.titel || '', eintritt: { x: S.eintritt.x, y: S.eintritt.y, blick: S.eintritt.blick },
@@ -4917,7 +4921,7 @@ function zeichneEffekte() {
 }
 function zeichneHud(h) {
   const anzahl = S.maxLp / 2, mitte = BREITE - 30 - anzahl * 10, x0 = Math.round(mitte - anzahl * 10 + 1);   // oben rechts wie im Vorbild
-  schreibe('- LEBEN -', mitte, 6, 2, PAL.creme);
+  schreibe(tx('- LEBEN -'), mitte, 6, 2, PAL.creme);
   for (let i = 0; i < anzahl; i++) {
     const rest = h.lp - i * 2;
     ctx.drawImage(rest >= 2 ? HERZ.voll : rest === 1 ? HERZ.halb : HERZ.leer, x0 + i * 20, 24);
@@ -4929,7 +4933,7 @@ function zeichneHud(h) {
   if (S.neustartHalt > 0) {   // R wird gehalten: Balken füllt sich
     const w = 160, x0 = (BREITE - w) / 2, y0 = 62;
     ctx.fillStyle = 'rgba(18,13,20,.75)'; ctx.fillRect(x0 - 10, y0 - 22, w + 20, 40);
-    schreibe('RAUM NEU STARTEN', BREITE / 2, y0 - 16, 1, PAL.creme);
+    schreibe(tx('RAUM NEU STARTEN'), BREITE / 2, y0 - 16, 1, PAL.creme);
     ctx.fillStyle = PAL.fels1; ctx.fillRect(x0, y0, w, 8);
     ctx.fillStyle = PAL.gold2; ctx.fillRect(x0, y0, Math.round(w * Math.min(1, S.neustartHalt / NEUSTART_HALTEN)), 8);
   }
@@ -4950,7 +4954,7 @@ function zeichneBanner() {
   if (S.banner) { schreibe(S.banner.text, BREITE / 2, 200, 3, PAL.rot2); return; }
   const w = S.wellen;
   if (!w || w.banner <= 0) return;
-  schreibe(`WELLE ${w.nr}/${S.raum.def.wellen.length}`, BREITE / 2, 190, 5, PAL.gold2);
+  schreibe(tx('WELLE {0}/{1}', w.nr, S.raum.def.wellen.length), BREITE / 2, 190, 5, PAL.gold2);
 }
 function zeichneText() {
   const t = S.text, oben = S.held.y > 300, y = oben ? 72 : HOEHE - 104, x = 24, w = BREITE - 48, hh = 88;
@@ -4971,18 +4975,18 @@ function zeichneEnde() {
   if (S.zustand === 'sieg') {   // Abspann: geschafft, Spielzeit, Truhen, Herzen
     ctx.fillStyle = `rgba(18,13,20,${0.8 * a})`; ctx.fillRect(0, 0, BREITE, HOEHE);
     if (a < 1) return;
-    schreibe('GESCHAFFT!', BREITE / 2, 110, 6, PAL.gold2);
+    schreibe(tx('GESCHAFFT!'), BREITE / 2, 110, 6, PAL.gold2);
     schreibe(S.dungeon.titel || '', BREITE / 2, 170, 3, PAL.creme);
-    schreibe('SPIELZEIT  ' + zeitText(S.endeSpielzeit || 0), BREITE / 2, 235, 2, PAL.fels4);
-    schreibe(`TRUHEN  ${S.truhen.size} VON ${truhenImDungeon(S.dungeon)}`, BREITE / 2, 265, 2, PAL.fels4);
-    schreibe(`HERZEN  ${S.maxLp / 2}`, BREITE / 2, 295, 2, PAL.fels4);
-    if (S.zeit - S.endeZeit > 1.5 && blinkt) schreibe(TOUCH.aktiv ? 'TIPPEN: ZURÜCK ZUM TITEL' : 'LEERTASTE: ZURÜCK ZUM TITEL', BREITE / 2, 380, 2, PAL.creme);
+    schreibe(tx('SPIELZEIT  {0}', zeitText(S.endeSpielzeit || 0)), BREITE / 2, 235, 2, PAL.fels4);
+    schreibe(tx('TRUHEN  {0} VON {1}', S.truhen.size, truhenImDungeon(S.dungeon)), BREITE / 2, 265, 2, PAL.fels4);
+    schreibe(tx('HERZEN  {0}', S.maxLp / 2), BREITE / 2, 295, 2, PAL.fels4);
+    if (S.zeit - S.endeZeit > 1.5 && blinkt) schreibe(tx(TOUCH.aktiv ? 'TIPPEN: ZURÜCK ZUM TITEL' : 'LEERTASTE: ZURÜCK ZUM TITEL'), BREITE / 2, 380, 2, PAL.creme);
     return;
   }
   ctx.fillStyle = `rgba(18,13,20,${0.65 * a})`; ctx.fillRect(0, 0, BREITE, HOEHE);
   if (a < 1) return;
   schreibe('GAME OVER', BREITE / 2, 170, 6, PAL.rot2);
-  if (blinkt) schreibe(TOUCH.aktiv ? 'TIPPEN: RAUM NEU BEGINNEN' : 'TASTE R: RAUM NEU BEGINNEN', BREITE / 2, 260, 2, PAL.creme);
+  if (blinkt) schreibe(tx(TOUCH.aktiv ? 'TIPPEN: RAUM NEU BEGINNEN' : 'TASTE R: RAUM NEU BEGINNEN'), BREITE / 2, 260, 2, PAL.creme);
 }
 function zeichneWelt() {
   const h = S.held, r = S.raum;
@@ -5083,17 +5087,17 @@ function zeichneMenue() {
   for (let i = 0; i < SPALTEN; i++) zeichneBild(ctx, 'gras_' + (i * 7 % 4 === 3 ? 1 : i * 7 % 4), i * T, 40);
   zeichneBild(ctx, 'held_3', 236, 28); zeichneLeinwand(GEGNERBILD.fuchs[Math.floor(MENUE.zeit * 4) % 2], 372, 44, true);
   schreibe('WALDWACHT', BREITE / 2, 112, 6, PAL.gold2);
-  schreibe(MENUE.ebene === 'dungeons' ? 'WÄHLE EINEN DUNGEON' : MENUE.ebene === 'eigene' ? 'EIGENE DUNGEONS' : EINZEL ? DATEN.dungeons[EINZEL].titel : 'HAUPTMENÜ', BREITE / 2, 186, 2, EINZEL ? PAL.creme : PAL.fels4);
+  schreibe(MENUE.ebene === 'dungeons' ? tx('WÄHLE EINEN DUNGEON') : MENUE.ebene === 'eigene' ? tx('EIGENE DUNGEONS') : EINZEL ? DATEN.dungeons[EINZEL].titel : tx('HAUPTMENÜ'), BREITE / 2, 186, 2, EINZEL ? PAL.creme : PAL.fels4);
   const liste = menueListe(), zahl = eigen => Object.values(DATEN.dungeons).filter(d => !d.eigen === !eigen).length;
   const stand = EINZEL && liesStand(EINZEL);
   const EINTRAG = {
-    '@weiter': { titel: 'WEITERSPIELEN', untertitel: stand ? `${stand.titel} - ${zeitText(stand.zeit || 0)} GESPIELT` : '' },
-    '@neu': { titel: stand ? 'NEUES SPIEL' : 'SPIEL STARTEN', untertitel: stand ? 'Der Spielstand wird überschrieben' : (EINZEL ? DATEN.dungeons[EINZEL].untertitel || '' : '') },
-    '@dungeons': { titel: 'DUNGEONS', untertitel: `${zahl(false)} fertige Dungeons, von klein bis groß` },
-    '@eigene': { titel: 'EIGENE DUNGEONS', untertitel: zahl(true) ? `${zahl(true)} im Editor gebaut` : 'Noch keine - im Editor bauen' },
+    '@weiter': { titel: tx('WEITERSPIELEN'), untertitel: stand ? tx('{0} - {1} GESPIELT', (DATEN.dungeons[EINZEL].raeume[stand.raum] || {}).titel || stand.titel, zeitText(stand.zeit || 0)) : '' },
+    '@neu': { titel: tx(stand ? 'NEUES SPIEL' : 'SPIEL STARTEN'), untertitel: stand ? tx('Der Spielstand wird überschrieben') : (EINZEL ? DATEN.dungeons[EINZEL].untertitel || '' : '') },
+    '@dungeons': { titel: tx('DUNGEONS'), untertitel: tx('{0} fertige Dungeons, von klein bis groß', zahl(false)) },
+    '@eigene': { titel: tx('EIGENE DUNGEONS'), untertitel: zahl(true) ? tx('{0} im Editor gebaut', zahl(true)) : tx('Noch keine - im Editor bauen') },
     '@creator': { titel: 'CREATOR', untertitel: 'Dungeon planen und bauen in 5 Schritten' },
     '@editor': { titel: 'EDITOR', untertitel: 'Dungeons, Räume und Gegner im Detail' },
-    '@zurueck': { titel: 'ZURÜCK', untertitel: MENUE.ebene === 'eigene' && !zahl(true) ? 'Noch keine eigenen Dungeons - im Editor bauen' : '' },
+    '@zurueck': { titel: tx('ZURÜCK'), untertitel: MENUE.ebene === 'eigene' && !zahl(true) ? tx('Noch keine eigenen Dungeons - im Editor bauen') : '' },
   };
   liste.forEach((id, i) => {
     if (i < MENUE.oben || i >= MENUE.oben + MENUE.sichtbar) return;
@@ -5103,9 +5107,9 @@ function zeichneMenue() {
     schreibe(dg.titel, 150, y, 3, an ? PAL.creme : id === '@editor' || id === '@creator' || id === '@zurueck' ? PAL.gold1 : PAL.fels3, false);
     schreibe(dg.untertitel || '', 150, y + 26, 2, PAL.fels3, false);
   });
-  if (MENUE.oben > 0) schreibe('- MEHR -', BREITE / 2, 200, 1, PAL.fels3);
-  if (MENUE.oben + MENUE.sichtbar < liste.length) schreibe('- MEHR -', BREITE / 2, menueY(MENUE.oben + MENUE.sichtbar) - 4, 1, PAL.fels3);
-  schreibe(TOUCH.aktiv ? 'EINTRAG ANTIPPEN' : 'ANKLICKEN ODER PFEILE UND LEERTASTE', BREITE / 2, 440, 2, PAL.fels3);
+  if (MENUE.oben > 0) schreibe(tx('- MEHR -'), BREITE / 2, 200, 1, PAL.fels3);
+  if (MENUE.oben + MENUE.sichtbar < liste.length) schreibe(tx('- MEHR -'), BREITE / 2, menueY(MENUE.oben + MENUE.sichtbar) - 4, 1, PAL.fels3);
+  schreibe(tx(TOUCH.aktiv ? 'EINTRAG ANTIPPEN' : 'ANKLICKEN ODER PFEILE UND LEERTASTE'), BREITE / 2, 440, 2, PAL.fels3);
   if (WARNUNGEN.length) schreibe(`${WARNUNGEN.length} WARNUNGEN IN DEN SPIELDATEN (KONSOLE)`, BREITE / 2, 460, 1, PAL.rot2);
 }
 

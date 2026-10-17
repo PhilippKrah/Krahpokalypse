@@ -304,6 +304,10 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   „Weiterspielen“), Ereignis-Schritt `ende` mit Abspann (Spielzeit, Truhen,
   Herzen; im Hauptspiel zurück ins Menü). Fuchsfeste und Kristallgruft haben ihn
   nach dem Endboss (über ihre Generator-Skripte). Maus-Klick wählt Menüeinträge.
+  **Englische Fassung:** `einzelspiel.py fuchsfeste --sprache en` (Übersetzungen in
+  `werkzeuge/sprache_en.json`). Bildschirmtexte der Engine laufen dafür über
+  `tx('deutscher Text')`, `"texte"` in den Spieldaten ersetzt sie; neue
+  Bildschirmtexte bitte ebenso mit `tx()` schreiben und in `sprache_en.json` nachtragen.
   Damit sind die vier abgestimmten Etappen des Creators fertig. Mögliche nächste
   Schritte: mehr Stile und Bausteine, Raumgrößen, Mobil-Bedienung des Creators,
   Randomizer auf Basis von Plan und Löser.

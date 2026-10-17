@@ -25,6 +25,7 @@ python3 kristallgruft.py --fallen     # kann man sich mit Blöcken einsperren? (
 python3 kristallgruft.py --schreiben  # Löser, dann in ../index.html eintragen
 python3 sokoban_suche.py 8 6 3 3000 0.25
 python3 einzelspiel.py fuchsfeste     # → einzelspiel/fuchsfeste/index.html und einzelspiel/fuchsfeste-itch.zip
+python3 einzelspiel.py fuchsfeste --sprache en   # englisch → einzelspiel/fuchsfeste-en/ und fuchsfeste-en-itch.zip
 ```
 
 `einzelspiel.py` lässt in den Spieldaten nur den einen Dungeon stehen und setzt
@@ -33,6 +34,15 @@ python3 einzelspiel.py fuchsfeste     # → einzelspiel/fuchsfeste/index.html un
 Ende den Abspann (Ereignis-Schritt `ende`). Die ZIP enthält nur die `index.html`
 und lässt sich bei itch.io als HTML-Spiel hochladen (Viewport z. B. 960 × 720).
 Der Ordner `einzelspiel/` ist Bauergebnis und steht nicht im Repo.
+
+Mit `--sprache en` entsteht eine englische Fassung aus `sprache_en.json`:
+`"html"` ersetzt Stellen im HTML-Gerüst (Hilfezeile, Touch-Knopf, `lang`),
+`"oberflaeche"` die Bildschirmtexte der Engine (alles, was dort über `tx('…')`
+läuft; landet als `"texte"` in den Spieldaten), `"daten"` die Texte des Dungeons
+(Titel, Schilder, Ereignisse, Namen). Das Skript bricht ab, wenn ein Text ohne
+Übersetzung bleibt oder die Pixelschrift ein Zeichen nicht kann (nur Großbuchstaben,
+Ziffern, `: ! . - , ? / ' ( ) >`). Wer neue Texte in die Fuchsfeste oder neue
+Bildschirmtexte in die Engine bringt, trägt sie dort nach.
 
 `--schreiben` ersetzt den Dungeon und seine Gegnerarten/Kristalltypen im
 `spieldaten`-Block und hängt sie dort wieder an. Wer erst `fuchsfeste.py` und
