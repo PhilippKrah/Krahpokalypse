@@ -304,10 +304,20 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   „Weiterspielen“), Ereignis-Schritt `ende` mit Abspann (Spielzeit, Truhen,
   Herzen; im Hauptspiel zurück ins Menü). Fuchsfeste und Kristallgruft haben ihn
   nach dem Endboss (über ihre Generator-Skripte). Maus-Klick wählt Menüeinträge.
-  **Englische Fassung:** `einzelspiel.py fuchsfeste --sprache en` (Übersetzungen in
-  `werkzeuge/sprache_en.json`). Bildschirmtexte der Engine laufen dafür über
-  `tx('deutscher Text')`, `"texte"` in den Spieldaten ersetzt sie; neue
-  Bildschirmtexte bitte ebenso mit `tx()` schreiben und in `sprache_en.json` nachtragen.
+  **Sprachen, Optionen, Spielstand (auch im Hauptspiel):** Übersetzungen stehen in den
+  Spieldaten unter `"sprachen"` (erste Sprache Deutsch = Originaltexte; `"en"` mit
+  `"texte"` für die Engine und `"daten"` für Dungeon-Texte, bisher nur die Fuchsfeste –
+  andere Dungeons bleiben auf Englisch deutsch). Bildschirmtexte der Engine immer über
+  `tx('deutscher Text')` schreiben und in `"sprachen"` → `"en"` → `"texte"` nachtragen.
+  Gibt es mehrere Sprachen, fragt das Spiel beim ersten Start; dazu ein Menüpunkt
+  **Optionen**: Sprache, Schwierigkeit (Normal: nach Tod/Neuladen weiter im Raum;
+  **Classic**: zurück zum Dungeon-Eingang, Fortschritt bleibt) und Bild (scharfe Pixel /
+  Rahmen füllen), gespeichert in localStorage `waldwacht.optionen`. Der Spielstand gilt
+  jetzt für jeden Dungeon, der aus dem Menü gestartet wird (nicht für Editor-Tests und
+  `?dungeon=`); hat einer einen Stand, fragt das Menü „Weiterspielen / Neues Spiel“.
+  Das Standalone (`einzelspiel.py fuchsfeste`) ist damit zweisprachig; `--sprache en`
+  baut ein rein englisches Paket. Im Creator-Raumplan lassen sich jetzt alle drei
+  Türen einer Wand anlegen und einstellen (vorher nur die Mitte).
   Damit sind die vier abgestimmten Etappen des Creators fertig. Mögliche nächste
   Schritte: mehr Stile und Bausteine, Raumgrößen, Mobil-Bedienung des Creators,
   Randomizer auf Basis von Plan und Löser.

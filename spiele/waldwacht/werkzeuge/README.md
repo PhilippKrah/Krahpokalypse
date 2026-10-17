@@ -24,25 +24,25 @@ python3 kristallgruft.py --weg        # Löser: kürzester Weg und Sackgassen (c
 python3 kristallgruft.py --fallen     # kann man sich mit Blöcken einsperren? (einige Minuten)
 python3 kristallgruft.py --schreiben  # Löser, dann in ../index.html eintragen
 python3 sokoban_suche.py 8 6 3 3000 0.25
-python3 einzelspiel.py fuchsfeste     # → einzelspiel/fuchsfeste/index.html und einzelspiel/fuchsfeste-itch.zip
-python3 einzelspiel.py fuchsfeste --sprache en   # englisch → einzelspiel/fuchsfeste-en/ und fuchsfeste-en-itch.zip
+python3 einzelspiel.py fuchsfeste     # → einzelspiel/fuchsfeste/index.html und einzelspiel/fuchsfeste-itch.zip (alle Sprachen)
+python3 einzelspiel.py fuchsfeste --sprache en   # nur Englisch → einzelspiel/fuchsfeste-en/ und fuchsfeste-en-itch.zip
 ```
 
 `einzelspiel.py` lässt in den Spieldaten nur den einen Dungeon stehen und setzt
 `"einzelspiel"`: Das Spiel zeigt dann ein Titelbild nur mit diesem Dungeon
-(Spiel starten / Weiterspielen), speichert beim Betreten jedes Raums und zeigt am
-Ende den Abspann (Ereignis-Schritt `ende`). Die ZIP enthält nur die `index.html`
-und lässt sich bei itch.io als HTML-Spiel hochladen (Viewport z. B. 960 × 720).
-Der Ordner `einzelspiel/` ist Bauergebnis und steht nicht im Repo.
+(Weiterspielen / Neues Spiel / Optionen), speichert beim Betreten jedes Raums und
+zeigt am Ende den Abspann (Ereignis-Schritt `ende`). Die ZIP enthält nur die
+`index.html` und lässt sich bei itch.io als HTML-Spiel hochladen (Viewport z. B.
+960 × 720). Der Ordner `einzelspiel/` ist Bauergebnis und steht nicht im Repo.
 
-Mit `--sprache en` entsteht eine englische Fassung aus `sprache_en.json`:
-`"html"` ersetzt Stellen im HTML-Gerüst (Hilfezeile, Touch-Knopf, `lang`),
-`"oberflaeche"` die Bildschirmtexte der Engine (alles, was dort über `tx('…')`
-läuft; landet als `"texte"` in den Spieldaten), `"daten"` die Texte des Dungeons
-(Titel, Schilder, Ereignisse, Namen). Das Skript bricht ab, wenn ein Text ohne
-Übersetzung bleibt oder die Pixelschrift ein Zeichen nicht kann (nur Großbuchstaben,
-Ziffern, `: ! . - , ? / ' ( ) >`). Wer neue Texte in die Fuchsfeste oder neue
-Bildschirmtexte in die Engine bringt, trägt sie dort nach.
+Die Sprachen kommen aus `"sprachen"` in den Spieldaten (Übersetzungen der
+Engine-Texte unter `"texte"`, der Dungeon-Texte unter `"daten"`). Mit mehreren
+Sprachen fragt das Spiel beim ersten Start (Browser-Sprache vorausgewählt) und
+unter „Optionen“; `--sprache xx` baut ein Paket mit nur dieser Sprache. Das Skript
+bricht ab, wenn einem Text des Dungeons eine Übersetzung fehlt oder die
+Pixelschrift ein Zeichen nicht kann, und nennt die Stellen. Übersetzt ist bisher
+nur die Fuchsfeste – für die Kristallgruft `--sprache de` nehmen oder die
+Übersetzungen ergänzen.
 
 `--schreiben` ersetzt den Dungeon und seine Gegnerarten/Kristalltypen im
 `spieldaten`-Block und hängt sie dort wieder an. Wer erst `fuchsfeste.py` und

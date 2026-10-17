@@ -1001,17 +1001,22 @@ const Creator = (() => {
     return url;
   }
   const verbArt = (r, dir) => r && r.tueren[dir] ? E.tuerArt(r.tueren[dir]) : 'keine';
-  function verbindungHtml(d, ord, a, b, dirA, x, y, an) {   // Knopf auf der gemeinsamen Wand zweier Nachbarräume
-    const [aid, ra] = a, [bid, rb] = b, dirB = GEGENUEBER[dirA];
-    const artA = verbArt(ra, dirA), artB = verbArt(rb, dirB), weitere = ['1', '3'].filter(k => ra.tueren[dirA + k] || rb.tueren[dirB + k]).length;
-    const quer = dirA === 'o';
+  // Bis zu drei Türen je Wand: links/oben (…1), Mitte, rechts/unten (…3) – wie im Spiel und im Editor
+  const wandStellen = wand => [wand + '1', wand, wand + '3'];
+  const stelleName = dir => (dir[0] === 'n' || dir[0] === 's' ? { 1: 'links', '': 'Mitte', 3: 'rechts' } : { 1: 'oben', '': 'Mitte', 3: 'unten' })[dir.slice(1)];
+  const tuerDa = (ra, rb, dir) => verbArt(ra, dir) !== 'keine' || verbArt(rb, GEGENUEBER[dir]) !== 'keine';
+  function verbindungHtml(d, ord, a, b, wand, x, y, an) {   // Knopf auf der gemeinsamen Wand zweier Nachbarräume
+    const [aid, ra] = a, [bid, rb] = b, belegt = wandStellen(wand).filter(k => tuerDa(ra, rb, k));
+    const dirA = belegt.includes(wand) ? wand : belegt[0] || wand, dirB = GEGENUEBER[dirA];   // gezeigt wird die Mitte, sonst die erste Tür
+    const artA = verbArt(ra, dirA), artB = verbArt(rb, dirB), weitere = Math.max(0, belegt.length - 1);
+    const quer = wand === 'o';
     const stil = quer ? `left:${x + KW - 15}px;top:${y + KH / 2 - 12}px` : `left:${x + KW / 2 - 15}px;top:${y + KH - 12}px`;
-    if (artA === 'keine' && artB === 'keine') return `<button class="cverb cleer${an ? ' an' : ''}" style="${stil}" data-c="verbinde" data-raum="${aid}" data-dir="${dirA}" title="Tür anlegen (beide Seiten offen)">${weitere ? '+' + weitere : '＋'}</button>`;
+    if (!belegt.length) return `<button class="cverb cleer${an ? ' an' : ''}" style="${stil}" data-c="verbinde" data-raum="${aid}" data-dir="${wand}" title="Tür anlegen (beide Seiten offen)">＋</button>`;
     const streng = TUERRANG.find(t => t === artA || t === artB) || 'offen';
     const pfeil = artA === artB ? '' : streng === artA ? (quer ? '→' : '↓') : (quer ? '←' : '↑');
     const zeichen = streng === 'offen' ? (quer ? '⇄' : '⇅') : (E.TUERZEICHEN[streng] || '?');
-    return `<button class="cverb${an ? ' an' : ''}" style="${stil};background:${E.TUERFARBE[streng] || '#cfd6cf'}" data-c="tuerwahl" data-raum="${aid}" data-dir="${dirA}"
-      title="${esc(E.TUERARTEN[artA])} / ${esc(E.TUERARTEN[artB])}">${pfeil && quer && pfeil === '←' ? pfeil : ''}${zeichen}${pfeil && !(quer && pfeil === '←') ? pfeil : ''}${weitere ? `<sup>+${weitere}</sup>` : ''}</button>`;
+    return `<button class="cverb${an ? ' an' : ''}" style="${stil};background:${E.TUERFARBE[streng] || '#cfd6cf'}" data-c="tuerwahl" data-raum="${aid}" data-dir="${wand}"
+      title="${belegt.length > 1 ? `${belegt.length} Türen in dieser Wand – ` : ''}${esc(E.TUERARTEN[artA])} / ${esc(E.TUERARTEN[artB])}">${pfeil && quer && pfeil === '←' ? pfeil : ''}${zeichen}${pfeil && !(quer && pfeil === '←') ? pfeil : ''}${weitere ? `<sup>+${weitere}</sup>` : ''}</button>`;
   }
   function kartePlan(d, p, ord) {
     const raeume = Object.entries(d.raeume), pos = raeume.map(([, r]) => r.pos || [0, 0]);
@@ -1030,8 +1035,8 @@ const Creator = (() => {
         <div class="crkopf">${d.start.raum === rid ? '★ ' : ''}<b>${esc(r.nr || rid)}</b> ${esc(r.titel || '')}</div>
         <div class="crdinge">${hier.map(id => `<span class="cchip" title="${esc(p.elemente[id].name)}">${bild(p.elemente[id], '')}<i>${ord.nr[id]}</i></span>`).join('')}</div></div>`);
       const rechts = bei(x + 1, y), unten = bei(x, y + 1), sel = Z.cplan && Z.cplan.dir;
-      if (rechts) teile.push(verbindungHtml(d, ord, rm, rechts, 'o', px, py, sel && Z.cplan.a === rid && Z.cplan.dir === 'o'));
-      if (unten) teile.push(verbindungHtml(d, ord, rm, unten, 's', px, py, sel && Z.cplan.a === rid && Z.cplan.dir === 's'));
+      if (rechts) teile.push(verbindungHtml(d, ord, rm, rechts, 'o', px, py, sel && Z.cplan.a === rid && Z.cplan.dir[0] === 'o'));
+      if (unten) teile.push(verbindungHtml(d, ord, rm, unten, 's', px, py, sel && Z.cplan.a === rid && Z.cplan.dir[0] === 's'));
     }
     return `<div class="cplankarte" style="width:${(x1 - x0 + 1) * KW}px;height:${(y1 - y0 + 1) * KH}px">${teile.join('')}</div>`;
   }
@@ -1046,15 +1051,20 @@ const Creator = (() => {
   function planRechts(d, p, ord) {
     const sel = Z.cplan;
     if (sel && sel.dir && d.raeume[sel.a]) {
-      const a = d.raeume[sel.a], nb = a.pos && E.raumBei(a.pos[0] + RICHTUNG[sel.dir][0], a.pos[1] + RICHTUNG[sel.dir][1]);
+      const wand = sel.dir[0], a = d.raeume[sel.a], nb = a.pos && E.raumBei(a.pos[0] + RICHTUNG[wand][0], a.pos[1] + RICHTUNG[wand][1]);
       if (nb) {
-        const [bid, b] = nb, gd = GEGENUEBER[sel.dir], weitere = ['1', '3'].filter(k => a.tueren[sel.dir + k] || b.tueren[gd + k]);
+        const [bid, b] = nb;
+        const stellen = wandStellen(wand).map(k => {
+          if (!tuerDa(a, b, k)) return `<button data-c="verbinde" data-raum="${sel.a}" data-dir="${k}">＋ Tür ${stelleName(k)}</button>`;
+          return `<div class="cbox"><b>Tür ${stelleName(k)}</b>
+            ${E.feld(`Von Raum ${esc(nrVon(d, sel.a))} nach Raum ${esc(nrVon(d, bid))}`, tuerFeld(d, p, sel.a, k))}
+            ${E.feld(`Von Raum ${esc(nrVon(d, bid))} nach Raum ${esc(nrVon(d, sel.a))}`, tuerFeld(d, p, bid, GEGENUEBER[k]))}
+            <div class="knoepfe"><button data-c="trennen" data-raum="${sel.a}" data-dir="${k}" class="gefahr">Tür entfernen</button></div></div>`;
+        });
         return `<h3>Verbindung ${raumText(d, sel.a)} ↔ ${raumText(d, bid)}</h3>
-          <div class="cbox">${E.feld(`Von Raum ${esc(nrVon(d, sel.a))} nach Raum ${esc(nrVon(d, bid))}`, tuerFeld(d, p, sel.a, sel.dir))}
-          ${E.feld(`Von Raum ${esc(nrVon(d, bid))} nach Raum ${esc(nrVon(d, sel.a))}`, tuerFeld(d, p, bid, gd))}
-          <small class="erkl">Eine Tür gilt für die Seite, auf der sie steht: Wer von dort kommt, braucht Schlüssel, Gegenstand oder Signal. Von der anderen Seite ist sie meist offen. Typisch: Schloss nur auf einer Seite, die Rückseite „offen“. Riegel: geht nur von der anderen Seite auf – gut für Abkürzungen zurück zum Anfang.</small>
-          ${weitere.length ? `<p class="klein">Dazu ${weitere.length} weitere Tür(en) in dieser Wand – die bearbeitest du im Editor.</p>` : ''}
-          <div class="knoepfe"><button data-c="trennen" data-raum="${sel.a}" data-dir="${sel.dir}" class="gefahr">Verbindung entfernen</button></div></div>`;
+          ${stellen.filter(h => h.startsWith('<div')).join('')}
+          <div class="knoepfe">${stellen.filter(h => h.startsWith('<button')).join('')}</div>
+          <small class="erkl">Je Wand gehen bis zu drei Türen (${wand === 'o' ? 'oben, Mitte, unten' : 'links, Mitte, rechts'}). Eine Tür gilt für die Seite, auf der sie steht: Wer von dort kommt, braucht Schlüssel, Gegenstand oder Signal. Von der anderen Seite ist sie meist offen. Typisch: Schloss nur auf einer Seite, die Rückseite „offen“. Riegel: geht nur von der anderen Seite auf – gut für Abkürzungen zurück zum Anfang.</small>`;
       }
     }
     if (sel && sel.raum && d.raeume[sel.raum]) {
@@ -1068,7 +1078,7 @@ const Creator = (() => {
         ${andere.length ? `<select data-cf="hierher" data-raum="${rid}"><option value="">＋ Element hierher legen …</option>${andere.map(id => `<option value="${id}">${ord.nr[id]}. ${esc(p.elemente[id].name)}${p.elemente[id].raum ? ' (jetzt Raum ' + esc(nrVon(d, p.elemente[id].raum)) + ')' : ''}</option>`).join('')}</select>` : ''}
         <div class="knoepfe"><button data-c="bauen" data-raum="${rid}" class="haupt">Im Editor bauen</button>${Object.keys(d.raeume).length > 1 ? `<button data-c="raumweg" data-raum="${rid}" class="gefahr">Raum löschen</button>` : ''}</div></div>`;
     }
-    return `<h3>Karte bedienen</h3><div class="cbox klein"><p><b>＋</b> neben einem Raum legt einen neuen an, gleich mit offener Tür.</p><p>Die runden Knöpfe zwischen zwei Räumen sind die Türen: anklicken und rechts einstellen (Schloss, großes Schloss, Tor für einen Gegenstand, Bedingung …). Gestrichelt = noch keine Tür.</p>
+    return `<h3>Karte bedienen</h3><div class="cbox klein"><p><b>＋</b> neben einem Raum legt einen neuen an, gleich mit offener Tür.</p><p>Die runden Knöpfe zwischen zwei Räumen sind die Türen: anklicken und rechts einstellen (Schloss, großes Schloss, Tor für einen Gegenstand, Bedingung …). Gestrichelt = noch keine Tür. Je Wand gehen bis zu drei Türen (links/oben, Mitte, rechts/unten) – „+2“ am Knopf heißt: noch zwei weitere in dieser Wand.</p>
       <p>Raum anklicken: Titel, Startraum, Notiz und Elemente.</p><p>Elemente links anklicken und dann einen Raum – so legst du sie hinein.</p></div>`;
   }
   function renderRaumplan(d) {
@@ -1339,7 +1349,7 @@ const Creator = (() => {
       }
       case 'verbinde': E.merke(); E.tuerSetzen(rid, b.dataset.dir, 'offen'); E.speichern(); E.zeigeWarnungen(); Z.cplan = { a: rid, dir: b.dataset.dir }; render(); break;
       case 'tuerwahl': Z.cplan = { a: rid, dir: b.dataset.dir }; render(); break;
-      case 'trennen': E.merke(); E.tuerSetzen(rid, b.dataset.dir, 'keine'); E.speichern(); E.zeigeWarnungen(); Z.cplan = null; render(); break;
+      case 'trennen': E.merke(); E.tuerSetzen(rid, b.dataset.dir, 'keine'); E.speichern(); E.zeigeWarnungen(); Z.cplan = { a: rid, dir: b.dataset.dir[0] }; render(); break;
       case 'start': E.merke(); d.start.raum = rid; d.start.feld = [9.5, 8.5]; E.speichern(); E.zeigeWarnungen(); render(); break;
       case 'ortweg': aendern(p => { if (p.elemente[id]) delete p.elemente[id].raum; }); break;
       case 'raumweg': {

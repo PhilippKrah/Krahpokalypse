@@ -1,4 +1,3 @@
 __pycache__/
 *.json
 einzelspiel/
-!sprache_*.json

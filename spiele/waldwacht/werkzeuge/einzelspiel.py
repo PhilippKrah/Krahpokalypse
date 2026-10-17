@@ -2,23 +2,22 @@
 """Einen Dungeon als eigenständiges Spiel bauen – z. B. die Fuchsfeste für itch.io.
 
 Aufruf (im Ordner werkzeuge):
-    python3 einzelspiel.py [dungeon-id] [ziel-ordner] [--sprache en]     Vorgabe: fuchsfeste, ./einzelspiel, deutsch
+    python3 einzelspiel.py [dungeon-id] [ziel-ordner] [--sprache en]     Vorgabe: fuchsfeste, ./einzelspiel, alle Sprachen
 
 Ergebnis:
     <ziel>/<id>/index.html     das ganze Spiel in einer Datei (Grafik, Ton, Daten eingebettet)
     <ziel>/<id>-itch.zip       dieselbe index.html im ZIP – so lädt man ein HTML5-Spiel bei itch.io hoch
-    mit --sprache en heißen sie <id>-en/ und <id>-en-itch.zip
+    mit --sprache en nur diese Sprache, die Dateien heißen dann <id>-en/ und <id>-en-itch.zip
 
 Aus ../index.html bleibt nur dieser Dungeon in den Spieldaten; "einzelspiel" schaltet im Spiel den
-Einzelspiel-Modus ein: Titelbild nur mit diesem Dungeon (Spiel starten / Weiterspielen), Spielstand beim
+Einzelspiel-Modus ein: Titelbild nur mit diesem Dungeon (Weiterspielen / Neues Spiel / Optionen), Spielstand beim
 Betreten jedes Raums, Abspann am Ende, kein Editor, keine eigenen Dungeons. Der Rest der Engine ist
 unverändert – Änderungen am Spiel also in ../index.html machen und das Skript neu laufen lassen.
 
-Sprache: sprache_<code>.json enthält
-    "html"         genaue Stellen im HTML-Gerüst (Hilfezeile, Touch-Knopf …) und ihren Ersatz
-    "oberflaeche"  Bildschirmtexte der Engine (alles, was dort durch tx('…') läuft) – landen als "texte" in den Spieldaten
-    "daten"        Texte aus den Spieldaten (Titel, Schilder, Ereignisse, Namen) – werden direkt ersetzt
-Fehlt eine Übersetzung oder kann die Pixelschrift ein Zeichen nicht, bricht das Skript mit einer Liste ab.
+Sprachen kommen aus "sprachen" in den Spieldaten (die erste ist die, in der die Texte geschrieben sind; jede weitere bringt
+"texte" für die Engine und "daten" für die Dungeon-Texte mit). Mit mehreren Sprachen fragt das Spiel beim ersten Start und
+unter „Optionen“. Fehlt einer Sprache eine Übersetzung für einen Text dieses Dungeons oder kann die Pixelschrift ein Zeichen
+nicht, bricht das Skript mit einer Liste ab.
 """
 import json, os, re, sys, zipfile
 
@@ -26,6 +25,7 @@ HIER = os.path.dirname(os.path.abspath(__file__))
 SPIEL = os.path.join(HIER, '..', 'index.html')
 ANFANG = '<script type="application/json" id="spieldaten">'
 UEBERSETZEN = ('titel', 'untertitel', 'einstieg', 'text', 'name')   # Schlüssel mit Texten für die Spielenden
+NICHT_AUF_LEINWAND = ('Aktion', 'Halten: Raum neu starten')          # stehen im HTML, nicht in der Pixelschrift
 
 
 def schriftzeichen(s):
@@ -35,37 +35,41 @@ def schriftzeichen(s):
     return {a or b or c for a, b, c in re.findall(r"(?:^|[\s,{])(?:'(.)'|\"(.)\"|([A-Z0-9])):\s*'", block)}
 
 
-def uebersetze(daten, s, code):
-    sp = json.load(open(os.path.join(HIER, f'sprache_{code}.json'), encoding='utf-8'))
-    fehlt, zeichen, schrift = [], set(), schriftzeichen(s)
+def texte_der_daten(daten):
+    """Alle Texte für die Spielenden in den (schon gekürzten) Spieldaten."""
+    gefunden = []
 
     def lauf(o, k=''):
         if isinstance(o, dict):
-            return {kk: lauf(v, kk) for kk, v in o.items()}
-        if isinstance(o, list):
-            return [lauf(v, k) for v in o]
-        if isinstance(o, str) and k in UEBERSETZEN and re.search(r'[A-Za-zÄÖÜäöüß]', o):
-            if o not in sp['daten']:
-                fehlt.append(o)
-                return o
-            return sp['daten'][o]
-        return o
-    daten = lauf(daten)
-    if fehlt:
-        sys.exit('Ohne Übersetzung in sprache_%s.json ("daten"):\n  ' % code + '\n  '.join(dict.fromkeys(fehlt)))
-    for de in sp['oberflaeche']:
-        if f"'{de}'" not in s:
-            print(f'Hinweis: „{de}“ kommt in der Engine nicht mehr vor (veraltet?)')
-    for t in [*sp['oberflaeche'].values(), *sp['daten'].values()]:
-        zeichen |= {ch for ch in re.sub(r'\{\d\}', '', t).upper() if ch not in schrift}
-    if zeichen:
-        sys.exit('Diese Zeichen kann die Pixelschrift nicht: ' + ' '.join(sorted(zeichen)))
-    daten['texte'] = sp['oberflaeche']
-    for alt, neu in sp['html'].items():
-        if s.count(alt) != 1:
-            sys.exit(f'HTML-Stelle nicht (genau einmal) gefunden: {alt}')
-        s = s.replace(alt, neu)
-    return daten, s, sp.get('titel')
+            for kk, v in o.items():
+                if kk != 'sprachen':
+                    lauf(v, kk)
+        elif isinstance(o, list):
+            for v in o:
+                lauf(v, k)
+        elif isinstance(o, str) and k in UEBERSETZEN and re.search(r'[A-Za-zÄÖÜäöüß]', o):
+            gefunden.append(o)
+    lauf(daten)
+    return list(dict.fromkeys(gefunden))
+
+
+def pruefe_sprachen(daten, s):
+    sprachen = daten.get('sprachen') or {}
+    texte, schrift, fehler = texte_der_daten(daten), schriftzeichen(s), []
+    for code, sp in list(sprachen.items())[1:] if len(sprachen) > 1 else []:
+        fehlt = [t for t in texte if t not in sp.get('daten', {})]
+        if fehlt:
+            fehler.append(f'Sprache {code}: ohne Übersetzung in "sprachen" → "{code}" → "daten":\n  ' + '\n  '.join(fehlt))
+        sp['daten'] = {t: sp['daten'][t] for t in texte if t in sp.get('daten', {})}   # nur was dieser Dungeon braucht
+        for de in sp.get('texte', {}):
+            if f"'{de}'" not in s:
+                print(f'Hinweis ({code}): „{de}“ kommt in der Engine nicht mehr vor (veraltet?)')
+        leinwand = [v for k, v in sp.get('texte', {}).items() if '<' not in k and k not in NICHT_AUF_LEINWAND] + list(sp['daten'].values())
+        zeichen = {ch for t in leinwand for ch in re.sub(r'\{\d\}', '', t).upper() if ch not in schrift}
+        if zeichen:
+            fehler.append(f'Sprache {code}: diese Zeichen kann die Pixelschrift nicht: ' + ' '.join(sorted(zeichen)))
+    if fehler:
+        sys.exit('\n'.join(fehler) + '\n(Übersetzungen ergänzen – oder mit --sprache de nur in der ersten Sprache bauen.)')
 
 
 def baue(did='fuchsfeste', ziel=os.path.join(HIER, 'einzelspiel'), sprache=None):
@@ -77,12 +81,20 @@ def baue(did='fuchsfeste', ziel=os.path.join(HIER, 'einzelspiel'), sprache=None)
         sys.exit(f'Unbekannter Dungeon „{did}“ – vorhanden: {", ".join(daten["dungeons"])}')
     daten['dungeons'] = {did: daten['dungeons'][did]}
     daten['einzelspiel'] = {'dungeon': did}
-    titel = None
+    sprachen = daten.get('sprachen') or {}
     if sprache:
-        daten, s, titel = uebersetze(daten, s, sprache)
-        a = s.index(ANFANG) + len(ANFANG)   # das HTML davor hat sich verschoben
-        e = s.index('</script>', a)
-    titel = titel or daten['dungeons'][did].get('titel', did).title() + ' – Waldwacht'
+        if sprache not in sprachen:
+            sys.exit(f'Unbekannte Sprache „{sprache}“ – vorhanden: {", ".join(sprachen)}')
+        daten['sprachen'] = {sprache: sprachen[sprache]}
+        if sprache != next(iter(sprachen)):
+            daten['sprachen'] = {next(iter(sprachen)): {'name': '-'}, **daten['sprachen']}   # zum Prüfen; unten wieder entfernt
+    pruefe_sprachen(daten, s)
+    if sprache:
+        daten['sprachen'] = {sprache: daten['sprachen'][sprache]}
+    titel = daten['dungeons'][did].get('titel', did)
+    erste = next(iter(daten.get('sprachen') or {}), None)
+    titel = ((daten.get('sprachen') or {}).get(erste, {}).get('daten') or {}).get(titel, titel)
+    titel = titel.title() + ' – Waldwacht'   # der Browser-Titel folgt im Spiel der gewählten Sprache
     text = json.dumps(daten, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')   # kein </script> im JSON
     s = s[:a] + '\n' + text + '\n' + s[e:]
     s = re.sub(r'<title>.*?</title>', f'<title>{titel}</title>', s, count=1)
@@ -94,7 +106,8 @@ def baue(did='fuchsfeste', ziel=os.path.join(HIER, 'einzelspiel'), sprache=None)
     zpfad = os.path.join(ziel, f'{name}-itch.zip')
     with zipfile.ZipFile(zpfad, 'w', zipfile.ZIP_DEFLATED) as z:
         z.write(pfad, 'index.html')
-    print(f'{titel}: {pfad} ({os.path.getsize(pfad) // 1024} KB), {zpfad} ({os.path.getsize(zpfad) // 1024} KB)')
+    print(f'{titel} ({", ".join(daten.get("sprachen") or {}) or "ohne Sprachen"}): {pfad} ({os.path.getsize(pfad) // 1024} KB), '
+          f'{zpfad} ({os.path.getsize(zpfad) // 1024} KB)')
     return pfad, zpfad
 
 
