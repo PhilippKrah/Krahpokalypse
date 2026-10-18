@@ -49,7 +49,8 @@
   Ein Signal gilt im ganzen Dungeon, nur „Platte gerade belegt“ wirkt allein im eigenen Raum.
   Bedingungen können auch Gegenstände abfragen: "hat:laterne". Nachweise (dungeon.nachweise {raum: {fp, erreicht}}) halten fest,
   welche Ziele eines Raums (Türen, Truhen) ein Testlauf aus dem Editor erreicht hat (raumZiele, raumFingerabdruck).
-  Logik: pruefeLogik(DATEN, dungeonId) spielt einen Dungeon gedanklich durch (Stufen/Sphären, Schlüssel, Signale) und meldet
+  Logik: pruefeLogik(DATEN, dungeonId) spielt einen Dungeon gedanklich durch (Stufen/Sphären, Schlüssel, Signale; je Raumteil aus
+  wegeImRaum, damit unabhängige Wege durch einen Raum getrennt bleiben – man steht im Teil der Tür, durch die man kam) und meldet
   unerreichbare Räume mit Grund, Schlüssel-Fallen und Räume ohne Rückweg (der Editor zeigt das als Prüfstatus und Reiter „Logik“).
   Licht: je Feld ein Wert 0..1 aus Raumstufe/Lichtkarte, dazu Lichtquellen (Fackeln, Laterne, eigener Schein); lichtBei(x, y)
   liefert ihn für spätere Spielregeln – bisher wirkt Dunkelheit nur auf die Darstellung.
@@ -2943,6 +2944,41 @@ function raumObjekte(d, r) {   // Objekte aus Liste und Karten-Legende, mit Feld
   r.karte.forEach((z, y) => [...z].forEach((ch, x) => { if (legende[ch] && legende[ch].objekt) liste.push({ ...legende[ch], feld: [x, y] }); }));
   return liste;
 }
+const tuerEingang = dir => {   // die beiden Felder innen vor einer Tür (wie im Löser)
+  const s = dir[0], c = TUER_SPALTE[dir.slice(1) || 2], r = TUER_ZEILE[dir.slice(1) || 2];
+  return s === 'n' ? [[c, 2], [c + 1, 2]] : s === 's' ? [[c, 13], [c + 1, 13]] : s === 'w' ? [[1, r], [1, r + 1]] : [[18, r], [18, r + 1]];
+};
+// Wege im Raum: Welche Türen können überhaupt je zusammenhängen? Getrennt wird nur durch das, was sich nie ändert – Mauern,
+// feste Objekte ohne Bedingung (auch Truhen), Abgründe nur in Räumen ohne Block (ein Block kann sie füllen). Pflöcke, Blöcke,
+// Büsche und bedingte Objekte gelten als passierbar. Türen in verschiedenen Teilen hängen also nie zusammen – unabhängige
+// Wege durch einen Raum; was innerhalb eines Teils wirklich geht, rechnet der Löser. Ergebnis: anzahl, teil[x + y·20]
+// (-1 = gesperrt), tuerTeil(dir) (auch für Stellen ohne Tür, -1 = zugemauert), bei(x, y) → Teile am Feld oder daneben.
+function wegeImRaum(d, r) {
+  const W = 20, H = 15, sperr = new Uint8Array(W * H), objekte = raumObjekte(d, r);
+  const bloecke = objekte.some(o => (d.objektarten[o.objekt] || {}).schiebbar);
+  const kachel = (x, y) => { const ch = (r.karte[y] || '')[x]; return ch === undefined ? 'mauer' : d.kacheln[ch] || 'boden'; };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+    sperr[x + y * W] = x < 1 || x > 18 || y < 2 || y > 13 || kachel(x, y) === 'mauer' || (kachel(x, y) === 'abgrund' && !bloecke) ? 1 : 0;
+  for (const dir of Object.keys(r.tueren)) for (const [x, y] of tuerEingang(dir)) if (kachel(x, y) === 'mauer') sperr[x + y * W] = 0;
+  for (const o of objekte) {
+    const a = d.objektarten[o.objekt] || {}, [x, y] = o.feld.map(Math.floor);
+    if (a.fest && !a.schneidbar && !a.pflock && !a.schiebbar && o.sichtbar_wenn === undefined && x >= 0 && x < W && y >= 0 && y < H) sperr[x + y * W] = 1;
+  }
+  const teil = new Int16Array(W * H).fill(-1), NB = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  let anzahl = 0;
+  for (let i = 0; i < W * H; i++) if (!sperr[i] && teil[i] < 0) {
+    const q = [i]; teil[i] = anzahl;
+    while (q.length) { const j = q.pop(), x = j % W, y = (j / W) | 0; for (const [dx, dy] of NB) { const k = x + dx + (y + dy) * W; if (x + dx >= 0 && x + dx < W && y + dy >= 0 && y + dy < H && !sperr[k] && teil[k] < 0) { teil[k] = anzahl; q.push(k); } } }
+    anzahl++;
+  }
+  const bei = (x, y) => {
+    x = Math.floor(x); y = Math.floor(y);
+    if (x >= 0 && x < W && y >= 0 && y < H && teil[x + y * W] >= 0) return [teil[x + y * W]];
+    return [...new Set(NB.map(([dx, dy]) => x + dx >= 0 && x + dx < W && y + dy >= 0 && y + dy < H ? teil[x + dx + (y + dy) * W] : -1).filter(k => k >= 0))];
+  };
+  const tuerTeil = dir => { for (const [x, y] of tuerEingang(dir)) if (teil[x + y * W] >= 0) return teil[x + y * W]; return -1; };
+  return { anzahl, teil, bei, tuerTeil };
+}
 function raumZiele(d, r) {
   return [...Object.keys(r.tueren).sort().map(dir => 'tuer:' + dir),
     ...raumObjekte(d, r).filter(o => (d.objektarten[o.objekt] || {}).oeffnbar).map(o => 'truhe:' + o.feld.join(','))];
@@ -2958,30 +2994,37 @@ const ZIEL_NAME = z => z.startsWith('tuer:') ? 'Tür ' + TUERNAME(z.slice(5)) : 
 // welche Signale, Schlüssel und Gegenstände gibt es dort, welche Türen gehen damit auf – bis sich nichts mehr ändert.
 // Türen gelten je Richtung (wer von A nach B will, braucht die Tür in A). Platten ohne „bleibt unten“ wirken nur im
 // eigenen Raum. „nicht …“ gilt als erfüllbar (alle Signale beginnen aus). Schlüssel: zusätzlich die ungünstigste
-// Reihenfolge der Schlosstüren. Was die Prüfung nicht kann: ob ein Block-Rätsel im Raum selbst lösbar ist.
-function logikInfo(d, dg) {   // je Raum: was es dort zu holen gibt
+// Reihenfolge der Schlosstüren. Ein Ort ist ein Raumteil (wegeImRaum): wer durch eine Tür kommt, steht in deren Teil –
+// unabhängige Wege durch einen Raum bleiben getrennt, Truhen und bleibende Platten zählen nur in ihrem Teil.
+// Was die Prüfung nicht kann: ob ein Block-Rätsel im Raum selbst lösbar ist (das rechnet der Löser im Editor).
+function logikInfo(d, dg) {   // je Raum: was es dort zu holen gibt (teile: in welchen Raumteilen, null = im ganzen Raum)
   const info = {};
   for (const [id, r] of Object.entries(dg.raeume)) {
-    const legende = { ...d.zeichen, ...(r.zeichen || {}) }, objekte = [...(r.objekte || [])], gegner = [...(r.gegner || [])];
-    for (const z of r.karte) for (const ch of z) if (legende[ch]) (legende[ch].gegner ? gegner : objekte).push(legende[ch]);
-    const i = info[id] = { lokal: [], global: [], kristalle: [], truhen: [], ereignisse: r.ereignisse || [] };
-    objekte.forEach((o, k) => {
+    const legende = { ...d.zeichen, ...(r.zeichen || {}) }, gegner = [...(r.gegner || [])], wege = wegeImRaum(d, r);
+    r.karte.forEach((z, y) => [...z].forEach((ch, x) => { if (legende[ch] && legende[ch].gegner) gegner.push({ ...legende[ch], feld: [x, y] }); }));
+    const i = info[id] = { lokal: [], global: [], kristalle: [], truhen: [], ereignisse: r.ereignisse || [], wege };
+    raumObjekte(d, r).forEach((o, k) => {
       const art = d.objektarten[o.objekt] || {};
-      if (art.platte && o.signal) (o.merken ? i.global : i.lokal).push(o.signal);
-      if ((art.kristall || art.pflock) && o.kristalltyp && art.kristall) i.kristalle.push(o.kristalltyp);
-      if (art.oeffnbar && o.inhalt) i.truhen.push({ key: id + ':' + k, inhalt: o.inhalt, wenn: o.sichtbar_wenn });
+      if (art.platte && o.signal) { if (o.merken) i.global.push({ sig: o.signal, teile: wege.bei(...o.feld) }); else i.lokal.push(o.signal); }
+      if (art.kristall && o.kristalltyp) i.kristalle.push(o.kristalltyp);
+      if (art.oeffnbar && o.inhalt) i.truhen.push({ key: id + ':' + k, inhalt: o.inhalt, wenn: o.sichtbar_wenn, feld: o.feld, teile: wege.bei(...o.feld) });
     });
-    gegner.forEach((e, k) => { if (e.traegt) i.truhen.push({ key: id + ':g' + k, inhalt: e.traegt }); });   // Gegner-Drop: wie eine Truhe, sobald der Raum erreichbar ist
-    for (const e of gegner) { const sig = e.signal || (d.gegnerarten[e.gegner] || {}).signal; if (sig) i.global.push(sig); }
-    for (const art of (r.wellen || []).flat()) { const sig = (d.gegnerarten[art] || {}).signal; if (sig) i.global.push(sig); }
+    gegner.forEach((e, k) => { if (e.traegt) i.truhen.push({ key: id + ':g' + k, inhalt: e.traegt, teile: null }); });   // Gegner-Drop: wie eine Truhe, sobald der Raum erreichbar ist
+    for (const e of gegner) { const sig = e.signal || (d.gegnerarten[e.gegner] || {}).signal; if (sig) i.global.push({ sig, teile: null }); }
+    for (const art of (r.wellen || []).flat()) { const sig = (d.gegnerarten[art] || {}).signal; if (sig) i.global.push({ sig, teile: null }); }
   }
   return info;
 }
 function logikLauf(d, dg, info, schlossWahl) {
   const raeume = dg.raeume, w = { signale: new Set(), kristalle: new Set(), besitz: new Set(), truhen: new Set(), schluessel: 0, verbraucht: 0,
-    stufe: {}, offen: new Set(), ablauf: [], vorher: {} };
-  // Zustand, mit dem man einen Raum frühestens betritt (für den Teststart mit Vorgaben)
-  const merkeVorher = id => { w.vorher[id] = { signale: [...w.signale], besitz: [...w.besitz], schluessel: w.schluessel - w.verbraucht }; };
+    stufe: {}, knoten: new Map(), offen: new Set(), ablauf: [], vorher: {}, vorherTuer: {}, ersterEingang: {} };
+  // Orte: „Raum|Teil“. Zugemauerte Türen (kein Teil davor) gelten wie früher für den ganzen Raum.
+  const alleTeile = id => Array.from({ length: Math.max(1, info[id].wege.anzahl) }, (_, k) => k);
+  const ankunft = (id, dir) => { const k = info[id].wege.tuerTeil(dir); return k >= 0 ? [k] : alleTeile(id); };
+  const tuerErreicht = (id, dir) => ankunft(id, dir).some(k => w.knoten.has(id + '|' + k));
+  const erreicht = (id, teile) => teile === null ? w.stufe[id] !== undefined : teile.some(k => w.knoten.has(id + '|' + k));
+  // Zustand, mit dem man einen Raum frühestens betritt – je Raum und je Eingang (für den Teststart mit Vorgaben)
+  const zustand = () => ({ signale: [...w.signale], besitz: [...w.besitz], schluessel: w.schluessel - w.verbraucht });
   const typFarbe = s => { const k = s.indexOf('='); return k > 0 ? [s.slice(0, k), s.slice(k + 1)] : null; };
   const moeglich = (b, raum) => {
     if (b === undefined || b === null) return true;
@@ -2997,7 +3040,7 @@ function logikLauf(d, dg, info, schlossWahl) {
     if (b.nicht !== undefined) return true;
     return false;
   };
-  w.moeglich = moeglich;
+  Object.assign(w, { moeglich, tuerErreicht, ankunft, erreicht });
   const tuerFrei = (id, dir) => {
     const t = raeume[id].tueren[dir], offen = w.offen.has(id + ':' + dir);
     if (t.schloss === 'gross') return offen || w.besitz.has('grosser_schluessel');
@@ -3006,18 +3049,26 @@ function logikLauf(d, dg, info, schlossWahl) {
     return t.offen_wenn === undefined || moeglich(t.offen_wenn, id);
   };
   let runde = 1;
+  const betrete = (id, teile, ein, schlange) => {   // Raum id durch die Tür ein (oder 'start') betreten, in diesen Teilen
+    if (w.stufe[id] === undefined) { w.stufe[id] = runde; w.vorher[id] = zustand(); w.ersterEingang[id] = ein; }
+    if (!w.vorherTuer[id + ':' + ein]) w.vorherTuer[id + ':' + ein] = zustand();
+    for (const k of teile) if (!w.knoten.has(id + '|' + k)) { w.knoten.set(id + '|' + k, [id, k]); if (schlange) schlange.push([id, k]); }
+  };
   w.besitz.add(dg.start.waffe || CFG.held.waffe);
-  w.stufe[dg.start.raum] = 1; merkeVorher(dg.start.raum);
+  const s0 = info[dg.start.raum].wege.bei(...dg.start.feld);
+  w.startTeile = s0.length ? s0 : alleTeile(dg.start.raum);
+  betrete(dg.start.raum, w.startTeile, 'start');
   for (let sicherung = 0; sicherung < 500; sicherung++) {
     const eintrag = { stufe: runde, raeume: [], erhalten: [], geoeffnet: [] };
-    // 1. alles Erreichbare fluten
-    const schlange = Object.keys(w.stufe);
+    // 1. alles Erreichbare fluten – je Raumteil nur durch die Türen dieses Teils
+    const schlange = [...w.knoten.values()];
     while (schlange.length) {
-      const id = schlange.shift();
+      const [id, k] = schlange.shift(), wege = info[id].wege;
       for (const [dir, t] of Object.entries(raeume[id].tueren)) {
-        if (!raeume[t.ziel] || !tuerFrei(id, dir)) continue;
+        const tk = wege.tuerTeil(dir);
+        if ((tk >= 0 && tk !== k) || !raeume[t.ziel] || !tuerFrei(id, dir)) continue;
         w.offen.add(t.ziel + ':' + GEGENUEBER[dir]);   // durch eine Schlosstür gekommen: von innen offen
-        if (w.stufe[t.ziel] === undefined) { w.stufe[t.ziel] = runde; merkeVorher(t.ziel); schlange.push(t.ziel); }
+        betrete(t.ziel, ankunft(t.ziel, GEGENUEBER[dir]), GEGENUEBER[dir], schlange);
       }
     }
     eintrag.raeume = Object.keys(w.stufe).filter(id => w.stufe[id] === runde);
@@ -3025,9 +3076,9 @@ function logikLauf(d, dg, info, schlossWahl) {
     let neu = false;
     for (const id of Object.keys(w.stufe)) {
       const i = info[id];
-      for (const sig of i.global) if (!w.signale.has(sig)) { w.signale.add(sig); neu = true; eintrag.erhalten.push({ was: 'signal', name: sig, raum: id }); }
+      for (const { sig, teile } of i.global) if (!w.signale.has(sig) && erreicht(id, teile)) { w.signale.add(sig); neu = true; eintrag.erhalten.push({ was: 'signal', name: sig, raum: id }); }
       for (const typ of i.kristalle) if (!w.kristalle.has(typ)) { w.kristalle.add(typ); neu = true; eintrag.erhalten.push({ was: 'kristall', name: typ, raum: id }); }
-      for (const tr of i.truhen) if (!w.truhen.has(tr.key) && moeglich(tr.wenn, id)) {
+      for (const tr of i.truhen) if (!w.truhen.has(tr.key) && erreicht(id, tr.teile) && moeglich(tr.wenn, id)) {
         w.truhen.add(tr.key); neu = true;
         const g = (d.gegenstaende[tr.inhalt] || {}).wirkung || {};
         if (g.schluessel) w.schluessel += g.schluessel; else w.besitz.add(tr.inhalt);
@@ -3043,7 +3094,7 @@ function logikLauf(d, dg, info, schlossWahl) {
     if (!neu && w.schluessel > w.verbraucht) {
       const kandidaten = [];
       for (const id of Object.keys(w.stufe)) for (const [dir, t] of Object.entries(raeume[id].tueren))
-        if (t.schloss === true && !w.offen.has(id + ':' + dir) && raeume[t.ziel]) kandidaten.push([id, dir]);
+        if (t.schloss === true && !w.offen.has(id + ':' + dir) && raeume[t.ziel] && tuerErreicht(id, dir)) kandidaten.push([id, dir]);
       if (kandidaten.length) {
         const [id, dir] = schlossWahl(kandidaten);
         w.offen.add(id + ':' + dir); w.verbraucht++; neu = true;
@@ -3061,7 +3112,7 @@ function pruefeLogik(d, dgId) {
   if (!dg || !dg.raeume[dg.start.raum]) return erg;
   const info = logikInfo(d, dg), raeume = dg.raeume, nr = id => (raeume[id].nr || id);
   const w = logikLauf(d, dg, info, k => k[0]), w2 = logikLauf(d, dg, info, k => k[k.length - 1]);
-  Object.assign(erg, { stufe: w.stufe, ablauf: w.ablauf, vorher: w.vorher, nachweise: {} });
+  Object.assign(erg, { stufe: w.stufe, ablauf: w.ablauf, vorher: w.vorher, vorherTuer: w.vorherTuer, ersterEingang: w.ersterEingang, nachweise: {} });
   for (const [id, r] of Object.entries(raeume)) {   // Rätselräume: Was hat ein Testlauf schon erreicht?
     const ziele = raumZiele(d, r), nw = (dg.nachweise || {})[id], gueltig = nw && nw.fp === raumFingerabdruck(r);
     const erreicht = gueltig ? ziele.filter(z => nw.erreicht.includes(z)) : [];
@@ -3079,12 +3130,13 @@ function pruefeLogik(d, dgId) {
   // Unerreichbare Räume: an jeder Grenztür erklären, was fehlt
   for (const id of Object.keys(raeume)) {
     if (w.stufe[id] !== undefined) continue;
-    const gruende = [];
+    const gruende = [], abseits = [];
     for (const [von, r] of Object.entries(raeume)) {
       if (w.stufe[von] === undefined) continue;
       for (const [dir, t] of Object.entries(r.tueren)) {
         if (t.ziel !== id) continue;
         const wo = `Tür ${TUERNAME(dir)} in Raum ${nr(von)}`;
+        if (!w.tuerErreicht(von, dir)) { abseits.push(wo); continue; }   // Raum erreicht, aber nicht den Weg zu dieser Tür
         const offen = w.offen.has(von + ':' + dir);
         if (t.schloss === true && !offen) gruende.push(`${wo} ist verschlossen, aber es gibt keinen Schlüssel mehr`);
         if (t.schloss === 'gross' && !offen && !w.besitz.has('grosser_schluessel')) gruende.push(`${wo} braucht den großen Schlüssel, der in keiner erreichbaren Truhe liegt`);
@@ -3095,23 +3147,40 @@ function pruefeLogik(d, dgId) {
       }
     }
     if (gruende.length) erg.fehler.push(`Raum ${nr(id)} ist nicht erreichbar: ${gruende.join('; ')}.`);
+    else if (abseits.length) erg.fehler.push(`Raum ${nr(id)} ist nicht erreichbar: ${abseits.join(', ')} ${abseits.length > 1 ? 'liegen' : 'liegt'} auf einem Weg durch den Raum, zu dem man nicht kommt (Mauern, Abgründe oder feste Objekte trennen ihn von den Türen, durch die man hereinkommt).`);
     else erg.fehler.push(`Raum ${nr(id)} ist nicht erreichbar (nur über andere unerreichbare Räume).`);
   }
   // Schlüssel-Falle: andere Reihenfolge der Schlosstüren, anderes Ergebnis
   const fehltBei2 = Object.keys(raeume).filter(id => w.stufe[id] !== undefined && w2.stufe[id] === undefined);
   if (fehltBei2.length) erg.fehler.push(`Schlüssel-Falle: Je nachdem, welche Schlosstür man zuerst öffnet, bleibt Raum ${fehltBei2.map(nr).join(', ')} unerreichbar. Mehr Schlüssel verteilen oder eine Schlosstür weniger.`);
-  // Hinweise: Rückweg, Truhen, die nie erscheinen
-  const zurueck = new Set([dg.start.raum]);
+  // Hinweise: Rückweg (je Raumteil – wer über einen Weg hereinkommt, muss über diesen Weg auch wieder hinaus), Truhen, die nie erscheinen
+  const zurueck = new Set(w.startTeile.map(k => dg.start.raum + '|' + k));
+  const zurueckTuer = (id, dir, t) => raeume[t.ziel] && ((!t.schloss && !t.riegel) || w.offen.has(id + ':' + dir) || (t.schloss === 'gross' && w.besitz.has('grosser_schluessel'))) && (!t.braucht || w.besitz.has(t.braucht)) && (t.offen_wenn === undefined || w.moeglich(t.offen_wenn, id))
+    && w.ankunft(t.ziel, GEGENUEBER[dir]).some(a => zurueck.has(t.ziel + '|' + a));
   for (let geaendert = true; geaendert;) {
     geaendert = false;
-    for (const [id, r] of Object.entries(raeume)) {
-      if (zurueck.has(id) || w.stufe[id] === undefined) continue;
-      if (Object.entries(r.tueren).some(([dir, t]) => zurueck.has(t.ziel) && ((!t.schloss && !t.riegel) || w.offen.has(id + ':' + dir) || (t.schloss === 'gross' && w.besitz.has('grosser_schluessel'))) && (!t.braucht || w.besitz.has(t.braucht)) && (t.offen_wenn === undefined || w.moeglich(t.offen_wenn, id)))) { zurueck.add(id); geaendert = true; }
+    for (const [key, [id, k]] of w.knoten) {
+      if (zurueck.has(key)) continue;
+      if (Object.entries(raeume[id].tueren).some(([dir, t]) => { const tk = info[id].wege.tuerTeil(dir); return (tk < 0 || tk === k) && zurueckTuer(id, dir, t); })) { zurueck.add(key); geaendert = true; }
     }
   }
-  const sackgassen = Object.keys(raeume).filter(id => w.stufe[id] !== undefined && !zurueck.has(id));
-  if (sackgassen.length) erg.hinweise.push(`Aus Raum ${sackgassen.map(nr).join(', ')} führt kein Weg zurück zum Start. Gewollt (Ende)? Sonst sitzt man dort fest.`);
-  for (const [id, i] of Object.entries(info)) if (w.stufe[id] !== undefined) for (const tr of i.truhen) if (!w.truhen.has(tr.key)) erg.hinweise.push(`Raum ${nr(id)}: Die Truhe (${tr.inhalt}) erscheint nie – ihre Bedingung ist nicht erfüllbar.`);
+  const tuerenIm = (id, k) => Object.keys(raeume[id].tueren).filter(dir => info[id].wege.tuerTeil(dir) === k).map(TUERNAME);
+  const sackgassen = [];
+  for (const id of Object.keys(raeume)) {
+    const fest = [...w.knoten.values()].filter(([r, k]) => r === id && !zurueck.has(r + '|' + k));
+    if (!fest.length) continue;
+    const teilweise = [...w.knoten.values()].some(([r, k]) => r === id && zurueck.has(r + '|' + k)), t = fest.flatMap(([, k]) => tuerenIm(id, k));
+    sackgassen.push(teilweise && t.length ? `${nr(id)} (Weg über Tür ${t.join(', ')})` : nr(id));
+  }
+  if (sackgassen.length) erg.hinweise.push(`Aus Raum ${sackgassen.join(', ')} führt kein Weg zurück zum Start. Gewollt (Ende)? Sonst sitzt man dort fest.`);
+  for (const id of Object.keys(raeume)) if (w.stufe[id] !== undefined) for (let k = 0; k < info[id].wege.anzahl; k++) {   // Wege, auf die man nie kommt
+    const t = tuerenIm(id, k), ziele = Object.entries(raeume[id].tueren).filter(([dir]) => info[id].wege.tuerTeil(dir) === k).map(([, x]) => x.ziel);
+    if (t.length && !w.knoten.has(id + '|' + k) && ziele.every(z => w.stufe[z] !== undefined)) erg.hinweise.push(`Raum ${nr(id)}: Der Weg über Tür ${t.join(', ')} ist nie erreichbar – von dort führt keine offene Tür hinein, und im Raum trennen ihn Mauern, Abgründe oder feste Objekte.`);
+  }
+  for (const [id, i] of Object.entries(info)) if (w.stufe[id] !== undefined) for (const tr of i.truhen) if (!w.truhen.has(tr.key))
+    erg.hinweise.push(tr.teile && !tr.teile.length ? `Raum ${nr(id)}: Die Truhe (${tr.inhalt}) auf ${tr.feld.join(',')} ist eingemauert – kein Feld daneben ist begehbar.`
+      : tr.teile && !w.erreicht(id, tr.teile) ? `Raum ${nr(id)}: Die Truhe (${tr.inhalt}) auf ${tr.feld.join(',')} liegt auf einem Weg durch den Raum, den man nie erreicht.`
+      : `Raum ${nr(id)}: Die Truhe (${tr.inhalt}) erscheint nie – ihre Bedingung ist nicht erfüllbar.`);
   const schloesser = Object.entries(raeume).reduce((n, [id, r]) => n + Object.entries(r.tueren).filter(([dir, t]) => t.schloss === true && !(raeume[t.ziel] && raeume[t.ziel].tueren[GEGENUEBER[dir]] && raeume[t.ziel].tueren[GEGENUEBER[dir]].schloss === true && t.ziel < id)).length, 0);
   if (w.schluessel > schloesser) erg.hinweise.push(`${w.schluessel} Schlüssel, aber nur ${schloesser} Schlosstüren – ${w.schluessel - schloesser} bleiben übrig.`);
   return erg;

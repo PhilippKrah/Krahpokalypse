@@ -228,11 +228,11 @@
       feld: Array.from({ length: H }, (_, r) => Array.from({ length: W }, (_, c) => nr[zelle(c, r)])), zeitlaeufe: zeitlaeufe(D, raum, z) };
   }
 
-  // Was erreicht man ab einer Tür – mit Schieben, Zeitschaltern und Ereignissen (für die Ansicht im Editor)?
+  // Was erreicht man ab einer Tür (oder einem Feld [c, r]) – mit Schieben, Zeitschaltern und Ereignissen (für die Ansicht im Editor)?
   function erreichbarAb(D, dg, rid, tuer, zustand) {
     const raum = baueRaeume(D, { raeume: { [rid]: dg.raeume[rid] } })[rid];
     const z = { sig: new Set(zustand.signale || []), items: new Set(zustand.besitz || []), krist: zustand.kristalle || {}, geraeumt: true };
-    const a = analyse(D, raum, eingang(tuer)[0], raum.bloecke.slice().sort((x, y) => x - y), new Set(), z, 200000);
+    const a = analyse(D, raum, Array.isArray(tuer) ? zelle(Math.floor(tuer[0]), Math.floor(tuer[1])) : eingang(tuer)[0], raum.bloecke.slice().sort((x, y) => x - y), new Set(), z, 200000);
     const zellen = []; for (let i = 0; i < W * H; i++) if (a.reach[i]) zellen.push([spalte(i), zeile(i)]);
     return { zellen, tueren: [...a.tueren.keys()], truhen: raum.truhen.filter(t => a.truhen.has(t.key)).map(t => t.inhalt), kristalle: a.kristalle.map(k => k.typ),
       signale: [...a.sig], fallen: a.fallen, beispielFalle: a.beispielFalle, voll: a.voll, stellungen: a.zustaende };
@@ -438,9 +438,11 @@
 
   // ---------- Raumauftrag prüfen (Creator, je Raum) ----------
   // auftrag: { eingaenge: [{ id, zelle: [c, r] }], ziele: [{ id, art: 'truhe' | 'gegner' | 'signal', key, zelle, zellen, signal }],
-  //            laeufe: [{ id, signale: [], besitz: [], geraeumt }] }
+  //            laeufe: [{ id, signale: [], besitz: [], geraeumt }], wege: { punkte: [{ id, zelle }], lauf } (optional) }
   // Ergebnis: je Lauf und Eingang die erreichten Ziel-IDs. Kristallfarben: jede Kombination der Typen, die der Raum kennt
   // (Kristalle schaltet man meist auch anderswo um) – erreicht ist, was in irgendeiner Kombination erreichbar ist.
+  // Mit wege dazu je Punkt (Tür oder Startfeld) die Türen, die man von dort im Zustand lauf erreicht: so prüft der Creator,
+  // ob unabhängige Wege durch den Raum wirklich getrennt sind und zusammenhängt, was zusammengehört.
   function pruefeRaum(D, dg, rid, auftrag, grenze = 40000) {
     const raum = baueRaeume(D, { raeume: { [rid]: dg.raeume[rid] } })[rid];
     const typen = [...new Set([...[...raum.bezug].filter(s => s.includes('=')).map(s => s.startsWith('=') ? s.slice(1) : s.split('=')[0]), ...raum.kristalle.map(k => k.typ)])].filter(t => D.kristalltypen[t]);
@@ -451,22 +453,35 @@
     const trifft = (a, z) => z.art === 'truhe' ? a.truhen.has(z.key) : z.art === 'gegner' ? nahAn(a, zelle(z.zelle[0], z.zelle[1]))
       : a.sig.has(z.signal) || (z.zellen || []).some(f => a.reach[zelle(f[0], f[1])]);
     const merk = new Map(), aus = {}; let voll = true;
+    const lauf = (st, l, krist) => {
+      const key = st + '|' + l.signale.slice().sort().join(',') + '|' + l.besitz.slice().sort().join(',') + '|' + JSON.stringify(krist) + '|' + (l.geraeumt !== false);
+      let a = merk.get(key);
+      if (!a) { a = analyse(D, raum, st, raum.bloecke.slice().sort((x, y) => x - y), new Set(), { sig: new Set(l.signale), items: new Set(l.besitz), krist, geraeumt: l.geraeumt !== false }, grenze); merk.set(key, a); }
+      if (!a.voll) voll = false;
+      return a;
+    };
     for (const l of auftrag.laeufe) {
       const erg = {};
       for (const e of auftrag.eingaenge) {
         const st = zelle(e.zelle[0], e.zelle[1]), erreicht = new Set();
         for (const krist of kombis) {
-          const key = st + '|' + l.signale.slice().sort().join(',') + '|' + l.besitz.slice().sort().join(',') + '|' + JSON.stringify(krist) + '|' + (l.geraeumt !== false);
-          let a = merk.get(key);
-          if (!a) { a = analyse(D, raum, st, raum.bloecke.slice().sort((x, y) => x - y), new Set(), { sig: new Set(l.signale), items: new Set(l.besitz), krist, geraeumt: l.geraeumt !== false }, grenze); merk.set(key, a); }
-          if (!a.voll) voll = false;
+          const a = lauf(st, l, krist);
           for (const z of auftrag.ziele) if (!erreicht.has(z.id) && trifft(a, z)) erreicht.add(z.id);
         }
         erg[e.id] = [...erreicht];
       }
       aus[l.id] = erg;
     }
-    return { laeufe: aus, voll };
+    let wege = null;
+    if (auftrag.wege) {
+      wege = {};
+      for (const e of auftrag.wege.punkte) {
+        const st = zelle(e.zelle[0], e.zelle[1]), tueren = new Set();
+        for (const krist of kombis) for (const t of lauf(st, auftrag.wege.lauf, krist).tueren.keys()) tueren.add(t);
+        wege[e.id] = [...tueren];
+      }
+    }
+    return { laeufe: aus, voll, wege };
   }
 
   const Loeser = { loese, pruefePlan, pruefeRaum, raumteile, erreichbarAb, baueRaeume, analyse, eingang, TUERNAME };

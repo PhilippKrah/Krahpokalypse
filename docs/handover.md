@@ -318,6 +318,24 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   Das Standalone (`einzelspiel.py fuchsfeste`) ist damit zweisprachig; `--sprache en`
   baut ein rein englisches Paket. Im Creator-Raumplan lassen sich jetzt alle drei
   Türen einer Wand anlegen und einstellen (vorher nur die Mitte).
+  **Unabhängige Wege durch einen Raum** (der Eingang ist relativ): Spiel (Neustart,
+  Abgrund, Spielstand am Eintrittspunkt), Löser (Ort = Raumteil im Zustand) und die
+  Python-Generatoren rechneten schon immer ab der Tür, durch die man kommt. Jetzt auch
+  die Stufen-Logik (`pruefeLogik`): Orte sind Raumteile aus `wegeImRaum` (getrennt nur
+  durch, was sich nie ändert – Mauern, feste Objekte ohne Bedingung, Abgründe in Räumen
+  ohne Block), Truhen und bleibende Platten zählen nur in ihrem Teil, Rückweg je Teil,
+  neue Meldungen für unerreichbare Wege. Bei den eingebauten Dungeons ändert sich nichts
+  (keiner hat statisch getrennte Türen). Test-Vorgaben: Eingang = Tür, durch die man den
+  Raum laut Logik zuerst betritt, Stand je Eingang (`vorherTuer`). Im Creator-Raumplan
+  „Wege durch den Raum“: je Tür (und Startpunkt) eine Weg-Nummer, gespeichert in
+  `plan.raeume[raum].wege`; sich kreuzende Wege werden gemeldet. Schritt 4 prüft den
+  gebauten Raum dagegen (Löser `pruefeRaum` mit `wege`: Türen je Punkt), „✨ Raum
+  vorschlagen“ legt Bausteine auf ihren Weg, zieht Trennmauern (`trenneWege`) und
+  verbindet nur je Weg; „Automatisch befüllen“ im Editor ebenso. Getestet: 150/150
+  Vorschläge mit zwei Wegen gültig. Dabei behoben: In `creator.js` verdeckte die
+  Ereignis-Anmeldung (`verbinde()`) die gleichnamige Wege-Funktion des Raumvorschlags –
+  Vorschläge räumten nie Wege frei, und jeder Vorschlag meldete die Klicks des Creators
+  noch einmal an (Klicks wirkten danach mehrfach); heißt jetzt `meldeAn()`.
   Damit sind die vier abgestimmten Etappen des Creators fertig. Mögliche nächste
   Schritte: mehr Stile und Bausteine, Raumgrößen, Mobil-Bedienung des Creators,
   Randomizer auf Basis von Plan und Löser.
@@ -325,7 +343,8 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   Löcher nach unten), Erzählung über die Umgebung, große Räume mit mitlaufender
   Kamera, die Kernmechanik des Tutorials (nicht „Rückstoß“ – kommt später),
   weitere Waffen-Grundtypen (Speer, Keule, Peitsche, Wurfwaffe), Kristallzustand
-  in den Test-Vorgaben, Wege innerhalb eines Raums für den Randomizer.
+  in den Test-Vorgaben, Wege innerhalb eines Raums für den Randomizer (Grundlage:
+  `wegeImRaum` und die Wege im Plan).
   Plan: weitere Probe-Räume, daraus ein Tutorial; Raum-/Dungeonformen und
   Randomizer danach. Teststart `?dungeon=<id>&raum=<id>`.
   Grafik aus dem Gutsverwalter-Atlas, eingebettet per `atlas_bauen.py`.
