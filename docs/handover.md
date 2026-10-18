@@ -336,6 +336,9 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   Ereignis-Anmeldung (`verbinde()`) die gleichnamige Wege-Funktion des Raumvorschlags –
   Vorschläge räumten nie Wege frei, und jeder Vorschlag meldete die Klicks des Creators
   noch einmal an (Klicks wirkten danach mehrfach); heißt jetzt `meldeAn()`.
+  **Design-Leitlinien:** [spieldesign-saeulen.md](spieldesign-saeulen.md) – die 5 Säulen
+  für maximale Spieldichte (radikale Relevanz, Brotkrumen statt Questmarker, emotionaler
+  Rhythmus, keine Trash-Mobs, Show don’t tell). Gelten für alles weitere Spieldesign.
   Damit sind die vier abgestimmten Etappen des Creators fertig. Mögliche nächste
   Schritte: mehr Stile und Bausteine, Raumgrößen, Mobil-Bedienung des Creators,
   Randomizer auf Basis von Plan und Löser.
