@@ -748,7 +748,8 @@ const Editor = (() => {
       ${feld('Titel', textfeld('r.titel', r.titel))}
       <div class="zeile">${feld('Nr.', textfeld('r.nr', r.nr))}${feld('Licht', auswahlfeld('r.licht', typeof r.licht === 'number' ? 'hell' : (r.licht || 'hell'), { hell: 'hell', daemmrig: 'dämmrig', dunkel: 'dunkel', finster: 'finster' }))}</div>
       <small class="erkl">Licht: Ohne Laterne sieht man im Dunkeln nur einen kleinen Schein; Fackeln und Laterne leuchten. Eine Lichtkarte (je Feld 0–9) geht unter „Erweitert“.</small>
-      <label class="klein"><input type="checkbox" data-f="r.kampf"${r.kampf ? ' checked' : ''}> Kampfraum (Türen erst offen, wenn geräumt; Gegner kommen nicht wieder)</label>
+      <label class="klein"><input type="checkbox" data-f="r.kampf"${r.kampf ? ' checked' : ''}> Kampfraum (Türen erst offen, wenn geräumt)</label>
+      ${r.kampf ? `<label class="klein einzug"><input type="checkbox" data-f="r.kampf_neu"${r.kampf_neu ? ' checked' : ''}> Kampf bei jedem Betreten neu (sonst bleibt der Raum nach dem Sieg frei) – z. B. als Strafe fürs Hin-und-her-Laufen; Bosse und Gegner mit Signal bleiben besiegt</label>` : ''}
       ${feld('Einstiegstext', `<textarea data-f="r.einstieg" rows="2" placeholder="erscheint beim ersten Betreten">${esc(r.einstieg)}</textarea>`)}
       ${feld('Wellen', wellenFormular(r), 'Nach den Gegnern im Raum kommen die Wellen nacheinander. Am besten zusammen mit „Kampfraum“.')}
       <div class="knoepfe"><button data-a="testraum" class="haupt">▶ Raum testen</button><button data-a="startraum"${d.start.raum === Z.raum ? ' disabled' : ''}>Als Startraum</button><button data-a="raumloeschen" class="gefahr">Löschen</button></div>
@@ -881,6 +882,7 @@ const Editor = (() => {
         }
       }
       if (wert === '' || wert === false) delete r[schluessel]; else r[schluessel] = wert;
+      if (schluessel === 'kampf' && !wert) delete r.kampf_neu;
       if (schluessel === 'kampf') renderRechts();
     } else if (bereich === 'a') {
       const a = r[Z.auswahl.liste][Z.auswahl.i];
@@ -1232,6 +1234,7 @@ const Editor = (() => {
     }
     el.innerHTML = `<div class="spalte breit">
       ${loeserHtml()}
+      ${typeof Creator !== 'undefined' ? Creator.designHtml(d, Creator.designPruefung(d), 'editor') : ''}
       <h3>Prüfung: ${p.fehler.length ? `<span class="rot">${p.fehler.length} Fehler</span>` : '<span class="gruen">lösbar</span>'}${p.hinweise.length ? ` · <span class="gelb">${p.hinweise.length} Hinweise</span>` : ''}</h3>
       ${liste(p.fehler, 'fehler')}${liste(p.hinweise, 'hinweis')}
       <h3>Ablauf in Stufen</h3>
@@ -1486,7 +1489,7 @@ const Editor = (() => {
     ['Grundidee', `Ein <b>Dungeon</b> besteht aus Räumen auf einem Raster. Jeder Raum ist 20 × 15 Felder groß; der Rand ist Mauer, Türen liegen an festen Stellen: in der Mitte jeder Seite und auf Wunsch zwei weitere je Wand (links/rechts bzw. oben/unten).
       Du malst Gelände, setzt Objekte und Gegner, stellst Türen ein und testest sofort. Alles wird automatisch im Browser gespeichert – <b>Export</b> sichert es als Datei.`],
     ['Räume und Karte', `Links die Dungeon-Karte: Raum anklicken = bearbeiten, „+“ = neuen Raum anlegen (neben dem gewählten gleich mit Tür). ★ ist der Startraum.
-      Rechts die Einstellungen des Raums: Titel, Licht, Kampfraum (Türen erst offen, wenn alle Gegner besiegt sind), Einstiegstext, Wellen, Türen, Ereignisse.
+      Rechts die Einstellungen des Raums: Titel, Licht, Kampfraum (Türen erst offen, wenn alle Gegner besiegt sind; wahlweise beginnt der Kampf bei jedem Betreten neu), Einstiegstext, Wellen, Türen, Ereignisse.
       „Automatisch befüllen“ verteilt Hindernisse, Büsche, Abgründe und Gegner so, dass alle Türen erreichbar bleiben – plant der Creator getrennte Wege durch den Raum, zieht es zuerst Trennmauern und hält je Weg die Türen verbunden.`],
     ['Malen', `Werkzeuge oben: <b>Auswählen</b> (Objekt/Gegner anklicken und rechts einstellen), <b>Pipette</b> (übernimmt ein Feld samt Einstellungen; auch Alt+Klick),
       <b>Radierer</b> (auch rechte Maustaste), <b>Startpunkt</b>. Form <b>Rechteck</b> (oder Umschalt+Ziehen) füllt Flächen. Ein eingestelltes Objekt ist Vorlage für alle weiteren seiner Art.
@@ -1518,7 +1521,8 @@ const Editor = (() => {
     ['Prüfung und Logik', `Oben rechts steht der Prüfstatus: grün = alles lösbar, gelb = Hinweise, rot = Fehler. Die Prüfung läuft kurz nach jeder Änderung und spielt den Dungeon
       gedanklich durch (Reiter <b>Logik</b>): Welche Räume sind in welcher Stufe erreichbar, was gibt es dort, welche Tür braucht was? Sie findet z. B. einen Gegner, dessen Signal
       seine eigene Tür öffnen soll, Schlüssel-Fallen und Räume ohne Rückweg. Sie rechnet je Raumteil: Trennen Mauern, feste Objekte oder Abgründe (ohne Block im Raum) die Türen eines Raums,
-      sind das unabhängige Wege – wer durch eine Tür hereinkommt, erreicht nur die Türen und Truhen auf deren Weg. Ob ein Rätsel <i>innerhalb</i> eines Raumteils lösbar ist (Pflöcke, Blöcke, Kristalle), prüft sie nicht – dafür gibt es den <b>Löser</b> (unten) und „Raum testen“.`],
+      sind das unabhängige Wege – wer durch eine Tür hereinkommt, erreicht nur die Türen und Truhen auf deren Weg. Ob ein Rätsel <i>innerhalb</i> eines Raumteils lösbar ist (Pflöcke, Blöcke, Kristalle), prüft sie nicht – dafür gibt es den <b>Löser</b> (unten) und „Raum testen“.
+      Darunter steht die <b>Design-Prüfung</b> nach den 5 Säulen (docs/spieldesign-saeulen.md): Räume ohne Funktion und lange leere Wege, Brotkrumen (Sperre vor der Lösung gesehen?), Rhythmus aus Anspannung und Ruhe, Gegner ohne Zweck und ob jede Mechanik zuerst gefahrlos eingeführt wird – nur Hinweise, ein Klick auf „Raum …“ öffnet ihn.`],
     ['Raumteile', `Knopf <b>Raumteile</b> (Werkzeugleiste, Gruppe „Ansicht“) färbt die zusammenhängenden Flächen des Raums ein und schreibt an jede Tür den Buchstaben ihres Teils.
       Mauern, Abgründe und hochgefahrene Pflöcke trennen, Blöcke gelten als verschiebbar. So siehst du sofort, welche Türen zusammengehören – und ob eine Tür z. B. nur über einen anderen Raum erreichbar ist.
       Rechts stellst du den <b>Zustand</b> ein: Farbe jedes Kristalltyps, Signale und Gegenstände, die der Raum abfragt. Mit <b>Ab Eingang erreichbar</b> rechnet der Editor ab einer Tür alles durch –
@@ -1651,7 +1655,7 @@ const Editor = (() => {
   #editor .knoepfe{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0} #editor .zeile{display:flex;gap:8px} #editor .zeile>*{flex:1}
   #editor .feld{display:block;margin:6px 0} #editor .feld>span{display:block;color:#a9b2b0;font-size:12px;margin-bottom:2px}
   #editor .feld input,#editor .feld select{width:100%;box-sizing:border-box} #editor .feld i{font-style:normal;color:#8098cc;cursor:help}
-  #editor .klein{font-size:12px;color:#a9b2b0} #editor label.klein{display:block;margin:3px 0}
+  #editor .klein{font-size:12px;color:#a9b2b0} #editor label.klein{display:block;margin:3px 0} #editor label.einzug{margin-left:20px}
   #editor .kartenrahmen{overflow:auto;max-height:260px;border:1px solid #2e313b} #editor #ed-karte{display:block;cursor:pointer}
   #editor #ed-raum{display:block;width:100%;max-width:960px;image-rendering:pixelated;cursor:crosshair;border:1px solid #2e313b}
   #editor #ed-werkzeuge{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px}
