@@ -336,6 +336,24 @@ Dieses Repo ist inzwischen mehr als die To-Do-App:
   Ereignis-Anmeldung (`verbinde()`) die gleichnamige Wege-Funktion des Raumvorschlags –
   Vorschläge räumten nie Wege frei, und jeder Vorschlag meldete die Klicks des Creators
   noch einmal an (Klicks wirkten danach mehrfach); heißt jetzt `meldeAn()`.
+  **Creator nach den 5 Säulen:** Schritt 2 ist jetzt eine waagerechte **Etappen-Zeitleiste**
+  statt des verschachtelten Baums (`plan.etappen`, `etappe` je Element, ohne Angabe aus der
+  Kette der „braucht“; neue Elemente brauchen automatisch, was die Etappe davor liefert). Je
+  Etappe Name, Spannung (auto/Ruhe/mittel/hart), geplante Räume je Rolle; darunter eine
+  Spannungskurve mit Rhythmus-Hinweisen und eine Brotkrumen-Liste (`sichtbarAb`: in welcher
+  Etappe man die Sperre zuerst sieht). Im Raumplan hat jeder Raum Etappe (Farbe) und **Rolle**
+  mit großem Symbol (`plan.raeume[raum].rolle`: 🧩 raetsel, ⚔️ kampf, 💎 belohnung, 🔥 ruhe,
+  👣 durchgang, 💀 boss; `ROLLEN` in `creator.js`), links je Etappe, was noch fehlt.
+  **Design-Prüfung** (`designPruefung`, Creator-Schritt 5 und Editor-Reiter „Logik“): Hinweise
+  zu Relevanz (Räume ohne Funktion, leere Wege ab 10 Feldern), Brotkrumen (Stufe der Sperre
+  gegen Stufe der Lösung), Rhythmus (Spannung je Etappe/Stufe), Trash-Mobs (Gegner ohne Zweck)
+  und Show-don’t-tell (erste Mechanik gefahrlos, eine nach der anderen). Raumvorschlag nach
+  Rolle (Ruhe: Fackeln, keine Gegner; Kampf: Kampfraum mit 3–4 verschiedenen Gegnern;
+  Durchgang: Stil „Enger Gang“), Gegnerwahl „viele“ entfällt, neue Mechaniken kommen als
+  Einführung (ohne Gegner, Zeitlauf 6 s). Generatoren setzen keine Schilder. Kampfräume
+  optional mit `kampf_neu`: Kampf bei jedem Betreten neu (Spiel setzt „geräumt“ beim
+  Betreten zurück; Bosse und Gegner mit Signal bleiben besiegt). Die alten Dungeons bestehen
+  die Design-Prüfung erwartungsgemäß nicht – neue Dungeons sollen danach entstehen.
   **Design-Leitlinien:** [spieldesign-saeulen.md](spieldesign-saeulen.md) – die 5 Säulen
   für maximale Spieldichte (radikale Relevanz, Brotkrumen statt Questmarker, emotionaler
   Rhythmus, keine Trash-Mobs, Show don’t tell). Gelten für alles weitere Spieldesign.

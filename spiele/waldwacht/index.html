@@ -33,7 +33,9 @@
                    weiter [{wenn: zeit|zufall|lp|angriff|treffer|signal, …, ziel: Nr|"zufall"}]}] · wendepunkte [{wenn: lp|signal, ziel, text, ruft}]
     gegenstaende bild, text, wirkung {schluessel|laterne|…: Anzahl, maxLp, heilen}, leuchtet (Held trägt Licht)
     dungeons     titel, start {raum, feld}, raeume { id: raum }
-    raum         nr, titel, licht (Stufe oder 0..1), lichtkarte (Ziffern 0–9 je Feld), kampf (geräumt bleibt geräumt),
+    raum         nr, titel, licht (Stufe oder 0..1), lichtkarte (Ziffern 0–9 je Feld), kampf (geräumt bleibt geräumt;
+                 mit kampf_neu beginnt der Kampf bei jedem Betreten neu – Strafe fürs Hin-und-her-Laufen; Bosse und Gegner
+                 mit Signal bleiben besiegt),
                  karte (15 Zeilen × 20 Zeichen), zeichen, objekte [{objekt, feld:[c,r], …}], gegner [{gegner, feld}],
                  gegner [{gegner, feld, signal, weg [[c,r]…], blick, traegt (Gegenstand: fällt beim Besiegen heraus)}],
                  tueren {n|o|s|w: {ziel, schloss (true | "gross"), riegel, braucht (Gegenstand), offen_wenn, merken}}, wellen [[gegnerart…]…], einstieg (Text),
@@ -3977,6 +3979,7 @@ function starteDungeon(dungeonId, raumId, vorgaben = null) {
 function betreteRaum(id, eintritt) {
   S.raum = baueRaum(id);
   const h = S.held, def = S.raum.def;
+  if (def.kampf && def.kampf_neu) S.geraeumt.delete(S.raum.schluessel);   // wiederkehrender Kampf: bei jedem Betreten von vorn
   Object.assign(h, { x: eintritt.x, y: eintritt.y, blick: eintritt.blick, modus: 'normal', t: 0, anim: 0, schieben: 0 });
   S.gegner = []; S.beute = []; S.effekte = []; S.wellen = null; S.live = new Set(); S.geschosse = []; S.gefahren = []; S.banner = null;
   if (!(def.kampf && S.geraeumt.has(S.raum.schluessel))) {
@@ -4266,7 +4269,7 @@ function steuereWellen() {
   if (w.nr >= liste.length) { w.fertig = true; return; }
   w.nr++; w.warteschlange = [...liste[w.nr - 1]]; ton('welle'); w.banner = CFG.welle.banner; w.spawnUhr = CFG.welle.bannerVorlauf; w.ruhe = CFG.welle.pause;
 }
-function pruefeGeraeumt() {   // Kampfraum: geräumt bleibt geräumt (Gegner kommen nicht wieder)
+function pruefeGeraeumt() {   // Kampfraum: geräumt bleibt geräumt (Gegner kommen nicht wieder – außer mit kampf_neu)
   const r = S.raum;
   if (!r.def.kampf || S.geraeumt.has(r.schluessel) || S.einlauf) return;
   if (S.gegner.length || (S.wellen && !S.wellen.fertig)) return;
