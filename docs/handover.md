@@ -98,6 +98,8 @@ Supabase-Projekt erneut gefahren werden, Reihenfolge:
    (vor dem Lauf die E-Mail-Adresse darin prüfen, sie schreibt bestehende
    Aufgaben einem Account zu)
 2. `schema-0.3.sql` — `deferred`
+2a. `schema-0.4.sql` — `sort_order` (Reihenfolge per ↑/↓). **Noch nicht
+   ausgeführt** (Stand 22.10.2026) — muss vor dem Merge auf `main` laufen.
 3. `rls-todos.sql` — räumt **alle** Policies ab und baut die vier eigenen neu auf
 
 **Reihenfolge-Regel bei künftigen Schema-Änderungen:** erst das SQL in Supabase,

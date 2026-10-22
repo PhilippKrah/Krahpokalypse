@@ -274,6 +274,35 @@
             color: white;
         }
 
+        .actions button:disabled {
+            opacity: 0.35;
+        }
+
+        /* Aufgabentext bearbeiten: ersetzt die Zeile, bis OK oder ✕ */
+        .edit-form {
+            flex: 1;
+            display: flex;
+            gap: 6px;
+            padding: 4px 0;
+        }
+
+        .edit-form input {
+            flex: 1;
+            min-width: 0;
+            padding: 8px 10px;
+            font-size: 16px;
+        }
+
+        .edit-form button {
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+
+        .edit-form button.cancel {
+            background: #f3f4f6;
+            color: var(--muted-color);
+        }
+
         .actions button.danger {
             background: #fee2e2;
             color: #ef4444;
@@ -424,6 +453,7 @@
     let currentUserId = null;    // Wer ist angemeldet — entscheidet ueber "meine" Aufgaben
     let openActionsId = null;    // Bei welcher Aufgabe ist die Aktionsleiste offen?
     let composeKey = null;       // In welchem Abschnitt ist die Eingabezeile offen?
+    let editId = null;           // Welche Aufgabe wird gerade umbenannt?
     let quickDate = null;        // Vorgewaehlter Tag fuer das Schnell-Eingabefeld
     let inputMode = localStorage.getItem('inputMode') || 'privat';
     let collapsed = new Set(JSON.parse(localStorage.getItem('collapsed') || '[]'));
@@ -533,32 +563,38 @@
     // --- Gruppierung ---
     // Ordnet jede Aufgabe einem Abschnitt zu. Liegengebliebenes rutscht still
     // nach "Heute" — das gespeicherte Datum bleibt dabei unangetastet.
-    function gruppiere() {
+    function abschnittVon(todo) {
         const heute = heuteIso();
+        if (todo.deferred) return 'spaeter';                 // bewusst weggelegt, unabhaengig vom Datum
+        if (!todo.due_date) return 'ohne';                   // frischer Eingang
+        if (todo.due_date <= heute) return heute;            // Liegengebliebenes rutscht still nach heute
+        if (todo.due_date <= isoInTagen(6)) return todo.due_date;
+        return 'spaeter';                                    // weiter als eine Woche weg
+    }
+
+    // Position innerhalb eines Abschnitts. Ohne eigene Sortierung zaehlt der
+    // Anlegezeitpunkt (in ms) — Neues landet so automatisch unten. Ein Pfeil-Tipp
+    // setzt sort_order auf die Mitte zwischen den neuen Nachbarn, dadurch aendert
+    // sich pro Tipp nur eine einzige Zeile in der Datenbank.
+    function rang(todo) {
+        if (todo.sort_order !== null && todo.sort_order !== undefined) return Number(todo.sort_order);
+        const t = Date.parse(todo.created_at);
+        return isNaN(t) ? 0 : t;
+    }
+
+    function gruppiere() {
         const gruppen = {};
 
         todos.forEach(todo => {
-            let key;
-            if (todo.deferred) {
-                key = 'spaeter';           // bewusst weggelegt, unabhaengig vom Datum
-            } else if (!todo.due_date) {
-                key = 'ohne';              // frischer Eingang
-            } else if (todo.due_date <= heute) {
-                key = heute;               // Liegengebliebenes rutscht still nach heute
-            } else if (todo.due_date <= isoInTagen(6)) {
-                key = todo.due_date;
-            } else {
-                key = 'spaeter';           // weiter als eine Woche weg
-            }
-
+            const key = abschnittVon(todo);
             (gruppen[key] = gruppen[key] || []).push(todo);
         });
 
         // Innerhalb eines Abschnitts: Offenes zuerst, Erledigtes sinkt nach unten
         Object.values(gruppen).forEach(liste => {
-            liste.sort((a, b) => (a.is_completed === b.is_completed)
-                ? String(a.created_at).localeCompare(String(b.created_at))
-                : (a.is_completed ? 1 : -1));
+            liste.sort((a, b) => (a.is_completed !== b.is_completed)
+                ? (a.is_completed ? 1 : -1)
+                : (rang(a) - rang(b)) || String(a.id).localeCompare(String(b.id)));
         });
 
         return gruppen;
@@ -584,20 +620,23 @@
 
         html += abschnitt('spaeter', 'Später', gruppen['spaeter'] || []);
 
-        // Tippt man gerade in der Eingabezeile eines Abschnitts, ueberlebt das
-        // Neuzeichnen (z.B. wenn die Datenbank antwortet) Text und Cursor.
-        // Nur dann — sonst springt jeder Tipp anderswo zurueck zu dieser Zeile.
-        const alt = document.getElementById('composeInput');
-        const tipptGerade = alt && document.activeElement === alt;
-        const getippt = alt ? alt.value : '';
+        // Tippt man gerade in einer Eingabezeile (neue Aufgabe oder Umbenennen),
+        // ueberlebt das Neuzeichnen (z.B. wenn die Datenbank antwortet) Text und
+        // Cursor. Nur dann — sonst springt jeder Tipp anderswo zurueck zu dieser Zeile.
+        // data-key verhindert, dass Text in eine andere Zeile wandert.
+        const gemerkt = ['composeInput', 'editInput'].map(id => {
+            const el = document.getElementById(id);
+            return el && { id, key: el.dataset.key, wert: el.value, fokus: document.activeElement === el };
+        }).filter(Boolean);
 
         container.innerHTML = html;
 
-        const eingabe = document.getElementById('composeInput');
-        if (eingabe) {
-            eingabe.value = getippt;
-            if (tipptGerade) eingabe.focus({ preventScroll: true });
-        }
+        gemerkt.forEach(g => {
+            const el = document.getElementById(g.id);
+            if (!el || el.dataset.key !== g.key) return;
+            el.value = g.wert;
+            if (g.fokus) el.focus({ preventScroll: true });
+        });
 
         zeichneTagwahl();
     }
@@ -640,7 +679,7 @@
             if (composeKey === key) {
                 html += `
                     <form class="compose" onsubmit="addFromCompose(event, '${key}')">
-                        <input type="text" id="composeInput" placeholder="Aufgabe …" autocomplete="off">
+                        <input type="text" id="composeInput" data-key="${key}" placeholder="Aufgabe …" autocomplete="off">
                         <button type="submit">OK</button>
                     </form>`;
             }
@@ -658,6 +697,18 @@
         const fremd = todo.user_id && todo.user_id !== currentUserId;
         const liegengeblieben = !todo.deferred && !todo.is_completed
             && todo.due_date && todo.due_date < heuteIso();
+
+        if (String(editId) === String(todo.id)) {
+            return `
+                <li class="todo-item">
+                    <form class="edit-form" onsubmit="saveEdit(event, '${todo.id}')">
+                        <input type="text" id="editInput" data-key="${todo.id}" value="${escapeHtml(todo.task)}"
+                               autocomplete="off" onkeydown="if (event.key === 'Escape') cancelEdit()">
+                        <button type="submit">OK</button>
+                        <button type="button" class="cancel" onclick="cancelEdit()" title="Abbrechen">✕</button>
+                    </form>
+                </li>`;
+        }
 
         let html = `
             <li class="todo-item">
@@ -693,6 +744,15 @@
         const ohne = (!todo.deferred && !todo.due_date) ? 'current' : '';
         buttons += `<button class="${ohne}" onclick="setDueDate('${todo.id}', null)">Ohne Datum</button>`;
         buttons += `<button class="${todo.deferred ? 'current' : ''}" onclick="setDeferred('${todo.id}')">Später</button>`;
+        buttons += `<button onclick="startEdit('${todo.id}')">✏️ Ändern</button>`;
+
+        // Sortieren nur unter dem Offenen eines Abschnitts — Erledigtes sinkt ohnehin nach unten
+        if (!todo.is_completed) {
+            const offen = offeneImAbschnitt(todo);
+            const i = offen.indexOf(todo);
+            buttons += `<button onclick="moveTodo('${todo.id}', -1)" ${i <= 0 ? 'disabled' : ''} title="Nach oben">↑</button>`;
+            buttons += `<button onclick="moveTodo('${todo.id}', 1)" ${i >= offen.length - 1 ? 'disabled' : ''} title="Nach unten">↓</button>`;
+        }
         buttons += `<button onclick="toggleVisibility('${todo.id}')">${todo.visibility === 'geteilt' ? '🔒 Nur ich' : '👥 Teilen'}</button>`;
         buttons += `<button class="danger" onclick="deleteTodo('${todo.id}')">Löschen</button>`;
 
@@ -714,7 +774,76 @@
 
     function openActions(id) {
         openActionsId = String(openActionsId) === String(id) ? null : id;
+        editId = null;
         renderTodos();
+    }
+
+    // --- Umbenennen ---
+
+    function startEdit(id) {
+        editId = id;
+        openActionsId = null;
+        renderTodos();
+
+        const eingabe = document.getElementById('editInput');
+        if (eingabe) {
+            eingabe.focus();
+            eingabe.setSelectionRange(eingabe.value.length, eingabe.value.length); // Cursor ans Ende
+        }
+    }
+
+    function cancelEdit() {
+        editId = null;
+        renderTodos();
+    }
+
+    async function saveEdit(event, id) {
+        event.preventDefault();
+        const todo = findTodo(id);
+        const text = document.getElementById('editInput').value.trim();
+        editId = null;
+
+        // Leerer Text loescht nicht — dafuer gibt es den Loeschen-Knopf
+        if (!todo || text === '' || text === todo.task) {
+            renderTodos();
+            return;
+        }
+
+        const vorher = { task: todo.task };
+        todo.task = text;
+        renderTodos();
+
+        await speichere(id, { task: text }, vorher);
+    }
+
+    // --- Sortieren ---
+
+    function offeneImAbschnitt(todo) {
+        return (gruppiere()[abschnittVon(todo)] || []).filter(t => !t.is_completed);
+    }
+
+    // Eine Stelle nach oben (-1) oder unten (+1). Die Aktionsleiste bleibt offen,
+    // damit man mehrmals hintereinander tippen kann.
+    async function moveTodo(id, richtung) {
+        const todo = findTodo(id);
+        if (!todo) return;
+
+        const offen = offeneImAbschnitt(todo);
+        const i = offen.indexOf(todo);
+        const nachbar = offen[i + richtung];
+        if (!nachbar) return;
+        const dahinter = offen[i + 2 * richtung];
+
+        // Mitte zwischen Nachbar und dem dahinter; am Rand eine Sekunde weiter
+        const neu = dahinter
+            ? (rang(nachbar) + rang(dahinter)) / 2
+            : rang(nachbar) + richtung * 1000;
+
+        const vorher = { sort_order: todo.sort_order === undefined ? null : todo.sort_order };
+        todo.sort_order = neu;
+        renderTodos();
+
+        await speichere(id, { sort_order: neu }, vorher);
     }
 
     function openCompose(key) {
