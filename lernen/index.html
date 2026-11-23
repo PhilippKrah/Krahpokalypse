@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Lernkarten</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#f4f3f8" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#15141c" media="(prefers-color-scheme: dark)">
+    <link rel="apple-touch-icon" href="../icons/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Lernkarten">
+    <style>
+        :root {
+            --grund: #f4f3f8; --blatt: #ffffff; --tinte: #1f1d2b; --leise: #66637a; --linie: #e2e0ec;
+            --haupt: #4f46e5; --auf-haupt: #ffffff; --hell: #eeecfb;
+            --gut: #17784f; --gut-grund: #dcf3e8; --schlecht: #b3332e; --schlecht-grund: #fbe4e2;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --grund: #15141c; --blatt: #201f2a; --tinte: #ecebf3; --leise: #a3a0b8; --linie: #35333f;
+                --haupt: #a5a0ff; --auf-haupt: #15141c; --hell: #2b2940;
+                --gut: #6fd6a6; --gut-grund: #16382a; --schlecht: #f3948e; --schlecht-grund: #43211f;
+            }
+        }
+        * { box-sizing: border-box; }
+        [hidden] { display: none !important; }
+        html, body { height: 100%; }
+        body {
+            margin: 0; background: var(--grund); color: var(--tinte);
+            font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overscroll-behavior: none;
+        }
+        main { max-width: 560px; height: 100dvh; margin: 0 auto; padding: max(12px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; }
+        h1 { font-size: 26px; line-height: 1.2; margin: 0; }
+        h3 { font-size: 14px; margin: 0 0 4px; color: var(--leise); font-weight: 600; display: flex; gap: 8px; align-items: center; }
+        p { margin: 0 0 8px; } p:last-child { margin-bottom: 0; }
+        a { color: var(--haupt); }
+        .leise { color: var(--leise); font-size: 15px; }
+        button { font: inherit; font-weight: 600; border: 0; border-radius: 14px; padding: 14px 18px; min-height: 52px; background: var(--haupt); color: var(--auf-haupt); cursor: pointer; touch-action: manipulation; }
+        button:disabled { background: var(--linie); color: var(--leise); cursor: default; }
+        button.zweit { background: var(--hell); color: var(--haupt); }
+        button.schlicht { background: transparent; color: var(--haupt); min-height: 44px; padding: 8px 12px; }
+        :focus-visible { outline: 3px solid var(--haupt); outline-offset: 2px; }
+
+        .mitte { margin: auto 0; display: grid; gap: 20px; }
+        .zahlen { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .zahl { background: var(--blatt); border: 1px solid var(--linie); border-radius: 18px; padding: 16px; }
+        .zahl b { display: block; font-size: 44px; line-height: 1; font-variant-numeric: tabular-nums; }
+        .regler { display: flex; align-items: center; gap: 6px; justify-content: space-between; }
+        .regler div { display: flex; align-items: center; gap: 4px; }
+        .regler output { min-width: 2ch; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .regler button { min-height: 44px; min-width: 44px; padding: 0; background: var(--hell); color: var(--haupt); }
+        form { display: grid; gap: 12px; }
+        label { display: grid; gap: 4px; font-size: 15px; }
+        input { font: inherit; padding: 12px; border: 1px solid var(--linie); border-radius: 12px; background: var(--blatt); color: inherit; min-width: 0; }
+        .fehler { color: var(--schlecht); min-height: 1.5em; margin: 0; }
+
+        #karte { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+        .kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .kopf button { min-width: 44px; }
+        .balken { height: 4px; border-radius: 2px; background: var(--linie); overflow: hidden; }
+        .balken i { display: block; height: 100%; background: var(--haupt); transform-origin: left; transform: scaleX(0); transition: transform .25s; }
+        #blatt {
+            flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; background: var(--blatt);
+            border: 2px solid var(--linie); border-radius: 22px; padding: 20px;
+            touch-action: pan-y; user-select: none; -webkit-user-select: none; transition: border-color .12s, background-color .12s;
+        }
+        #blatt[data-neigung="gut"] { border-color: var(--gut); background: var(--gut-grund); }
+        #blatt[data-neigung="schlecht"] { border-color: var(--schlecht); background: var(--schlecht-grund); }
+        .lage { font-size: 20px; line-height: 1.45; overflow-wrap: anywhere; }
+        .stufe { border-top: 1px solid var(--linie); margin-top: 18px; padding-top: 16px; overflow-wrap: anywhere; }
+        .antwort { font-size: 18px; }
+        .denk { color: var(--leise); font-size: 18px; }
+        .warum, .auch, .punkte { font-size: 15px; color: var(--leise); margin-top: 12px; }
+        .punkte { padding-left: 20px; margin-bottom: 0; }
+        .auch span { font-weight: 600; }
+        ul { margin: 0 0 8px; padding-left: 20px; }
+        .marke { font-size: 13px; border-radius: 999px; padding: 1px 9px; }
+        .marke.gut { background: var(--gut-grund); color: var(--gut); }
+        .marke.schlecht { background: var(--schlecht-grund); color: var(--schlecht); }
+        .prinzip { margin-top: 18px; padding: 16px; border-radius: 16px; background: var(--hell); }
+        .prinzip h3 { color: var(--tinte); font-size: 17px; }
+        .gegen { font-weight: 600; } .thema { color: var(--leise); font-size: 14px; }
+        .knoepfe { display: grid; gap: 12px; }
+        .knoepfe .paar { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        #gut, #schlecht { min-height: 64px; }
+        #schlecht { background: var(--schlecht-grund); color: var(--schlecht); }
+        #gut { background: var(--gut-grund); color: var(--gut); }
+        /* Der Platz bleibt frei, damit die Knöpfe nicht unter dem Finger wegrutschen */
+        #meldung[hidden] { display: flex !important; visibility: hidden; }
+        #meldung { display: flex; margin-top: 10px; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 4px 2px 14px; min-height: 44px; border-radius: 14px; background: var(--hell); font-size: 14px; }
+        #meldung button { flex: none; }
+        .kopf .rechts { display: flex; }
+        .fussreihe { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        #notizDialog { width: min(92vw, 520px); border: 0; border-radius: 20px; padding: 20px; background: var(--blatt); color: var(--tinte); }
+        #notizDialog::backdrop { background: rgba(0, 0, 0, .45); }
+        #notizDialog h2 { margin: 0 0 4px; font-size: 20px; }
+        #notizDialog form { display: grid; gap: 12px; }
+        #notizDialog textarea { font: inherit; width: 100%; min-height: 9em; padding: 12px; border: 1px solid var(--linie); border-radius: 12px; background: var(--grund); color: inherit; resize: vertical; }
+        #notizDialog .paar { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+    </style>
+</head>
+<body>
+<main>
+    <div id="laden" class="mitte leise">Lade Karten …</div>
+
+    <div id="panne" class="mitte" hidden>
+        <p>Die Karten ließen sich nicht laden. Wahrscheinlich fehlt gerade das Netz.</p>
+        <button id="nochmal" type="button">Noch einmal versuchen</button>
+    </div>
+
+    <div id="anmelden" class="mitte" hidden>
+        <h1>Lernkarten</h1>
+        <p class="leise">Mit deinem Konto vom Familien-Planer.</p>
+        <form id="anmeldeform">
+            <label>E-Mail <input id="email" type="email" autocomplete="username" required></label>
+            <label>Passwort <input id="passwort" type="password" autocomplete="current-password" required></label>
+            <p id="anmeldefehler" class="fehler" role="alert"></p>
+            <button id="anmeldeknopf">Anmelden</button>
+        </form>
+    </div>
+
+    <div id="start" class="mitte" hidden>
+        <h1>Lernkarten</h1>
+        <div class="zahlen">
+            <div class="zahl"><b id="zahlFaellig">0</b>fällig</div>
+            <div class="zahl"><b id="zahlNeu">0</b>neu</div>
+        </div>
+        <button id="los" type="button">Los</button>
+        <button id="extra" class="zweit" type="button" hidden></button>
+        <div>
+            <div class="regler"><span>Neue Karten am Tag</span>
+                <div><button id="weniger" type="button" aria-label="Weniger neue Karten">−</button><output id="limitWert">8</output><button id="mehr" type="button" aria-label="Mehr neue Karten">+</button></div>
+            </div>
+            <p id="wartend" class="leise"></p>
+        </div>
+        <p id="standzeile" class="leise" role="status"></p>
+        <div class="fussreihe"><button id="notizFrei" class="zweit" type="button">✎ Notiz</button><a href="../apps/">Alle Apps</a></div>
+    </div>
+
+    <div id="karte" hidden>
+        <div class="kopf">
+            <button id="abbrechen" class="schlicht" type="button" aria-label="Lernen beenden">✕</button>
+            <span id="zaehler" class="leise"></span>
+            <span class="rechts">
+                <button id="notizKnopf" class="schlicht" type="button" aria-label="Notiz zu dieser Karte">✎</button>
+                <button id="frageKnopf" class="schlicht" type="button" aria-label="Karte passt nicht, später am PC ansehen">?</button>
+            </span>
+        </div>
+        <div class="balken"><i id="fortschritt"></i></div>
+        <div id="blatt"><div id="buehne" aria-live="polite"></div></div>
+        <div class="knoepfe">
+            <button id="zeigen" type="button">Antwort zeigen</button>
+            <div id="urteil" class="paar" hidden>
+                <button id="schlecht" type="button">← Falsch</button>
+                <button id="gut" type="button">Richtig →</button>
+            </div>
+            <button id="weiter" type="button" hidden>Weiter</button>
+        </div>
+    </div>
+
+    <div id="fertig" class="mitte" hidden>
+        <h1>Geschafft</h1>
+        <p id="fertigText"></p>
+        <p id="fertigStufen" class="leise"></p>
+        <button id="zurueckStart" type="button">Zur Übersicht</button>
+        <button id="extraFertig" class="zweit" type="button" hidden></button>
+    </div>
+
+    <dialog id="notizDialog" aria-labelledby="notizTitel">
+        <form method="dialog">
+            <h2 id="notizTitel">Notiz</h2>
+            <p id="notizBezug" class="leise"></p>
+            <textarea id="notizText" rows="6" maxlength="4000" aria-labelledby="notizTitel" placeholder="Was dir gerade durch den Kopf geht. Am PC wertest du es aus."></textarea>
+            <div class="paar">
+                <button class="zweit" value="abbrechen" formnovalidate>Später</button>
+                <button value="sichern">Speichern</button>
+            </div>
+        </form>
+    </dialog>
+
+    <div id="meldung" hidden><span id="meldungText" role="status"></span><button id="rueckgaengig" class="schlicht" type="button">Rückgängig</button></div>
+</main>
+
+<!-- Feste Versionen mit Prüfsumme: Ändert jemand die Datei im CDN, lädt der Browser sie nicht. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/ts-fsrs@5.3.2/dist/index.umd.js" integrity="sha384-/YXh8FhusioqJIPWKK7Mb3juazG0Hdip+rM8UGTUKxgQpaHrStvcSe64RbXbPHvw" crossorigin="anonymous"></script>
+<script src="logik.js"></script>
+<script src="speicher.js"></script>
+<script src="demo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
